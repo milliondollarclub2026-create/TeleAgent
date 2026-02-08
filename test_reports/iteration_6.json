@@ -1,0 +1,97 @@
+{
+  "summary": "Tested new agent management flow with 5-step onboarding wizard. Fixed auth issue where /agents/new route was outside DashboardLayout causing 401 errors. All 22 backend tests pass (100%). Frontend: Login redirects to /agents, 5-step wizard works, chat simulator functional, navigation works.",
+  
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "passed_tests": [
+    "Login redirects to /agents page (not dashboard)",
+    "Agents page shows list of agents with stats (conversations, leads, status)",
+    "New Agent button navigates to /agents/new",
+    "5-step onboarding wizard with progress bar",
+    "Step 1: Business info form (name, description, products)",
+    "Step 2: Knowledge base file upload area",
+    "Step 3: Settings (tone, language, response length, emoji, messages, rate limiting, lead collection)",
+    "Step 4: Chat simulator for testing agent - AI responds correctly",
+    "Step 5: Telegram connection with bot token input",
+    "Back/Continue navigation between steps",
+    "Back button disabled on Step 1",
+    "Finish Setup redirects to /agents with success toast",
+    "Sidebar shows Agents and Leads in main nav",
+    "Backend /api/agents endpoint - returns agent list with stats",
+    "Backend /api/chat/test endpoint - returns AI response with sales_stage, hotness, score",
+    "All 22 backend API tests pass (health, auth, dashboard, leads, config, documents, telegram, integrations, agents, chat/test)"
+  ],
+  
+  "test_report_links": [
+    "/app/backend/tests/test_api_endpoints.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  
+  "action_items": [],
+  
+  "critical_code_review_comments": [
+    "Fixed: /agents/new route was outside DashboardLayout causing 401 Unauthorized errors - moved inside DashboardLayout",
+    "Updated AgentOnboarding.js layout to work within DashboardLayout (removed min-h-screen bg-[#F5F7F6])",
+    "All data-testid attributes properly implemented for testing",
+    "Chat simulator returns generic responses when no documents uploaded - expected behavior per requirements"
+  ],
+  
+  "updated_files": [
+    "/app/frontend/src/App.js - Moved /agents/new route inside DashboardLayout",
+    "/app/frontend/src/pages/AgentOnboarding.js - Updated layout for DashboardLayout compatibility",
+    "/app/backend/tests/test_api_endpoints.py - Added tests for /api/agents and /api/chat/test endpoints"
+  ],
+  
+  "success_rate": {
+    "backend": "100% (22/22 tests passed)",
+    "frontend": "100% (All features working)"
+  },
+  
+  "test_credentials": {
+    "email": "test2@teleagent.uz",
+    "password": "testpass123"
+  },
+  
+  "seed_data_creation": "Created test agent 'Test AI Store Complete' during onboarding wizard testing",
+  
+  "retest_needed": false,
+  
+  "should_main_agent_self_test": true,
+  
+  "context_for_next_testing_agent": "New agent management flow fully tested. Users land on /agents page after login. 5-step onboarding wizard: Business Info -> Knowledge Base -> Settings -> Test Chat -> Connect. Chat simulator uses /api/chat/test endpoint. Bitrix24 is MOCKED (demo mode). Google Sheets not implemented.",
+  
+  "mocked_apis": {
+    "Bitrix24 CRM": "Running in demo mode - /api/bitrix/status returns is_demo: true",
+    "Google Sheets": "Not implemented - button disabled with 'Coming Soon' label"
+  },
+  
+  "features_tested": {
+    "agent_management": {
+      "agents_page": "Shows list of agents with name, status, conversations count, leads count",
+      "empty_state": "Shows CTA to create first agent when no agents exist",
+      "new_agent_button": "Navigates to /agents/new onboarding wizard"
+    },
+    "onboarding_wizard": {
+      "step_1_business": "Business name, description, products/services form",
+      "step_2_knowledge": "File upload area for PDF, Word, Excel, Images, Text (max 10MB)",
+      "step_3_settings": "Tone, language, response length, emoji, greeting/closing messages, rate limiting, lead collection switches",
+      "step_4_test_chat": "Chat simulator with AI responses, debug info panel",
+      "step_5_connect": "Telegram bot token input, Bitrix24 CRM (Coming Soon)"
+    },
+    "navigation": {
+      "back_button": "Works between all steps, disabled on Step 1",
+      "continue_button": "Saves data and advances to next step",
+      "cancel_button": "Returns to /agents page",
+      "finish_button": "Completes setup and redirects to /agents with success toast"
+    }
+  }
+}
