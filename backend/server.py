@@ -1200,7 +1200,7 @@ async def upload_document(
         logger.info(f"Document uploaded: {doc_title}, {len(chunks)} chunks, {file_type}")
         
         return {
-            "id": doc["id"],
+            "id": doc_id,
             "title": doc_title,
             "file_type": file_type,
             "file_size": file_size,
@@ -1225,6 +1225,9 @@ async def delete_document(doc_id: str, current_user: Dict = Depends(get_current_
     if not result.data:
         raise HTTPException(status_code=404, detail="Document not found")
     supabase.table('documents').delete().eq('id', doc_id).execute()
+    # Also remove from cache
+    if doc_id in document_embeddings_cache:
+        del document_embeddings_cache[doc_id]
     return {"success": True}
 
 
@@ -1239,11 +1242,29 @@ async def search_documents(
     Returns the most relevant chunks based on query similarity.
     """
     try:
-        # Get all documents for tenant
-        result = supabase.table('documents').select('chunks').eq('tenant_id', current_user["tenant_id"]).execute()
+        tenant_id = current_user["tenant_id"]
         
-        if not result.data:
-            return {"results": [], "message": "No documents in knowledge base"}
+        # Collect all chunks from memory cache for this tenant
+        all_chunks = []
+        for doc_id, doc_data in document_embeddings_cache.items():
+            if doc_data.get("tenant_id") == tenant_id:
+                all_chunks.extend(doc_data.get("chunks", []))
+        
+        if not all_chunks:
+            return {"results": [], "message": "No documents with embeddings found. Please upload or create documents first.", "total_chunks_searched": 0}
+        
+        # Perform semantic search
+        results = await semantic_search(query, all_chunks, top_k=top_k)
+        
+        return {
+            "results": results,
+            "total_chunks_searched": len(all_chunks),
+            "query": query
+        }
+        
+    except Exception as e:
+        logger.error(f"Search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
         
         # Collect all chunks with embeddings
         all_chunks = []
