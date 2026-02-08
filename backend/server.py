@@ -370,7 +370,7 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict:
 
 # ============ Auth Endpoints ============
 @api_router.post("/auth/register", response_model=AuthResponse)
-async def register(request: RegisterRequest):
+async def register(request: RegisterRequest, background_tasks: BackgroundTasks):
     result = supabase.table('users').select('*').eq('email', request.email).execute()
     if result.data:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -380,10 +380,11 @@ async def register(request: RegisterRequest):
     supabase.table('tenants').insert(tenant).execute()
     
     user_id = str(uuid.uuid4())
+    confirmation_token = generate_confirmation_token()
     user = {
         "id": user_id, "email": request.email, "password_hash": hash_password(request.password),
         "name": request.name, "tenant_id": tenant_id, "role": "admin",
-        "email_confirmed": False, "confirmation_token": generate_confirmation_token(), "created_at": now_iso()
+        "email_confirmed": False, "confirmation_token": confirmation_token, "created_at": now_iso()
     }
     supabase.table('users').insert(user).execute()
     
@@ -397,12 +398,116 @@ async def register(request: RegisterRequest):
     except Exception as e:
         logger.warning(f"Could not create tenant config: {e}")
     
+    # Send confirmation email in background
+    background_tasks.add_task(send_confirmation_email, request.email, request.name, confirmation_token)
+    
     token = create_access_token(user_id, tenant_id, request.email)
     return AuthResponse(
         token=token,
         user={"id": user_id, "email": request.email, "name": request.name, "tenant_id": tenant_id, "business_name": tenant["name"], "email_confirmed": False},
-        message="Account created! A confirmation email has been sent."
+        message="Account created! Please check your email to confirm your account."
     )
+
+
+@api_router.get("/auth/confirm-email")
+async def confirm_email(token: str):
+    """Confirm user email with token"""
+    result = supabase.table('users').select('*').eq('confirmation_token', token).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Invalid or expired confirmation token")
+    
+    user = result.data[0]
+    if user.get('email_confirmed'):
+        return {"message": "Email already confirmed", "redirect": "/login"}
+    
+    # Update user as confirmed
+    supabase.table('users').update({
+        "email_confirmed": True,
+        "confirmation_token": None,
+        "email_confirmed_at": now_iso()
+    }).eq('id', user['id']).execute()
+    
+    return {"message": "Email confirmed successfully! You can now log in.", "redirect": "/login"}
+
+
+@api_router.post("/auth/resend-confirmation")
+async def resend_confirmation(email: EmailStr, background_tasks: BackgroundTasks):
+    """Resend confirmation email"""
+    result = supabase.table('users').select('*').eq('email', email).execute()
+    if not result.data:
+        # Don't reveal if email exists
+        return {"message": "If this email is registered, a confirmation link will be sent."}
+    
+    user = result.data[0]
+    if user.get('email_confirmed'):
+        return {"message": "Email is already confirmed. Please log in."}
+    
+    # Generate new token
+    new_token = generate_confirmation_token()
+    supabase.table('users').update({"confirmation_token": new_token}).eq('id', user['id']).execute()
+    
+    # Send email
+    background_tasks.add_task(send_confirmation_email, email, user.get('name', 'User'), new_token)
+    
+    return {"message": "If this email is registered, a confirmation link will be sent."}
+
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(email: EmailStr, background_tasks: BackgroundTasks):
+    """Request password reset"""
+    result = supabase.table('users').select('*').eq('email', email).execute()
+    
+    # Always return same message to prevent email enumeration
+    response_msg = "If this email is registered, a password reset link will be sent."
+    
+    if not result.data:
+        return {"message": response_msg}
+    
+    user = result.data[0]
+    
+    # Generate reset token with expiry
+    reset_token = generate_confirmation_token()
+    reset_expiry = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    
+    supabase.table('users').update({
+        "reset_token": reset_token,
+        "reset_token_expiry": reset_expiry
+    }).eq('id', user['id']).execute()
+    
+    background_tasks.add_task(send_password_reset_email, email, user.get('name', 'User'), reset_token)
+    
+    return {"message": response_msg}
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@api_router.post("/auth/reset-password")
+async def reset_password(request: ResetPasswordRequest):
+    """Reset password with token"""
+    result = supabase.table('users').select('*').eq('reset_token', request.token).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    user = result.data[0]
+    
+    # Check expiry
+    expiry = user.get('reset_token_expiry')
+    if expiry:
+        expiry_dt = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
+        if datetime.now(timezone.utc) > expiry_dt:
+            raise HTTPException(status_code=400, detail="Reset token has expired. Please request a new one.")
+    
+    # Update password
+    supabase.table('users').update({
+        "password_hash": hash_password(request.new_password),
+        "reset_token": None,
+        "reset_token_expiry": None
+    }).eq('id', user['id']).execute()
+    
+    return {"message": "Password reset successfully. You can now log in."}
 
 
 @api_router.post("/auth/login", response_model=AuthResponse)
@@ -414,6 +519,13 @@ async def login(request: LoginRequest):
     user = result.data[0]
     if not verify_password(request.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Check if email is confirmed
+    if not user.get('email_confirmed', False):
+        raise HTTPException(
+            status_code=403, 
+            detail="Please confirm your email before logging in. Check your inbox or request a new confirmation link."
+        )
     
     tenant_result = supabase.table('tenants').select('*').eq('id', user['tenant_id']).execute()
     tenant = tenant_result.data[0] if tenant_result.data else None
