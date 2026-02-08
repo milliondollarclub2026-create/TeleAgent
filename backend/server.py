@@ -888,30 +888,57 @@ async def call_sales_agent(messages: List[Dict], config: Dict, lead_context: Dic
 # ============ Telegram Webhook Handler ============
 @api_router.post("/telegram/webhook")
 async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Handle incoming Telegram webhook updates"""
     try:
         update = await request.json()
-        logger.info(f"Received Telegram update: {update}")
+        logger.info(f"Received Telegram update: {json.dumps(update, default=str)[:500]}")
         
         message = update.get("message")
-        if not message or not message.get("text"):
+        if not message:
+            logger.debug("No message in update, ignoring")
             return {"ok": True}
         
+        text = message.get("text")
+        if not text:
+            logger.debug("No text in message, ignoring")
+            return {"ok": True}
+        
+        # Get the bot that received this message
+        # We need to identify which bot this came from - Telegram sends bot_id in the update
+        # But since we don't have that, we check all active bots
         result = supabase.table('telegram_bots').select('*').eq('is_active', True).execute()
+        
         if not result.data:
+            logger.warning("No active Telegram bots configured")
             return {"ok": True}
         
+        # For now, process with first active bot (single-tenant scenario)
+        # TODO: In multi-tenant, we'd need to verify the bot_token matches
         bot = result.data[0]
-        supabase.table('telegram_bots').update({"last_webhook_at": now_iso()}).eq('id', bot['id']).execute()
         
+        # Update last webhook timestamp
+        try:
+            supabase.table('telegram_bots').update({"last_webhook_at": now_iso()}).eq('id', bot['id']).execute()
+        except Exception as e:
+            logger.warning(f"Could not update webhook timestamp: {e}")
+        
+        # Process message in background
         background_tasks.add_task(process_telegram_message, bot["tenant_id"], bot["bot_token"], update)
+        return {"ok": True}
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in webhook: {e}")
         return {"ok": True}
     except Exception as e:
         logger.error(f"Webhook error: {e}")
+        import traceback
+        traceback.print_exc()
         return {"ok": True}
 
 
 async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict):
     """Process incoming Telegram message with enhanced sales pipeline"""
+    chat_id = None
     try:
         message = update.get("message", {})
         text = message.get("text", "")
@@ -922,16 +949,30 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
         first_name = from_user.get("first_name")
         language_code = from_user.get("language_code")
         
+        logger.info(f"Processing message from {username or user_id}: '{text[:100]}...' for tenant {tenant_id}")
+        
+        if not chat_id:
+            logger.error("No chat_id in message")
+            return
+        
+        # Send typing indicator
         await send_typing_action(bot_token, chat_id)
         
-        # Get config
+        # Get tenant config
         config_result = supabase.table('tenant_configs').select('*').eq('tenant_id', tenant_id).execute()
         config = config_result.data[0] if config_result.data else {}
         
         # Handle /start command
         if text.strip() == "/start":
-            greeting = config.get("greeting_message") or "Hello! Welcome. How can I help you today?\n\nAssalomu alaykum! Sizga qanday yordam bera olaman?\n\nЗдравствуйте! Чем могу помочь?"
+            business_name = config.get("business_name", "")
+            greeting = config.get("greeting_message")
+            if not greeting:
+                if business_name:
+                    greeting = f"Hello! 👋 Welcome to {business_name}. How can I help you today?\n\nAssalomu alaykum! Sizga qanday yordam bera olaman?\n\nЗдравствуйте! Чем могу помочь?"
+                else:
+                    greeting = "Hello! Welcome. How can I help you today?\n\nAssalomu alaykum! Sizga qanday yordam bera olaman?\n\nЗдравствуйте! Чем могу помочь?"
             await send_telegram_message(bot_token, chat_id, greeting)
+            logger.info(f"Sent greeting to {username or user_id}")
             return
         
         now = now_iso()
@@ -947,6 +988,7 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
                 "segments": [], "first_seen_at": now, "last_seen_at": now
             }
             supabase.table('customers').insert(customer).execute()
+            logger.info(f"Created new customer: {customer['id']}")
         else:
             customer = customer_result.data[0]
             supabase.table('customers').update({"last_seen_at": now}).eq('id', customer['id']).execute()
@@ -957,6 +999,7 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
         if not conv_result.data:
             conversation = {"id": str(uuid.uuid4()), "tenant_id": tenant_id, "customer_id": customer['id'], "status": "active", "started_at": now, "last_message_at": now}
             supabase.table('conversations').insert(conversation).execute()
+            logger.info(f"Created new conversation: {conversation['id']}")
         else:
             conversation = conv_result.data[0]
         
@@ -978,7 +1021,9 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
         }
         
         # Get business context (Semantic RAG)
+        logger.info(f"Fetching RAG context for: '{text[:50]}...'")
         business_context = await get_business_context_semantic(tenant_id, text)
+        logger.info(f"RAG returned {len(business_context)} context chunks")
         
         # Call enhanced LLM
         llm_result = await call_sales_agent(messages_for_llm, config, lead_context, business_context, tenant_id, text)
@@ -987,37 +1032,50 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
         await update_lead_from_llm(tenant_id, customer, existing_lead, llm_result)
         
         # Save agent response
-        supabase.table('messages').insert({"id": str(uuid.uuid4()), "conversation_id": conversation['id'], "sender_type": "agent", "text": llm_result["reply_text"], "created_at": now_iso()}).execute()
+        reply_text = llm_result.get("reply_text", "I'm here to help!")
+        supabase.table('messages').insert({"id": str(uuid.uuid4()), "conversation_id": conversation['id'], "sender_type": "agent", "text": reply_text, "created_at": now_iso()}).execute()
         
         # Update conversation
         supabase.table('conversations').update({"last_message_at": now_iso()}).eq('id', conversation['id']).execute()
         
-        # Send response
-        await send_telegram_message(bot_token, chat_id, llm_result["reply_text"])
+        # Send response to Telegram
+        success = await send_telegram_message(bot_token, chat_id, reply_text)
+        if success:
+            logger.info(f"Sent response to {username or user_id}: '{reply_text[:50]}...'")
+        else:
+            logger.error(f"Failed to send Telegram message to chat {chat_id}")
         
-        # Log event
-        supabase.table('event_logs').insert({
-            "id": str(uuid.uuid4()), "tenant_id": tenant_id, "event_type": "message_processed",
-            "event_data": {
-                "customer_id": customer['id'], "conversation_id": conversation['id'],
-                "sales_stage": llm_result.get("sales_stage"), "hotness": llm_result.get("hotness"),
-                "objection_detected": llm_result.get("objection_detected"),
-                "closing_used": llm_result.get("closing_technique_used")
-            },
-            "created_at": now_iso()
-        }).execute()
+        # Log event (ignore errors)
+        try:
+            supabase.table('event_logs').insert({
+                "id": str(uuid.uuid4()), "tenant_id": tenant_id, "event_type": "message_processed",
+                "event_data": {
+                    "customer_id": customer['id'], "conversation_id": conversation['id'],
+                    "sales_stage": llm_result.get("sales_stage"), "hotness": llm_result.get("hotness"),
+                    "objection_detected": llm_result.get("objection_detected"),
+                    "closing_used": llm_result.get("closing_technique_used"),
+                    "rag_context_used": len(business_context) > 0
+                },
+                "created_at": now_iso()
+            }).execute()
+        except Exception as e:
+            logger.warning(f"Could not log event: {e}")
         
         # Sync to Bitrix if connected
         await sync_lead_to_bitrix(tenant_id, customer, llm_result)
         
     except Exception as e:
-        logger.error(f"Error processing message: {e}")
+        logger.error(f"Error processing Telegram message: {e}")
         import traceback
         traceback.print_exc()
-        try:
-            await send_telegram_message(bot_token, update.get("message", {}).get("chat", {}).get("id"), "I apologize, a technical error occurred. Please try again.")
-        except:
-            pass
+        
+        # Send error message to user
+        if chat_id and bot_token:
+            try:
+                error_msg = "I apologize, I'm having trouble processing your message. Please try again in a moment."
+                await send_telegram_message(bot_token, chat_id, error_msg)
+            except Exception as send_error:
+                logger.error(f"Could not send error message: {send_error}")
 
 
 async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Optional[Dict], llm_result: Dict):
