@@ -553,38 +553,30 @@ You MUST respond with valid JSON in this exact format:
 
 async def get_business_context_semantic(tenant_id: str, query: str, top_k: int = 5) -> List[str]:
     """
-    Semantic RAG - finds relevant context using embeddings.
+    Semantic RAG - finds relevant context using embeddings from memory cache.
     Falls back to keyword matching if no embeddings available.
     """
     try:
-        result = supabase.table('documents').select('title, content, chunks').eq('tenant_id', tenant_id).execute()
-        
-        if not result.data:
-            return []
-        
-        # Collect all chunks with embeddings
+        # First check memory cache for embeddings
         all_chunks = []
-        has_embeddings = False
+        for doc_id, doc_data in document_embeddings_cache.items():
+            if doc_data.get("tenant_id") == tenant_id:
+                all_chunks.extend(doc_data.get("chunks", []))
         
-        for doc in result.data:
-            if doc.get("chunks"):
-                try:
-                    chunks = json.loads(doc["chunks"])
-                    all_chunks.extend(chunks)
-                    if chunks and "embedding" in chunks[0]:
-                        has_embeddings = True
-                except:
-                    pass
-        
-        # If we have embeddings, use semantic search
-        if has_embeddings and all_chunks:
+        # If we have chunks with embeddings, use semantic search
+        if all_chunks and all_chunks[0].get("embedding"):
             results = await semantic_search(query, all_chunks, top_k=top_k, min_similarity=0.25)
             return [
                 f"[{r.get('source', 'Document')}] (relevance: {r['similarity']:.0%}): {r['text'][:600]}"
                 for r in results
             ]
         
-        # Fallback to keyword matching for documents without embeddings
+        # Fallback to keyword matching from database
+        result = supabase.table('documents').select('title, content').eq('tenant_id', tenant_id).execute()
+        
+        if not result.data:
+            return []
+        
         context = []
         query_words = set(query.lower().split())
         
