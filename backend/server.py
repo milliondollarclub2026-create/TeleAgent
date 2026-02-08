@@ -902,6 +902,112 @@ async def get_leads_per_day(days: int = 7, current_user: Dict = Depends(get_curr
     return [LeadsPerDay(date=(datetime.now(timezone.utc) - timedelta(days=days-1-i)).strftime("%Y-%m-%d"), **daily_stats.get((datetime.now(timezone.utc) - timedelta(days=days-1-i)).strftime("%Y-%m-%d"), {"count": 0, "hot": 0, "warm": 0, "cold": 0})) for i in range(days)]
 
 
+@api_router.get("/dashboard/analytics")
+async def get_agent_analytics(days: int = 7, current_user: Dict = Depends(get_current_user)):
+    """
+    Comprehensive analytics for the agent performance dashboard.
+    Returns conversation stats, lead insights, top products, and score distribution.
+    """
+    tenant_id = current_user["tenant_id"]
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    prev_start_date = (datetime.now(timezone.utc) - timedelta(days=days*2)).isoformat()
+    
+    # Current period data
+    conversations = supabase.table('conversations').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date).execute()
+    leads = supabase.table('leads').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date).execute()
+    messages = supabase.table('messages').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date).execute()
+    
+    # Previous period for comparison
+    prev_conversations = supabase.table('conversations').select('id', count='exact').eq('tenant_id', tenant_id).gte('created_at', prev_start_date).lt('created_at', start_date).execute()
+    prev_leads = supabase.table('leads').select('id', count='exact').eq('tenant_id', tenant_id).gte('created_at', prev_start_date).lt('created_at', start_date).execute()
+    
+    current_convos = len(conversations.data or [])
+    current_leads = leads.data or []
+    current_messages = messages.data or []
+    prev_convos = prev_conversations.count or 0
+    prev_leads_count = prev_leads.count or 0
+    
+    # Calculate metrics
+    total_leads = len(current_leads)
+    hot_leads = sum(1 for l in current_leads if l.get('final_hotness') == 'hot')
+    warm_leads = sum(1 for l in current_leads if l.get('final_hotness') == 'warm')
+    cold_leads = sum(1 for l in current_leads if l.get('final_hotness') == 'cold')
+    
+    # Conversion rate (qualified or won / total)
+    qualified_leads = sum(1 for l in current_leads if l.get('status') in ['qualified', 'won'])
+    conversion_rate = (qualified_leads / total_leads * 100) if total_leads > 0 else 0
+    
+    # Average response time (mock for now - would need message timestamps)
+    avg_response_time = 2.3  # seconds - placeholder
+    
+    # Calculate changes
+    convos_change = ((current_convos - prev_convos) / prev_convos * 100) if prev_convos > 0 else 0
+    leads_change = ((total_leads - prev_leads_count) / prev_leads_count * 100) if prev_leads_count > 0 else 0
+    
+    # Top products mentioned (from lead intent/product fields)
+    products_count = {}
+    for lead in current_leads:
+        product = lead.get('product') or lead.get('intent') or 'General Inquiry'
+        # Clean up product name
+        product_clean = product[:50] if product else 'General Inquiry'
+        products_count[product_clean] = products_count.get(product_clean, 0) + 1
+    
+    top_products = sorted(products_count.items(), key=lambda x: x[1], reverse=True)[:5]
+    top_products_list = [{"name": p[0], "count": p[1], "percentage": round(p[1] / total_leads * 100, 1) if total_leads > 0 else 0} for p in top_products]
+    
+    # Score distribution
+    score_ranges = {"0-25": 0, "26-50": 0, "51-75": 0, "76-100": 0}
+    for lead in current_leads:
+        score = lead.get('score', 50)
+        if score <= 25:
+            score_ranges["0-25"] += 1
+        elif score <= 50:
+            score_ranges["26-50"] += 1
+        elif score <= 75:
+            score_ranges["51-75"] += 1
+        else:
+            score_ranges["76-100"] += 1
+    
+    # Leads by stage
+    leads_by_stage = {}
+    for stage in SALES_STAGES.keys():
+        leads_by_stage[stage] = sum(1 for l in current_leads if l.get('sales_stage') == stage)
+    
+    # Hotness distribution for chart
+    hotness_distribution = [
+        {"name": "Hot", "value": hot_leads, "color": "#f97316"},
+        {"name": "Warm", "value": warm_leads, "color": "#eab308"},
+        {"name": "Cold", "value": cold_leads, "color": "#3b82f6"}
+    ]
+    
+    # Daily trend
+    daily_trend = {}
+    for lead in current_leads:
+        date_str = lead.get("created_at", "")[:10]
+        if date_str:
+            daily_trend[date_str] = daily_trend.get(date_str, 0) + 1
+    
+    daily_data = []
+    for i in range(days):
+        date = (datetime.now(timezone.utc) - timedelta(days=days-1-i)).strftime("%Y-%m-%d")
+        daily_data.append({"date": date, "leads": daily_trend.get(date, 0)})
+    
+    return {
+        "summary": {
+            "conversations": {"value": current_convos, "change": round(convos_change, 1)},
+            "leads": {"value": total_leads, "change": round(leads_change, 1)},
+            "conversion_rate": {"value": round(conversion_rate, 1), "change": 0},
+            "avg_response_time": {"value": avg_response_time, "change": 0}
+        },
+        "hotness_distribution": hotness_distribution,
+        "score_distribution": score_ranges,
+        "leads_by_stage": leads_by_stage,
+        "top_products": top_products_list,
+        "daily_trend": daily_data,
+        "period_days": days
+    }
+
+
 # ============ Leads Endpoints ============
 @api_router.get("/leads")
 async def get_leads(status: Optional[str] = None, hotness: Optional[str] = None, stage: Optional[str] = None, limit: int = 50, current_user: Dict = Depends(get_current_user)):
