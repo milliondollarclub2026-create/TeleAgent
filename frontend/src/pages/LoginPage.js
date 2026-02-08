@@ -17,12 +17,16 @@ import {
   Zap,
   TrendingUp,
   Users,
-  MessageSquare
+  MessageSquare,
+  CheckCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const API_URL = process.env.REACT_APP_BACKEND_URL;
+
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -30,6 +34,8 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmationMessage, setShowConfirmationMessage] = useState(false);
+  const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
   
   const { login, register } = useAuth();
   const navigate = useNavigate();
@@ -43,15 +49,68 @@ const LoginPage = () => {
       if (isLogin) {
         await login(email, password);
         toast.success('Welcome back!');
+        navigate('/agents');
       } else {
         await register(email, password, name, businessName);
-        toast.success('Account created successfully!');
+        // Show confirmation message instead of navigating
+        setShowConfirmationMessage(true);
+        toast.success('Account created! Please check your email to confirm.');
       }
-      navigate('/dashboard');
     } catch (err) {
       const errorMsg = err.response?.data?.detail || 'An error occurred. Please try again.';
       setError(errorMsg);
-      toast.error(errorMsg);
+      
+      // Check if it's an email confirmation error
+      if (errorMsg.includes('confirm your email')) {
+        toast.error('Please confirm your email first. Check your inbox.');
+      } else {
+        toast.error(errorMsg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    if (!email) {
+      setError('Please enter your email address');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await fetch(`${API_URL}/api/auth/forgot-password?email=${encodeURIComponent(email)}`, {
+        method: 'POST'
+      });
+      
+      if (response.ok) {
+        setForgotPasswordSent(true);
+        toast.success('Password reset link sent! Check your email.');
+      } else {
+        const data = await response.json();
+        toast.info(data.message || 'If this email is registered, a reset link will be sent.');
+        setForgotPasswordSent(true);
+      }
+    } catch (err) {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/auth/resend-confirmation?email=${encodeURIComponent(email)}`, {
+        method: 'POST'
+      });
+      const data = await response.json();
+      toast.success(data.message || 'Confirmation email sent!');
+    } catch (err) {
+      toast.error('Failed to resend. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -62,6 +121,127 @@ const LoginPage = () => {
     { icon: TrendingUp, text: "Lead scoring & pipeline tracking" },
     { icon: Users, text: "CRM integration with Bitrix24" },
   ];
+
+  // Show confirmation message after registration
+  if (showConfirmationMessage) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F7F6] p-4">
+        <Card className="w-full max-w-md bg-white border-slate-200 shadow-sm">
+          <CardContent className="pt-8 pb-8 text-center">
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mail className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Check Your Email</h2>
+            <p className="text-slate-600 mb-6">
+              We've sent a confirmation link to <strong>{email}</strong>. 
+              Please click the link to verify your account.
+            </p>
+            <div className="space-y-3">
+              <Button
+                onClick={() => {
+                  setShowConfirmationMessage(false);
+                  setIsLogin(true);
+                }}
+                className="w-full bg-emerald-600 hover:bg-emerald-700"
+              >
+                Back to Login
+              </Button>
+              <button
+                onClick={handleResendConfirmation}
+                disabled={loading}
+                className="text-sm text-emerald-600 hover:text-emerald-700"
+              >
+                {loading ? 'Sending...' : "Didn't receive it? Resend email"}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show forgot password form
+  if (showForgotPassword) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F7F6] p-4">
+        <Card className="w-full max-w-sm bg-white border-slate-200 shadow-sm">
+          <CardHeader className="space-y-1 pb-4">
+            <CardTitle className="text-xl font-['Plus_Jakarta_Sans'] text-slate-900">
+              Reset Password
+            </CardTitle>
+            <CardDescription className="text-slate-500 text-sm">
+              {forgotPasswordSent 
+                ? "Check your email for a reset link"
+                : "Enter your email to receive a reset link"
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {forgotPasswordSent ? (
+              <div className="text-center">
+                <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-6 h-6 text-emerald-600" />
+                </div>
+                <p className="text-sm text-slate-600 mb-4">
+                  If <strong>{email}</strong> is registered, you'll receive a password reset link shortly.
+                </p>
+                <Button
+                  onClick={() => {
+                    setShowForgotPassword(false);
+                    setForgotPasswordSent(false);
+                  }}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                >
+                  Back to Login
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="reset-email" className="text-slate-700 text-sm">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-9 h-9 border-slate-200"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                {error && (
+                  <div className="p-2.5 rounded-md bg-red-50 border border-red-200 text-red-700 text-xs">
+                    {error}
+                  </div>
+                )}
+                
+                <Button
+                  type="submit"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 h-9 text-sm"
+                  disabled={loading}
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Send Reset Link
+                </Button>
+                
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(false)}
+                  className="w-full text-sm text-slate-500 hover:text-slate-700"
+                >
+                  Back to Login
+                </button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex bg-[#F5F7F6]">
@@ -169,7 +349,19 @@ const LoginPage = () => {
               </div>
               
               <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-slate-700 text-sm">Password</Label>
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="password" className="text-slate-700 text-sm">Password</Label>
+                  {isLogin && (
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="text-xs text-emerald-600 hover:text-emerald-700"
+                      data-testid="forgot-password-btn"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" strokeWidth={1.75} />
                   <Input
@@ -196,6 +388,15 @@ const LoginPage = () => {
               {error && (
                 <div className="p-2.5 rounded-md bg-red-50 border border-red-200 text-red-700 text-xs">
                   {error}
+                  {error.includes('confirm your email') && (
+                    <button
+                      type="button"
+                      onClick={handleResendConfirmation}
+                      className="block mt-1 text-emerald-600 hover:underline"
+                    >
+                      Resend confirmation email
+                    </button>
+                  )}
                 </div>
               )}
 
