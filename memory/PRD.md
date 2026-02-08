@@ -24,6 +24,7 @@
 3. **Semantic RAG System** - OpenAI embeddings with smart chunking
 4. **Chat Simulator** - Browser-based agent testing before deployment
 5. **Sales Pipeline** - 6-stage funnel with objection handling
+6. **Agent Performance Dashboard** - Analytics with charts and KPIs
 
 ---
 
@@ -48,6 +49,11 @@ Login → Agents Page → [Create New Agent] → 5-Step Wizard → Test → Conn
 ---
 
 ## 5-Step Onboarding Wizard
+
+### Header Design (Updated 2026-02-08)
+- Back arrow button on left (navigates to /agents)
+- Title "Create New Agent" with subtitle "Set up your AI sales assistant in minutes"
+- Cancel button on right with outline styling
 
 ### Step 1: Business Info
 - Business Name (required)
@@ -93,6 +99,46 @@ Login → Agents Page → [Create New Agent] → 5-Step Wizard → Test → Conn
 
 ---
 
+## Agent Performance Dashboard
+
+### Overview
+Comprehensive analytics dashboard showing agent performance metrics.
+
+### Components
+1. **Stat Cards** (4 cards):
+   - Conversations (with % change vs last period)
+   - Leads Generated (with % change)
+   - Conversion Rate (%)
+   - Avg Response Time (seconds)
+
+2. **Lead Quality Chart**:
+   - Hot/Warm/Cold distribution
+   - Visual bar with color coding
+
+3. **Score Distribution**:
+   - 76-100 (High Intent)
+   - 51-75 (Medium)
+   - 26-50 (Low)
+   - 0-25 (Very Low)
+
+4. **Top Products Asked**:
+   - Ranked list with count and percentage
+
+5. **Sales Funnel**:
+   - 6 stages: Awareness → Interest → Consideration → Intent → Evaluation → Purchase
+   - Bar chart visualization
+
+6. **Daily Leads Trend**:
+   - Bar chart by day
+
+### Features
+- Period selector: Last 7/14/30/90 days
+- Settings button to edit agent
+- Back navigation to agents list
+- Telegram connection status badge
+
+---
+
 ## RAG System (Semantic Search)
 
 ### Document Processing Pipeline
@@ -100,7 +146,7 @@ Login → Agents Page → [Create New Agent] → 5-Step Wizard → Test → Conn
 2. **Extraction** - PyMuPDF for PDF, python-docx for Word, pandas for Excel, GPT-4V for images
 3. **Chunking** - Smart sentence-based chunking with overlap
 4. **Embedding** - OpenAI text-embedding-3-small (1536 dimensions)
-5. **Storage** - In-memory cache per document
+5. **Storage** - In-memory cache per document (NOT PERSISTENT)
 
 ### Search Flow
 1. User sends message
@@ -112,6 +158,23 @@ Login → Agents Page → [Create New Agent] → 5-Step Wizard → Test → Conn
 ---
 
 ## What's Been Implemented
+
+### 2026-02-08 - Dashboard & Onboarding Fix
+**Agent Performance Dashboard:**
+- Implemented stat cards with period comparison
+- Added Lead Quality, Score Distribution, Top Products charts
+- Sales Funnel with 6 stages
+- Daily Leads Trend chart
+- Period selector (7/14/30/90 days)
+
+**Onboarding Header Redesign:**
+- Added back arrow button on left
+- Title with subtitle
+- Styled Cancel button on right
+
+**Backend Fixes:**
+- Fixed /api/dashboard/analytics endpoint (conversations.started_at not created_at)
+- Added error handling for database queries
 
 ### 2026-02-08 - Major Restructure
 **New Agent Management Flow:**
@@ -131,13 +194,6 @@ Login → Agents Page → [Create New Agent] → 5-Step Wizard → Test → Conn
 - Shows AI responses in real-time
 - Debug panel with stage, hotness, score
 
-**API Endpoints Added:**
-- `/api/agents` - List agents with stats
-- `/api/agents/{id}` - Delete agent
-- `/api/chat/test` - Browser chat testing
-- `/api/documents/upload` - File upload with embedding
-- `/api/documents/search` - Semantic search
-
 ---
 
 ## API Endpoints Reference
@@ -153,6 +209,7 @@ Login → Agents Page → [Create New Agent] → 5-Step Wizard → Test → Conn
 | `/api/telegram/bot` | POST/GET/DELETE | Manage Telegram bot |
 | `/api/telegram/webhook` | POST | Telegram webhook handler |
 | `/api/dashboard/stats` | GET | KPI statistics |
+| `/api/dashboard/analytics` | GET | Comprehensive analytics |
 | `/api/leads` | GET | List leads |
 | `/api/config` | GET/PUT | Tenant configuration |
 | `/api/documents` | GET/POST | Knowledge base |
@@ -168,29 +225,35 @@ Login → Agents Page → [Create New Agent] → 5-Step Wizard → Test → Conn
 
 ---
 
-## Notes
+## Known Issues / Limitations
 
-- **Database**: Supabase PostgreSQL
-- **Embeddings**: Stored in memory cache (not pgvector yet)
+- **RAG Not Persistent**: Embeddings stored in memory cache, lost on server restart
 - **Bitrix24**: MOCKED - Running in demo mode
-- **Google Sheets**: NOT IMPLEMENTED - Button shows "Coming Soon"
+- **Google Sheets**: NOT IMPLEMENTED - Shows "Coming Soon"
 - **Email Confirmation**: Token generated but emails not sent
 
 ---
 
 ## Backlog
 
-### P1 (Next)
-- Persist embeddings to database (add chunks column or use pgvector)
-- Real Bitrix24 OAuth integration
-- Agent detail dashboard (scoped analytics)
+### P1 (Next Priority)
+- Persist embeddings to database (add pgvector or chunks column)
+- Conversation History & Viewer page
+- Follow-up Automation system
 
 ### P2
-- Custom field builder (list-based)
-- Objection handler configuration
-- Google Sheets fallback
+- Human Takeover feature
+- Real Bitrix24 OAuth integration
+- Custom field builder
 
 ### P3
 - Voice message support
 - WhatsApp integration
 - Advanced analytics
+- Multi-user access with roles
+
+---
+
+## Test Reports
+- `/app/test_reports/iteration_7.json` - Latest (100% pass rate)
+- `/app/backend/tests/test_api_endpoints.py` - 23 API tests
