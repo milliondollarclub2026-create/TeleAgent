@@ -914,19 +914,35 @@ async def get_agent_analytics(days: int = 7, current_user: Dict = Depends(get_cu
     
     # Current period data
     # Note: conversations table uses 'started_at' instead of 'created_at'
-    conversations = supabase.table('conversations').select('*').eq('tenant_id', tenant_id).gte('started_at', start_date).execute()
-    leads = supabase.table('leads').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date).execute()
-    messages = supabase.table('messages').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date).execute()
+    try:
+        conversations = supabase.table('conversations').select('*').eq('tenant_id', tenant_id).gte('started_at', start_date).execute()
+    except Exception as e:
+        logger.warning(f"Conversations query error: {e}")
+        conversations = type('obj', (object,), {'data': []})()
+    
+    try:
+        leads = supabase.table('leads').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date).execute()
+    except Exception as e:
+        logger.warning(f"Leads query error: {e}")
+        leads = type('obj', (object,), {'data': []})()
     
     # Previous period for comparison
-    prev_conversations = supabase.table('conversations').select('id', count='exact').eq('tenant_id', tenant_id).gte('started_at', prev_start_date).lt('started_at', start_date).execute()
-    prev_leads = supabase.table('leads').select('id', count='exact').eq('tenant_id', tenant_id).gte('created_at', prev_start_date).lt('created_at', start_date).execute()
+    try:
+        prev_conversations = supabase.table('conversations').select('id', count='exact').eq('tenant_id', tenant_id).gte('started_at', prev_start_date).lt('started_at', start_date).execute()
+        prev_convos = prev_conversations.count or 0
+    except Exception as e:
+        logger.warning(f"Prev conversations query error: {e}")
+        prev_convos = 0
+    
+    try:
+        prev_leads = supabase.table('leads').select('id', count='exact').eq('tenant_id', tenant_id).gte('created_at', prev_start_date).lt('created_at', start_date).execute()
+        prev_leads_count = prev_leads.count or 0
+    except Exception as e:
+        logger.warning(f"Prev leads query error: {e}")
+        prev_leads_count = 0
     
     current_convos = len(conversations.data or [])
     current_leads = leads.data or []
-    current_messages = messages.data or []
-    prev_convos = prev_conversations.count or 0
-    prev_leads_count = prev_leads.count or 0
     
     # Calculate metrics
     total_leads = len(current_leads)
