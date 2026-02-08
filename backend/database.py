@@ -1,4 +1,4 @@
-"""Supabase PostgreSQL Database Configuration"""
+"""Database Configuration for Supabase PostgreSQL"""
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -20,7 +20,7 @@ engine = create_async_engine(
     pool_pre_ping=False,
     echo=False,
     connect_args={
-        "statement_cache_size": 0,
+        "statement_cache_size": 0,  # Required for transaction pooler
         "command_timeout": 30,
     }
 )
