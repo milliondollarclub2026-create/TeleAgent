@@ -1,4 +1,4 @@
-"""AI Sales Agent for Telegram + Bitrix24 - Main Server with Supabase"""
+"""AI Sales Agent for Telegram + Bitrix24 - Main Server with Supabase Client"""
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, Request, BackgroundTasks
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -9,21 +9,13 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func, desc
-from sqlalchemy.orm import selectinload
 import hashlib
 import secrets
 import jwt
 import httpx
 from openai import AsyncOpenAI
 import json
-
-from database import get_db, engine, Base, AsyncSessionLocal
-from models import (
-    Tenant, User, TelegramBot, Customer, Conversation, Message, 
-    Lead, Document, TenantConfig, EventLog
-)
+from supabase import create_client, Client
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -34,6 +26,11 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Initialize Supabase client
+supabase_url = os.environ.get('SUPABASE_URL')
+supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
+supabase: Client = create_client(supabase_url, supabase_key)
 
 app = FastAPI(title="TeleAgent - AI Sales Agent")
 api_router = APIRouter(prefix="/api")
@@ -87,6 +84,10 @@ def verify_token(token: str) -> Optional[Dict]:
 
 def generate_confirmation_token() -> str:
     return secrets.token_urlsafe(32)
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 # ============ Pydantic Models ============
@@ -182,55 +183,51 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict:
 
 # ============ Auth Endpoints ============
 @api_router.post("/auth/register", response_model=AuthResponse)
-async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(request: RegisterRequest):
     # Check if email exists
-    result = await db.execute(select(User).where(User.email == request.email))
-    if result.scalar_one_or_none():
+    result = supabase.table('users').select('*').eq('email', request.email).execute()
+    if result.data:
         raise HTTPException(status_code=400, detail="Email already registered")
     
     # Create tenant
     tenant_id = str(uuid.uuid4())
-    tenant = Tenant(
-        id=tenant_id,
-        name=request.business_name,
-        created_at=datetime.now(timezone.utc)
-    )
-    db.add(tenant)
+    tenant = {
+        "id": tenant_id,
+        "name": request.business_name,
+        "timezone": "Asia/Tashkent",
+        "created_at": now_iso()
+    }
+    supabase.table('tenants').insert(tenant).execute()
     
     # Create user with confirmation token
     user_id = str(uuid.uuid4())
     confirmation_token = generate_confirmation_token()
-    user = User(
-        id=user_id,
-        email=request.email,
-        password_hash=hash_password(request.password),
-        name=request.name,
-        tenant_id=tenant_id,
-        role="admin",
-        email_confirmed=False,
-        confirmation_token=confirmation_token,
-        created_at=datetime.now(timezone.utc)
-    )
-    db.add(user)
+    user = {
+        "id": user_id,
+        "email": request.email,
+        "password_hash": hash_password(request.password),
+        "name": request.name,
+        "tenant_id": tenant_id,
+        "role": "admin",
+        "email_confirmed": False,
+        "confirmation_token": confirmation_token,
+        "created_at": now_iso()
+    }
+    supabase.table('users').insert(user).execute()
     
     # Create default config
-    config = TenantConfig(
-        tenant_id=tenant_id,
-        business_name=request.business_name,
-        collect_phone=True,
-        agent_tone="professional",
-        primary_language="uz",
-        vertical="default"
-    )
-    db.add(config)
-    
-    await db.commit()
+    config = {
+        "tenant_id": tenant_id,
+        "business_name": request.business_name,
+        "collect_phone": True,
+        "agent_tone": "professional",
+        "primary_language": "uz",
+        "vertical": "default"
+    }
+    supabase.table('tenant_configs').insert(config).execute()
     
     # Generate token
     token = create_access_token(user_id, tenant_id, request.email)
-    
-    # TODO: Send confirmation email (for now, auto-confirm)
-    # In production, integrate with email service like SendGrid/Resend
     
     return AuthResponse(
         token=token,
@@ -239,72 +236,77 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
             "email": request.email,
             "name": request.name,
             "tenant_id": tenant_id,
-            "business_name": tenant.name,
+            "business_name": tenant["name"],
             "email_confirmed": False
         },
-        message="Account created. Please check your email to confirm your account."
+        message="Account created! A confirmation email has been sent."
     )
 
 
 @api_router.post("/auth/login", response_model=AuthResponse)
-async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == request.email))
-    user = result.scalar_one_or_none()
+async def login(request: LoginRequest):
+    result = supabase.table('users').select('*').eq('email', request.email).execute()
     
-    if not user or not verify_password(request.password, user.password_hash):
+    if not result.data:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    user = result.data[0]
+    
+    if not verify_password(request.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     # Get tenant
-    tenant_result = await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))
-    tenant = tenant_result.scalar_one_or_none()
+    tenant_result = supabase.table('tenants').select('*').eq('id', user['tenant_id']).execute()
+    tenant = tenant_result.data[0] if tenant_result.data else None
     
-    token = create_access_token(user.id, user.tenant_id, user.email)
+    token = create_access_token(user["id"], user["tenant_id"], user["email"])
     
     return AuthResponse(
         token=token,
         user={
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "tenant_id": user.tenant_id,
-            "business_name": tenant.name if tenant else None,
-            "email_confirmed": user.email_confirmed
+            "id": user["id"],
+            "email": user["email"],
+            "name": user.get("name"),
+            "tenant_id": user["tenant_id"],
+            "business_name": tenant["name"] if tenant else None,
+            "email_confirmed": user.get("email_confirmed", False)
         }
     )
 
 
 @api_router.get("/auth/me")
-async def get_me(current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.id == current_user["user_id"]))
-    user = result.scalar_one_or_none()
+async def get_me(current_user: Dict = Depends(get_current_user)):
+    result = supabase.table('users').select('*').eq('id', current_user["user_id"]).execute()
     
-    if not user:
+    if not result.data:
         raise HTTPException(status_code=404, detail="User not found")
     
-    tenant_result = await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))
-    tenant = tenant_result.scalar_one_or_none()
+    user = result.data[0]
+    tenant_result = supabase.table('tenants').select('*').eq('id', user['tenant_id']).execute()
+    tenant = tenant_result.data[0] if tenant_result.data else None
     
     return {
-        "id": user.id,
-        "email": user.email,
-        "name": user.name,
-        "tenant_id": user.tenant_id,
-        "business_name": tenant.name if tenant else None,
-        "email_confirmed": user.email_confirmed
+        "id": user["id"],
+        "email": user["email"],
+        "name": user.get("name"),
+        "tenant_id": user["tenant_id"],
+        "business_name": tenant["name"] if tenant else None,
+        "email_confirmed": user.get("email_confirmed", False)
     }
 
 
 @api_router.get("/auth/confirm/{token}")
-async def confirm_email(token: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.confirmation_token == token))
-    user = result.scalar_one_or_none()
+async def confirm_email(token: str):
+    result = supabase.table('users').select('*').eq('confirmation_token', token).execute()
     
-    if not user:
+    if not result.data:
         raise HTTPException(status_code=400, detail="Invalid confirmation token")
     
-    user.email_confirmed = True
-    user.confirmation_token = None
-    await db.commit()
+    user = result.data[0]
+    supabase.table('users').update({
+        "email_confirmed": True,
+        "confirmation_token": None
+    }).eq('id', user['id']).execute()
     
     return {"message": "Email confirmed successfully"}
 
@@ -379,7 +381,7 @@ async def send_typing_action(bot_token: str, chat_id: int) -> bool:
 
 # ============ Telegram Bot Endpoints ============
 @api_router.post("/telegram/bot", response_model=TelegramBotResponse)
-async def connect_telegram_bot(request: TelegramBotCreate, current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def connect_telegram_bot(request: TelegramBotCreate, current_user: Dict = Depends(get_current_user)):
     bot_info = await get_bot_info(request.bot_token)
     if not bot_info:
         raise HTTPException(status_code=400, detail="Invalid bot token")
@@ -389,33 +391,28 @@ async def connect_telegram_bot(request: TelegramBotCreate, current_user: Dict = 
     webhook_url = f"{backend_url}/api/telegram/webhook"
     
     # Check existing
-    result = await db.execute(select(TelegramBot).where(TelegramBot.tenant_id == tenant_id))
-    existing = result.scalar_one_or_none()
+    result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
     
-    bot_id = existing.id if existing else str(uuid.uuid4())
+    bot_id = result.data[0]['id'] if result.data else str(uuid.uuid4())
     
-    if existing:
-        existing.bot_token = request.bot_token
-        existing.bot_username = bot_info.get("username")
-        existing.webhook_url = webhook_url
-        existing.is_active = True
+    bot_data = {
+        "id": bot_id,
+        "tenant_id": tenant_id,
+        "bot_token": request.bot_token,
+        "bot_username": bot_info.get("username"),
+        "webhook_url": webhook_url,
+        "is_active": True,
+        "created_at": now_iso()
+    }
+    
+    if result.data:
+        supabase.table('telegram_bots').update(bot_data).eq('id', bot_id).execute()
     else:
-        bot = TelegramBot(
-            id=bot_id,
-            tenant_id=tenant_id,
-            bot_token=request.bot_token,
-            bot_username=bot_info.get("username"),
-            webhook_url=webhook_url,
-            is_active=True,
-            created_at=datetime.now(timezone.utc)
-        )
-        db.add(bot)
-    
-    await db.commit()
+        supabase.table('telegram_bots').insert(bot_data).execute()
     
     # Set webhook
-    result = await set_telegram_webhook(request.bot_token, webhook_url)
-    logger.info(f"Webhook set result: {result}")
+    webhook_result = await set_telegram_webhook(request.bot_token, webhook_url)
+    logger.info(f"Webhook set result: {webhook_result}")
     
     return TelegramBotResponse(
         id=bot_id,
@@ -427,73 +424,36 @@ async def connect_telegram_bot(request: TelegramBotCreate, current_user: Dict = 
 
 
 @api_router.get("/telegram/bot")
-async def get_telegram_bot(current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(TelegramBot).where(TelegramBot.tenant_id == current_user["tenant_id"]))
-    bot = result.scalar_one_or_none()
+async def get_telegram_bot(current_user: Dict = Depends(get_current_user)):
+    result = supabase.table('telegram_bots').select('*').eq('tenant_id', current_user["tenant_id"]).execute()
     
-    if not bot:
+    if not result.data:
         return None
     
+    bot = result.data[0]
     return {
-        "id": bot.id,
-        "bot_username": bot.bot_username,
-        "is_active": bot.is_active,
-        "webhook_url": bot.webhook_url,
-        "last_webhook_at": bot.last_webhook_at.isoformat() if bot.last_webhook_at else None
+        "id": bot["id"],
+        "bot_username": bot.get("bot_username"),
+        "is_active": bot.get("is_active", False),
+        "webhook_url": bot.get("webhook_url"),
+        "last_webhook_at": bot.get("last_webhook_at")
     }
 
 
 @api_router.delete("/telegram/bot")
-async def disconnect_telegram_bot(current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(TelegramBot).where(TelegramBot.tenant_id == current_user["tenant_id"]))
-    bot = result.scalar_one_or_none()
+async def disconnect_telegram_bot(current_user: Dict = Depends(get_current_user)):
+    result = supabase.table('telegram_bots').select('*').eq('tenant_id', current_user["tenant_id"]).execute()
     
-    if bot:
-        await delete_telegram_webhook(bot.bot_token)
-        bot.is_active = False
-        await db.commit()
+    if result.data:
+        bot = result.data[0]
+        await delete_telegram_webhook(bot["bot_token"])
+        supabase.table('telegram_bots').update({"is_active": False}).eq('id', bot['id']).execute()
     
     return {"success": True}
 
 
 # ============ LLM Service ============
 def get_system_prompt(config: Optional[Dict] = None) -> str:
-    """
-    Generates the system prompt for the AI Sales Agent.
-    
-    SALES AGENT BEHAVIOR EXPLANATION:
-    ================================
-    The AI Sales Agent operates as a professional salesperson with these key behaviors:
-    
-    1. GOAL HIERARCHY:
-       - First: Understand customer needs through targeted questions
-       - Second: Propose appropriate products/services from the business catalog
-       - Third: Close the sale or get commitment (booking, order, appointment)
-       - Fourth: If not ready to buy, gather qualification data and classify lead
-    
-    2. COMMUNICATION STYLE:
-       - Multilingual: Responds in customer's preferred language (Uzbek/Russian/English)
-       - Concise: Avoids long paragraphs, uses clear bullet points
-       - Professional yet warm: Adapts tone based on config
-       - Proactive: Asks targeted questions to understand needs
-    
-    3. LEAD CLASSIFICATION LOGIC:
-       - HOT: Customer explicitly wants to buy NOW, has budget, ready to proceed
-       - WARM: Interested but needs more info, comparing options, timeline unclear
-       - COLD: Just browsing, no clear interest, or explicitly not interested
-       - Agent provides explanation for each classification
-    
-    4. DATA COLLECTION:
-       - Name, phone (if enabled), product interest
-       - Budget, timeline, specific requirements
-       - Objections and concerns for follow-up
-    
-    5. RAG INTEGRATION:
-       - Uses uploaded documents to answer product/service questions
-       - Falls back to asking clarifying questions if info not available
-       - Never invents prices or policies not in knowledge base
-    """
-    
     business_name = config.get('business_name', 'our company') if config else 'our company'
     business_description = config.get('business_description', '') if config else ''
     products_services = config.get('products_services', '') if config else ''
@@ -530,11 +490,6 @@ LEAD CLASSIFICATION:
 - COLD: Just browsing, no clear interest, or explicitly not interested
 - When in doubt, choose WARM or COLD - never fabricate interest
 
-FACTUAL CONSTRAINTS:
-- Only use information from the business context provided
-- If pricing or policy info is missing, give a general answer or ask to confirm
-- Never invent specific numbers or make promises you can't verify
-
 OUTPUT FORMAT (JSON):
 {{
   "reply_text": "Your response to the customer",
@@ -553,41 +508,21 @@ OUTPUT FORMAT (JSON):
 Always respond in the customer's preferred language (Uzbek, Russian, or English)."""
 
 
-async def get_business_context(db: AsyncSession, tenant_id: str, query: str) -> List[str]:
-    """
-    RAG SYSTEM EXPLANATION:
-    =======================
-    Currently implements simple keyword matching for MVP.
-    
-    HOW IT WORKS:
-    1. Fetches all documents for the tenant
-    2. Splits query and document content into words
-    3. Finds documents with matching keywords
-    4. Returns top 5 relevant snippets (500 chars each)
-    
-    SUPPORTED DOCUMENT TYPES:
-    - Text documents (pasted content)
-    - In future: PDF, DOCX, TXT files with text extraction
-    
-    FUTURE IMPROVEMENTS:
-    - Vector embeddings using OpenAI/pgvector
-    - Semantic search for better relevance
-    - Document chunking for large files
-    - Metadata-based filtering
-    """
-    result = await db.execute(select(Document).where(Document.tenant_id == tenant_id))
-    documents = result.scalars().all()
+def get_business_context(tenant_id: str, query: str) -> List[str]:
+    """Simple keyword-based RAG for MVP"""
+    result = supabase.table('documents').select('*').eq('tenant_id', tenant_id).execute()
+    documents = result.data or []
     
     context = []
     query_words = set(query.lower().split())
     
     for doc in documents:
-        if doc.content:
-            doc_words = set(doc.content.lower().split())
-            # Find matching keywords
+        content = doc.get('content', '')
+        if content:
+            doc_words = set(content.lower().split())
             if query_words & doc_words:
-                snippet = doc.content[:500] + "..." if len(doc.content) > 500 else doc.content
-                context.append(f"[{doc.title}]: {snippet}")
+                snippet = content[:500] + "..." if len(content) > 500 else content
+                context.append(f"[{doc.get('title', 'Document')}]: {snippet}")
     
     return context[:5]
 
@@ -596,7 +531,6 @@ async def call_sales_agent(messages: List[Dict], config: Optional[Dict] = None, 
     try:
         system_prompt = get_system_prompt(config)
         
-        # Add business context to system prompt
         if business_context:
             context_text = "\n\nRELEVANT BUSINESS INFORMATION:\n" + "\n".join(business_context)
             system_prompt += context_text
@@ -629,13 +563,13 @@ async def call_sales_agent(messages: List[Dict], config: Optional[Dict] = None, 
     except Exception as e:
         logger.error(f"LLM call failed: {str(e)}")
         return {
-            "reply_text": "Kechirasiz, texnik xatolik yuz berdi. / Извините, произошла техническая ошибка. / Sorry, a technical error occurred."
+            "reply_text": "Kechirasiz, texnik xatolik yuz berdi. / Извините, техническая ошибка. / Sorry, technical error."
         }
 
 
 # ============ Telegram Webhook Handler ============
 @api_router.post("/telegram/webhook")
-async def telegram_webhook(request: Request, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
+async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
     try:
         update = await request.json()
         logger.info(f"Received Telegram update: {update}")
@@ -645,18 +579,20 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks, 
             return {"ok": True}
         
         # Get active bot
-        result = await db.execute(select(TelegramBot).where(TelegramBot.is_active == True))
-        bot = result.scalar_one_or_none()
+        result = supabase.table('telegram_bots').select('*').eq('is_active', True).execute()
         
-        if not bot:
+        if not result.data:
             return {"ok": True}
         
+        bot = result.data[0]
+        
         # Update last webhook time
-        bot.last_webhook_at = datetime.now(timezone.utc)
-        await db.commit()
+        supabase.table('telegram_bots').update({
+            "last_webhook_at": now_iso()
+        }).eq('id', bot['id']).execute()
         
         # Process in background
-        background_tasks.add_task(process_telegram_message, bot.tenant_id, bot.bot_token, update)
+        background_tasks.add_task(process_telegram_message, bot["tenant_id"], bot["bot_token"], update)
         
         return {"ok": True}
         
@@ -666,183 +602,161 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks, 
 
 
 async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict):
-    async with AsyncSessionLocal() as db:
-        try:
-            message = update.get("message", {})
-            text = message.get("text", "")
-            chat_id = message.get("chat", {}).get("id")
-            from_user = message.get("from", {})
-            user_id = str(from_user.get("id"))
-            username = from_user.get("username")
-            first_name = from_user.get("first_name")
-            language_code = from_user.get("language_code")
-            
-            await send_typing_action(bot_token, chat_id)
-            
-            # Handle /start command
-            if text.strip() == "/start":
-                config_result = await db.execute(select(TenantConfig).where(TenantConfig.tenant_id == tenant_id))
-                config = config_result.scalar_one_or_none()
-                greeting = config.greeting_message if config and config.greeting_message else None
-                if not greeting:
-                    greeting = "Assalomu alaykum! Men sizga qanday yordam bera olaman?\nЗдравствуйте! Чем могу помочь?\nHello! How can I help you?"
-                await send_telegram_message(bot_token, chat_id, greeting)
-                return
-            
-            # Get or create customer
-            result = await db.execute(
-                select(Customer).where(
-                    and_(Customer.tenant_id == tenant_id, Customer.telegram_user_id == user_id)
-                )
-            )
-            customer = result.scalar_one_or_none()
-            
-            now = datetime.now(timezone.utc)
-            
-            if not customer:
-                # Detect language from Telegram language_code
-                if language_code:
-                    if language_code.startswith('ru'):
-                        primary_lang = 'ru'
-                    elif language_code.startswith('en'):
-                        primary_lang = 'en'
-                    else:
-                        primary_lang = 'uz'
+    try:
+        message = update.get("message", {})
+        text = message.get("text", "")
+        chat_id = message.get("chat", {}).get("id")
+        from_user = message.get("from", {})
+        user_id = str(from_user.get("id"))
+        username = from_user.get("username")
+        first_name = from_user.get("first_name")
+        language_code = from_user.get("language_code")
+        
+        await send_typing_action(bot_token, chat_id)
+        
+        # Handle /start command
+        if text.strip() == "/start":
+            config_result = supabase.table('tenant_configs').select('*').eq('tenant_id', tenant_id).execute()
+            config = config_result.data[0] if config_result.data else None
+            greeting = config.get("greeting_message") if config else None
+            if not greeting:
+                greeting = "Assalomu alaykum! Men sizga qanday yordam bera olaman?\nЗдравствуйте! Чем могу помочь?\nHello! How can I help you?"
+            await send_telegram_message(bot_token, chat_id, greeting)
+            return
+        
+        # Get or create customer
+        customer_result = supabase.table('customers').select('*').eq('tenant_id', tenant_id).eq('telegram_user_id', user_id).execute()
+        
+        now = now_iso()
+        
+        if not customer_result.data:
+            # Detect language
+            if language_code:
+                if language_code.startswith('ru'):
+                    primary_lang = 'ru'
+                elif language_code.startswith('en'):
+                    primary_lang = 'en'
                 else:
                     primary_lang = 'uz'
-                    
-                customer = Customer(
-                    id=str(uuid.uuid4()),
-                    tenant_id=tenant_id,
-                    telegram_user_id=user_id,
-                    telegram_username=username,
-                    name=first_name,
-                    primary_language=primary_lang,
-                    segments=[],
-                    first_seen_at=now,
-                    last_seen_at=now
-                )
-                db.add(customer)
             else:
-                customer.last_seen_at = now
-            
-            # Get or create conversation
-            conv_result = await db.execute(
-                select(Conversation).where(
-                    and_(
-                        Conversation.tenant_id == tenant_id,
-                        Conversation.customer_id == customer.id,
-                        Conversation.status == 'active'
-                    )
-                )
+                primary_lang = 'uz'
+                
+            customer = {
+                "id": str(uuid.uuid4()),
+                "tenant_id": tenant_id,
+                "telegram_user_id": user_id,
+                "telegram_username": username,
+                "name": first_name,
+                "primary_language": primary_lang,
+                "segments": [],
+                "first_seen_at": now,
+                "last_seen_at": now
+            }
+            supabase.table('customers').insert(customer).execute()
+        else:
+            customer = customer_result.data[0]
+            supabase.table('customers').update({"last_seen_at": now}).eq('id', customer['id']).execute()
+        
+        # Get or create conversation
+        conv_result = supabase.table('conversations').select('*').eq('tenant_id', tenant_id).eq('customer_id', customer['id']).eq('status', 'active').execute()
+        
+        if not conv_result.data:
+            conversation = {
+                "id": str(uuid.uuid4()),
+                "tenant_id": tenant_id,
+                "customer_id": customer['id'],
+                "status": "active",
+                "started_at": now,
+                "last_message_at": now
+            }
+            supabase.table('conversations').insert(conversation).execute()
+        else:
+            conversation = conv_result.data[0]
+        
+        # Save incoming message
+        incoming_msg = {
+            "id": str(uuid.uuid4()),
+            "conversation_id": conversation['id'],
+            "sender_type": "user",
+            "text": text,
+            "created_at": now
+        }
+        supabase.table('messages').insert(incoming_msg).execute()
+        
+        # Get conversation history
+        history_result = supabase.table('messages').select('*').eq('conversation_id', conversation['id']).order('created_at', desc=True).limit(10).execute()
+        history = list(reversed(history_result.data or []))
+        
+        messages_for_llm = [
+            {"role": "assistant" if m["sender_type"] == "agent" else "user", "text": m["text"]}
+            for m in history
+        ]
+        
+        # Get config
+        config_result = supabase.table('tenant_configs').select('*').eq('tenant_id', tenant_id).execute()
+        config = config_result.data[0] if config_result.data else None
+        config_dict = {
+            "business_name": config.get("business_name") if config else None,
+            "business_description": config.get("business_description") if config else None,
+            "products_services": config.get("products_services") if config else None,
+            "collect_phone": config.get("collect_phone", True) if config else True,
+            "agent_tone": config.get("agent_tone", "professional") if config else "professional"
+        }
+        
+        # Get business context (RAG)
+        business_context = get_business_context(tenant_id, text)
+        
+        # Call LLM
+        llm_result = await call_sales_agent(messages_for_llm, config_dict, business_context)
+        
+        # Process actions
+        if llm_result.get("actions"):
+            for action in llm_result["actions"]:
+                if action.get("type") == "create_or_update_lead":
+                    process_lead_action(tenant_id, customer, action)
+        
+        # Save agent response
+        agent_msg = {
+            "id": str(uuid.uuid4()),
+            "conversation_id": conversation['id'],
+            "sender_type": "agent",
+            "text": llm_result["reply_text"],
+            "created_at": now_iso()
+        }
+        supabase.table('messages').insert(agent_msg).execute()
+        
+        # Update conversation
+        supabase.table('conversations').update({"last_message_at": now_iso()}).eq('id', conversation['id']).execute()
+        
+        # Send response
+        await send_telegram_message(bot_token, chat_id, llm_result["reply_text"])
+        
+        # Log event
+        event = {
+            "id": str(uuid.uuid4()),
+            "tenant_id": tenant_id,
+            "event_type": "message_processed",
+            "event_data": {"customer_id": customer['id'], "conversation_id": conversation['id']},
+            "created_at": now_iso()
+        }
+        supabase.table('event_logs').insert(event).execute()
+        
+    except Exception as e:
+        logger.error(f"Error processing message: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        try:
+            await send_telegram_message(
+                bot_token, 
+                update.get("message", {}).get("chat", {}).get("id"),
+                "Kechirasiz, texnik xatolik yuz berdi. / Извините, техническая ошибка. / Sorry, technical error."
             )
-            conversation = conv_result.scalar_one_or_none()
-            
-            if not conversation:
-                conversation = Conversation(
-                    id=str(uuid.uuid4()),
-                    tenant_id=tenant_id,
-                    customer_id=customer.id,
-                    status='active',
-                    started_at=now,
-                    last_message_at=now
-                )
-                db.add(conversation)
-            
-            # Save incoming message
-            incoming_msg = Message(
-                id=str(uuid.uuid4()),
-                conversation_id=conversation.id,
-                sender_type="user",
-                text=text,
-                created_at=now
-            )
-            db.add(incoming_msg)
-            
-            await db.commit()
-            
-            # Get conversation history
-            history_result = await db.execute(
-                select(Message)
-                .where(Message.conversation_id == conversation.id)
-                .order_by(desc(Message.created_at))
-                .limit(10)
-            )
-            history = list(reversed(history_result.scalars().all()))
-            
-            messages_for_llm = [
-                {"role": "assistant" if m.sender_type == "agent" else "user", "text": m.text}
-                for m in history
-            ]
-            
-            # Get config
-            config_result = await db.execute(select(TenantConfig).where(TenantConfig.tenant_id == tenant_id))
-            config = config_result.scalar_one_or_none()
-            config_dict = {
-                "business_name": config.business_name if config else None,
-                "business_description": config.business_description if config else None,
-                "products_services": config.products_services if config else None,
-                "collect_phone": config.collect_phone if config else True,
-                "agent_tone": config.agent_tone if config else "professional"
-            } if config else None
-            
-            # Get business context (RAG)
-            business_context = await get_business_context(db, tenant_id, text)
-            
-            # Call LLM
-            llm_result = await call_sales_agent(messages_for_llm, config_dict, business_context)
-            
-            # Process actions
-            if llm_result.get("actions"):
-                for action in llm_result["actions"]:
-                    if action.get("type") == "create_or_update_lead":
-                        await process_lead_action(db, tenant_id, customer, action)
-            
-            # Save agent response
-            agent_msg = Message(
-                id=str(uuid.uuid4()),
-                conversation_id=conversation.id,
-                sender_type="agent",
-                text=llm_result["reply_text"],
-                created_at=datetime.now(timezone.utc)
-            )
-            db.add(agent_msg)
-            
-            # Update conversation
-            conversation.last_message_at = datetime.now(timezone.utc)
-            
-            await db.commit()
-            
-            # Send response
-            await send_telegram_message(bot_token, chat_id, llm_result["reply_text"])
-            
-            # Log event
-            event = EventLog(
-                id=str(uuid.uuid4()),
-                tenant_id=tenant_id,
-                event_type="message_processed",
-                event_data={"customer_id": customer.id, "conversation_id": conversation.id},
-                created_at=datetime.now(timezone.utc)
-            )
-            db.add(event)
-            await db.commit()
-            
-        except Exception as e:
-            logger.error(f"Error processing message: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            try:
-                await send_telegram_message(
-                    bot_token, 
-                    update.get("message", {}).get("chat", {}).get("id"),
-                    "Kechirasiz, texnik xatolik yuz berdi. / Извините, техническая ошибка. / Sorry, technical error."
-                )
-            except Exception:
-                pass
+        except Exception:
+            pass
 
 
-async def process_lead_action(db: AsyncSession, tenant_id: str, customer: Customer, action: Dict):
-    now = datetime.now(timezone.utc)
+def process_lead_action(tenant_id: str, customer: Dict, action: Dict):
+    now = now_iso()
     
     hotness = action.get("hotness", "warm")
     score = action.get("score", 50)
@@ -851,82 +765,70 @@ async def process_lead_action(db: AsyncSession, tenant_id: str, customer: Custom
     fields = action.get("fields", {})
     
     # Check for existing lead
-    result = await db.execute(
-        select(Lead).where(
-            and_(Lead.tenant_id == tenant_id, Lead.customer_id == customer.id)
-        )
-    )
-    existing_lead = result.scalar_one_or_none()
+    result = supabase.table('leads').select('*').eq('tenant_id', tenant_id).eq('customer_id', customer['id']).execute()
     
-    if existing_lead:
-        existing_lead.llm_hotness_suggestion = hotness
-        existing_lead.final_hotness = hotness
-        existing_lead.score = score
-        existing_lead.intent = intent
-        existing_lead.llm_explanation = explanation
-        existing_lead.product = fields.get("product")
-        existing_lead.budget = fields.get("budget")
-        existing_lead.timeline = fields.get("timeline")
-        existing_lead.additional_notes = fields.get("additional_notes")
-        existing_lead.last_interaction_at = now
+    lead_data = {
+        "tenant_id": tenant_id,
+        "customer_id": customer['id'],
+        "status": "new",
+        "llm_hotness_suggestion": hotness,
+        "final_hotness": hotness,
+        "score": score,
+        "intent": intent,
+        "llm_explanation": explanation,
+        "product": fields.get("product"),
+        "budget": fields.get("budget"),
+        "timeline": fields.get("timeline"),
+        "additional_notes": fields.get("additional_notes"),
+        "source_channel": "telegram",
+        "last_interaction_at": now
+    }
+    
+    if result.data:
+        supabase.table('leads').update(lead_data).eq('id', result.data[0]['id']).execute()
     else:
-        lead = Lead(
-            id=str(uuid.uuid4()),
-            tenant_id=tenant_id,
-            customer_id=customer.id,
-            status="new",
-            llm_hotness_suggestion=hotness,
-            final_hotness=hotness,
-            score=score,
-            intent=intent,
-            llm_explanation=explanation,
-            product=fields.get("product"),
-            budget=fields.get("budget"),
-            timeline=fields.get("timeline"),
-            additional_notes=fields.get("additional_notes"),
-            source_channel="telegram",
-            created_at=now,
-            last_interaction_at=now
-        )
-        db.add(lead)
+        lead_data["id"] = str(uuid.uuid4())
+        lead_data["created_at"] = now
+        supabase.table('leads').insert(lead_data).execute()
     
     # Update customer info
+    updates = {}
     if fields.get("name"):
-        customer.name = fields["name"]
+        updates["name"] = fields["name"]
     if fields.get("phone"):
-        customer.phone = fields["phone"]
+        updates["phone"] = fields["phone"]
+    
+    if updates:
+        supabase.table('customers').update(updates).eq('id', customer['id']).execute()
 
 
 # ============ Dashboard Endpoints ============
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
-async def get_dashboard_stats(current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_dashboard_stats(current_user: Dict = Depends(get_current_user)):
     tenant_id = current_user["tenant_id"]
-    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     
-    conv_result = await db.execute(select(func.count(Conversation.id)).where(Conversation.tenant_id == tenant_id))
-    total_conversations = conv_result.scalar() or 0
+    conv_result = supabase.table('conversations').select('id', count='exact').eq('tenant_id', tenant_id).execute()
+    total_conversations = conv_result.count or 0
     
-    leads_result = await db.execute(select(func.count(Lead.id)).where(Lead.tenant_id == tenant_id))
-    total_leads = leads_result.scalar() or 0
+    leads_result = supabase.table('leads').select('id', count='exact').eq('tenant_id', tenant_id).execute()
+    total_leads = leads_result.count or 0
     
-    hot_result = await db.execute(select(func.count(Lead.id)).where(and_(Lead.tenant_id == tenant_id, Lead.final_hotness == "hot")))
-    hot_leads = hot_result.scalar() or 0
+    hot_result = supabase.table('leads').select('id', count='exact').eq('tenant_id', tenant_id).eq('final_hotness', 'hot').execute()
+    hot_leads = hot_result.count or 0
     
-    warm_result = await db.execute(select(func.count(Lead.id)).where(and_(Lead.tenant_id == tenant_id, Lead.final_hotness == "warm")))
-    warm_leads = warm_result.scalar() or 0
+    warm_result = supabase.table('leads').select('id', count='exact').eq('tenant_id', tenant_id).eq('final_hotness', 'warm').execute()
+    warm_leads = warm_result.count or 0
     
-    cold_result = await db.execute(select(func.count(Lead.id)).where(and_(Lead.tenant_id == tenant_id, Lead.final_hotness == "cold")))
-    cold_leads = cold_result.scalar() or 0
+    cold_result = supabase.table('leads').select('id', count='exact').eq('tenant_id', tenant_id).eq('final_hotness', 'cold').execute()
+    cold_leads = cold_result.count or 0
     
-    returning_result = await db.execute(
-        select(func.count(Customer.id)).where(
-            and_(Customer.tenant_id == tenant_id, Customer.first_seen_at != Customer.last_seen_at)
-        )
-    )
-    returning_customers = returning_result.scalar() or 0
+    # Returning customers (rough approximation)
+    customers_result = supabase.table('customers').select('*').eq('tenant_id', tenant_id).execute()
+    returning_customers = sum(1 for c in (customers_result.data or []) if c.get('first_seen_at') != c.get('last_seen_at'))
     
-    today_result = await db.execute(select(func.count(Lead.id)).where(and_(Lead.tenant_id == tenant_id, Lead.created_at >= today)))
-    leads_today = today_result.scalar() or 0
+    today_result = supabase.table('leads').select('id', count='exact').eq('tenant_id', tenant_id).gte('created_at', today).execute()
+    leads_today = today_result.count or 0
     
     return DashboardStats(
         total_conversations=total_conversations,
@@ -940,23 +842,22 @@ async def get_dashboard_stats(current_user: Dict = Depends(get_current_user), db
 
 
 @api_router.get("/dashboard/leads-per-day", response_model=List[LeadsPerDay])
-async def get_leads_per_day(days: int = 7, current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_leads_per_day(days: int = 7, current_user: Dict = Depends(get_current_user)):
     tenant_id = current_user["tenant_id"]
-    start_date = datetime.now(timezone.utc) - timedelta(days=days)
+    start_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     
-    result = await db.execute(
-        select(Lead).where(and_(Lead.tenant_id == tenant_id, Lead.created_at >= start_date)).order_by(Lead.created_at)
-    )
-    leads = result.scalars().all()
+    result = supabase.table('leads').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date).order('created_at').execute()
+    leads = result.data or []
     
     daily_stats = {}
     for lead in leads:
-        date_str = lead.created_at.strftime("%Y-%m-%d")
+        date_str = lead["created_at"][:10]
         if date_str not in daily_stats:
             daily_stats[date_str] = {"count": 0, "hot": 0, "warm": 0, "cold": 0}
         daily_stats[date_str]["count"] += 1
-        if lead.final_hotness in daily_stats[date_str]:
-            daily_stats[date_str][lead.final_hotness] += 1
+        hotness = lead.get("final_hotness", "warm")
+        if hotness in daily_stats[date_str]:
+            daily_stats[date_str][hotness] += 1
     
     result_list = []
     for i in range(days):
@@ -969,173 +870,148 @@ async def get_leads_per_day(days: int = 7, current_user: Dict = Depends(get_curr
 
 # ============ Leads Endpoints ============
 @api_router.get("/leads", response_model=List[LeadResponse])
-async def get_leads(status: Optional[str] = None, hotness: Optional[str] = None, limit: int = 50, current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_leads(status: Optional[str] = None, hotness: Optional[str] = None, limit: int = 50, current_user: Dict = Depends(get_current_user)):
     tenant_id = current_user["tenant_id"]
     
-    query = select(Lead).where(Lead.tenant_id == tenant_id)
+    query = supabase.table('leads').select('*').eq('tenant_id', tenant_id)
     if status:
-        query = query.where(Lead.status == status)
+        query = query.eq('status', status)
     if hotness:
-        query = query.where(Lead.final_hotness == hotness)
+        query = query.eq('final_hotness', hotness)
     
-    query = query.order_by(desc(Lead.created_at)).limit(limit)
-    result = await db.execute(query)
-    leads = result.scalars().all()
+    result = query.order('created_at', desc=True).limit(limit).execute()
+    leads = result.data or []
     
     response = []
     for lead in leads:
-        cust_result = await db.execute(select(Customer).where(Customer.id == lead.customer_id))
-        customer = cust_result.scalar_one_or_none()
+        cust_result = supabase.table('customers').select('*').eq('id', lead['customer_id']).execute()
+        customer = cust_result.data[0] if cust_result.data else None
         response.append(LeadResponse(
-            id=lead.id,
-            customer_name=customer.name if customer else None,
-            customer_phone=customer.phone if customer else None,
-            status=lead.status,
-            final_hotness=lead.final_hotness,
-            score=lead.score,
-            intent=lead.intent,
-            product=lead.product,
-            llm_explanation=lead.llm_explanation,
-            source_channel=lead.source_channel,
-            created_at=lead.created_at.isoformat(),
-            last_interaction_at=lead.last_interaction_at.isoformat()
+            id=lead["id"],
+            customer_name=customer.get("name") if customer else None,
+            customer_phone=customer.get("phone") if customer else None,
+            status=lead.get("status", "new"),
+            final_hotness=lead.get("final_hotness", "warm"),
+            score=lead.get("score", 50),
+            intent=lead.get("intent"),
+            product=lead.get("product"),
+            llm_explanation=lead.get("llm_explanation"),
+            source_channel=lead.get("source_channel", "telegram"),
+            created_at=lead.get("created_at", ""),
+            last_interaction_at=lead.get("last_interaction_at", "")
         ))
     
     return response
 
 
 @api_router.put("/leads/{lead_id}/status")
-async def update_lead_status(lead_id: str, status: str, current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Lead).where(and_(Lead.id == lead_id, Lead.tenant_id == current_user["tenant_id"])))
-    lead = result.scalar_one_or_none()
+async def update_lead_status(lead_id: str, status: str, current_user: Dict = Depends(get_current_user)):
+    result = supabase.table('leads').select('*').eq('id', lead_id).eq('tenant_id', current_user["tenant_id"]).execute()
     
-    if not lead:
+    if not result.data:
         raise HTTPException(status_code=404, detail="Lead not found")
     
-    lead.status = status
-    await db.commit()
+    supabase.table('leads').update({"status": status}).eq('id', lead_id).execute()
     
     return {"success": True}
 
 
 # ============ Sales Agent Config Endpoints ============
 @api_router.get("/config")
-async def get_tenant_config(current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(TenantConfig).where(TenantConfig.tenant_id == current_user["tenant_id"]))
-    config = result.scalar_one_or_none()
+async def get_tenant_config(current_user: Dict = Depends(get_current_user)):
+    result = supabase.table('tenant_configs').select('*').eq('tenant_id', current_user["tenant_id"]).execute()
     
-    if not config:
+    if not result.data:
         return {}
     
+    config = result.data[0]
     return {
-        "vertical": config.vertical,
-        "business_name": config.business_name,
-        "business_description": config.business_description,
-        "products_services": config.products_services,
-        "faq_objections": config.faq_objections,
-        "collect_phone": config.collect_phone,
-        "greeting_message": config.greeting_message,
-        "agent_tone": config.agent_tone,
-        "primary_language": config.primary_language
+        "vertical": config.get("vertical"),
+        "business_name": config.get("business_name"),
+        "business_description": config.get("business_description"),
+        "products_services": config.get("products_services"),
+        "faq_objections": config.get("faq_objections"),
+        "collect_phone": config.get("collect_phone", True),
+        "greeting_message": config.get("greeting_message"),
+        "agent_tone": config.get("agent_tone"),
+        "primary_language": config.get("primary_language")
     }
 
 
 @api_router.put("/config")
-async def update_tenant_config(request: TenantConfigUpdate, current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(TenantConfig).where(TenantConfig.tenant_id == current_user["tenant_id"]))
-    config = result.scalar_one_or_none()
-    
-    if not config:
-        config = TenantConfig(tenant_id=current_user["tenant_id"])
-        db.add(config)
+async def update_tenant_config(request: TenantConfigUpdate, current_user: Dict = Depends(get_current_user)):
+    result = supabase.table('tenant_configs').select('*').eq('tenant_id', current_user["tenant_id"]).execute()
     
     update_data = {k: v for k, v in request.model_dump().items() if v is not None}
-    for key, value in update_data.items():
-        setattr(config, key, value)
     
-    await db.commit()
+    if result.data:
+        supabase.table('tenant_configs').update(update_data).eq('tenant_id', current_user["tenant_id"]).execute()
+    else:
+        update_data["tenant_id"] = current_user["tenant_id"]
+        supabase.table('tenant_configs').insert(update_data).execute()
+    
     return {"success": True}
 
 
 # ============ Knowledge Base Endpoints ============
 @api_router.get("/documents")
-async def get_documents(current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """
-    GET ALL DOCUMENTS FOR RAG
-    
-    Currently supports: Text documents (pasted content)
-    Future support: PDF, DOCX, TXT file uploads with extraction
-    """
-    result = await db.execute(select(Document).where(Document.tenant_id == current_user["tenant_id"]).order_by(desc(Document.created_at)))
-    documents = result.scalars().all()
+async def get_documents(current_user: Dict = Depends(get_current_user)):
+    result = supabase.table('documents').select('*').eq('tenant_id', current_user["tenant_id"]).order('created_at', desc=True).execute()
+    documents = result.data or []
     
     return [
         {
-            "id": doc.id,
-            "title": doc.title,
-            "file_type": doc.file_type or "text",
-            "file_size": doc.file_size,
-            "created_at": doc.created_at.isoformat()
+            "id": doc["id"],
+            "title": doc["title"],
+            "file_type": doc.get("file_type", "text"),
+            "file_size": doc.get("file_size"),
+            "created_at": doc.get("created_at", "")
         }
         for doc in documents
     ]
 
 
 @api_router.post("/documents")
-async def create_document(request: DocumentCreate, current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """
-    CREATE A DOCUMENT FOR RAG
+async def create_document(request: DocumentCreate, current_user: Dict = Depends(get_current_user)):
+    doc = {
+        "id": str(uuid.uuid4()),
+        "tenant_id": current_user["tenant_id"],
+        "title": request.title,
+        "content": request.content,
+        "file_type": "text",
+        "file_size": len(request.content),
+        "created_at": now_iso()
+    }
+    supabase.table('documents').insert(doc).execute()
     
-    The document content is stored as plain text and used for keyword-based RAG.
-    Upload business information like:
-    - Product catalogs with prices
-    - Service descriptions
-    - FAQ and common objections
-    - Company policies
-    - Contact information
-    """
-    doc = Document(
-        id=str(uuid.uuid4()),
-        tenant_id=current_user["tenant_id"],
-        title=request.title,
-        content=request.content,
-        file_type="text",
-        file_size=len(request.content),
-        created_at=datetime.now(timezone.utc)
-    )
-    db.add(doc)
-    await db.commit()
-    
-    return {"id": doc.id, "title": doc.title, "created_at": doc.created_at.isoformat()}
+    return {"id": doc["id"], "title": doc["title"], "created_at": doc["created_at"]}
 
 
 @api_router.delete("/documents/{doc_id}")
-async def delete_document(doc_id: str, current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Document).where(and_(Document.id == doc_id, Document.tenant_id == current_user["tenant_id"])))
-    doc = result.scalar_one_or_none()
+async def delete_document(doc_id: str, current_user: Dict = Depends(get_current_user)):
+    result = supabase.table('documents').select('*').eq('id', doc_id).eq('tenant_id', current_user["tenant_id"]).execute()
     
-    if not doc:
+    if not result.data:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    await db.delete(doc)
-    await db.commit()
+    supabase.table('documents').delete().eq('id', doc_id).execute()
     
     return {"success": True}
 
 
 # ============ Integration Status Endpoints ============
 @api_router.get("/integrations/status")
-async def get_integrations_status(current_user: Dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_integrations_status(current_user: Dict = Depends(get_current_user)):
     tenant_id = current_user["tenant_id"]
     
-    tg_result = await db.execute(select(TelegramBot).where(and_(TelegramBot.tenant_id == tenant_id, TelegramBot.is_active == True)))
-    telegram_bot = tg_result.scalar_one_or_none()
+    tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).eq('is_active', True).execute()
+    telegram_bot = tg_result.data[0] if tg_result.data else None
     
     return {
         "telegram": {
             "connected": telegram_bot is not None,
-            "bot_username": telegram_bot.bot_username if telegram_bot else None,
-            "last_webhook_at": telegram_bot.last_webhook_at.isoformat() if telegram_bot and telegram_bot.last_webhook_at else None
+            "bot_username": telegram_bot.get("bot_username") if telegram_bot else None,
+            "last_webhook_at": telegram_bot.get("last_webhook_at") if telegram_bot else None
         },
         "bitrix": {
             "connected": False,
@@ -1157,7 +1033,7 @@ async def root():
 
 @api_router.get("/health")
 async def health_check():
-    return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"status": "healthy", "timestamp": now_iso(), "database": "supabase"}
 
 
 # Include router and add middleware
@@ -1170,16 +1046,3 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# Create tables on startup
-@app.on_event("startup")
-async def startup():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created")
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    await engine.dispose()
