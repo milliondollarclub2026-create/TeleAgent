@@ -551,22 +551,63 @@ You MUST respond with valid JSON in this exact format:
 7. When all required fields are collected AND customer shows intent, attempt a close"""
 
 
+async def get_business_context_semantic(tenant_id: str, query: str, top_k: int = 5) -> List[str]:
+    """
+    Semantic RAG - finds relevant context using embeddings.
+    Falls back to keyword matching if no embeddings available.
+    """
+    try:
+        result = supabase.table('documents').select('title, content, chunks').eq('tenant_id', tenant_id).execute()
+        
+        if not result.data:
+            return []
+        
+        # Collect all chunks with embeddings
+        all_chunks = []
+        has_embeddings = False
+        
+        for doc in result.data:
+            if doc.get("chunks"):
+                try:
+                    chunks = json.loads(doc["chunks"])
+                    all_chunks.extend(chunks)
+                    if chunks and "embedding" in chunks[0]:
+                        has_embeddings = True
+                except:
+                    pass
+        
+        # If we have embeddings, use semantic search
+        if has_embeddings and all_chunks:
+            results = await semantic_search(query, all_chunks, top_k=top_k, min_similarity=0.25)
+            return [
+                f"[{r.get('source', 'Document')}] (relevance: {r['similarity']:.0%}): {r['text'][:600]}"
+                for r in results
+            ]
+        
+        # Fallback to keyword matching for documents without embeddings
+        context = []
+        query_words = set(query.lower().split())
+        
+        for doc in result.data:
+            content = doc.get('content', '')
+            if content and query_words & set(content.lower().split()):
+                snippet = content[:500] + "..." if len(content) > 500 else content
+                context.append(f"[{doc.get('title', 'Document')}]: {snippet}")
+        
+        return context[:top_k]
+        
+    except Exception as e:
+        logger.error(f"RAG context retrieval error: {e}")
+        return []
+
+
+# Keep sync version for backwards compatibility
 def get_business_context(tenant_id: str, query: str) -> List[str]:
-    """Simple keyword-based RAG"""
-    result = supabase.table('documents').select('*').eq('tenant_id', tenant_id).execute()
-    context = []
-    query_words = set(query.lower().split())
-    
-    for doc in (result.data or []):
-        content = doc.get('content', '')
-        if content and query_words & set(content.lower().split()):
-            snippet = content[:500] + "..." if len(content) > 500 else content
-            context.append(f"[{doc.get('title', 'Document')}]: {snippet}")
-    
-    return context[:5]
+    """Sync wrapper - returns empty list, use async version instead"""
+    return []
 
 
-async def call_sales_agent(messages: List[Dict], config: Dict, lead_context: Dict = None, business_context: List[str] = None) -> Dict:
+async def call_sales_agent(messages: List[Dict], config: Dict, lead_context: Dict = None, business_context: List[str] = None, tenant_id: str = None, user_query: str = None) -> Dict:
     """Call LLM with enhanced sales pipeline awareness"""
     try:
         system_prompt = get_enhanced_system_prompt(config, lead_context)
