@@ -790,46 +790,12 @@ async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Op
 
 
 async def sync_lead_to_bitrix(tenant_id: str, customer: Dict, llm_result: Dict):
-    """Sync lead to Bitrix24 if connected"""
-    try:
-        bitrix_result = supabase.table('integrations_bitrix').select('*').eq('tenant_id', tenant_id).eq('is_connected', True).execute()
-        
-        if not bitrix_result.data:
-            return
-        
-        integration = bitrix_result.data[0]
-        
-        # Only sync when reaching intent stage or higher
-        if llm_result.get("sales_stage") not in ["intent", "evaluation", "purchase"]:
-            return
-        
-        fields_collected = llm_result.get("fields_collected", {})
-        
-        lead_data = {
-            "fields": {
-                "TITLE": f"Telegram Lead - {fields_collected.get('product', 'Inquiry')}",
-                "NAME": customer.get("name") or fields_collected.get("name"),
-                "PHONE": [{"VALUE": customer.get("phone") or fields_collected.get("phone"), "VALUE_TYPE": "WORK"}] if (customer.get("phone") or fields_collected.get("phone")) else [],
-                "SOURCE_ID": "TELEGRAM",
-                "COMMENTS": f"Stage: {llm_result.get('sales_stage')}\nIntent: {llm_result.get('intent')}\nScore: {llm_result.get('score')}/100"
-            }
-        }
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"https://{integration['bitrix_domain']}/rest/crm.lead.add",
-                params={"auth": integration['access_token']},
-                json=lead_data,
-                timeout=30.0
-            )
-            
-            if response.status_code == 200:
-                logger.info(f"Lead synced to Bitrix: {response.json()}")
-            else:
-                logger.error(f"Bitrix sync failed: {response.text}")
-                
-    except Exception as e:
-        logger.error(f"Bitrix sync error: {e}")
+    """Sync lead to Bitrix24 if connected - currently in demo mode"""
+    # Bitrix integration is in demo mode until integrations_bitrix table is created
+    # Log the lead data that would be synced
+    if llm_result.get("sales_stage") in ["intent", "evaluation", "purchase"]:
+        logger.info(f"Bitrix sync (demo mode): Lead at {llm_result.get('sales_stage')} stage would be synced")
+    return
 
 
 # ============ Dashboard Endpoints ============
