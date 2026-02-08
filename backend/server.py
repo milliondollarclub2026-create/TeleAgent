@@ -1937,7 +1937,7 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
         
         # Build conversation context
         lead_context = {
-            "current_stage": "awareness",
+            "sales_stage": "awareness",
             "fields_collected": {},
             "score": 50
         }
@@ -1946,26 +1946,31 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
         messages_for_llm = []
         for msg in request.conversation_history:
             role = "assistant" if msg.get("role") == "agent" else "user"
-            messages_for_llm.append({"role": role, "content": msg.get("text", "")})
-        messages_for_llm.append({"role": "user", "content": request.message})
+            messages_for_llm.append({"role": role, "text": msg.get("text", "")})
+        messages_for_llm.append({"role": "user", "text": request.message})
         
-        # Get RAG context
+        # Get RAG context (ensure embeddings are loaded)
+        logger.info(f"Test chat: Getting RAG context for '{request.message[:50]}...'")
         business_context = await get_business_context_semantic(tenant_id, request.message)
+        logger.info(f"Test chat: Found {len(business_context)} RAG context chunks")
         
         # Call LLM
         llm_result = await call_sales_agent(messages_for_llm, config, lead_context, business_context, tenant_id, request.message)
         
         return {
-            "reply": llm_result.get("reply", "I'm here to help! What would you like to know?"),
+            "reply": llm_result.get("reply_text", "I'm here to help! What would you like to know?"),
             "sales_stage": llm_result.get("sales_stage", "awareness"),
             "hotness": llm_result.get("hotness", "warm"),
             "score": llm_result.get("score", 50),
             "fields_collected": llm_result.get("fields_collected", {}),
-            "rag_context_used": len(business_context) > 0
+            "rag_context_used": len(business_context) > 0,
+            "rag_context_count": len(business_context)
         }
         
     except Exception as e:
         logger.error(f"Test chat error: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
