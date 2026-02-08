@@ -15,8 +15,9 @@
 - **Database**: Supabase (PostgreSQL)
 - **LLM**: OpenAI GPT-4o
 - **RAG**: OpenAI text-embedding-3-small + in-memory vector search
+- **Email**: Resend (for confirmation emails)
 - **Messaging**: Telegram Bot API (webhook mode)
-- **CRM**: Bitrix24 REST API (DEMO mode currently)
+- **CRM**: Bitrix24 MCP (planned), currently demo mode
 
 ### Key Components
 1. **Agent Management** - Multi-agent support with per-agent configuration
@@ -25,235 +26,200 @@
 4. **Chat Simulator** - Browser-based agent testing before deployment
 5. **Sales Pipeline** - 6-stage funnel with objection handling
 6. **Agent Performance Dashboard** - Analytics with charts and KPIs
+7. **Email Confirmation Flow** - User verification before login
 
 ---
 
 ## User Flow
 
 ```
-Login → Agents Page → [Create New Agent] → 5-Step Wizard → Test → Connect Telegram
-                   ↓
-           View Agent Dashboard → Manage Settings/Knowledge/Leads
+Register → Confirm Email → Login → Agents Page → [Create New Agent] → 5-Step Wizard → Test → Connect Telegram
+                                        ↓
+                                View Agent Dashboard → Manage Settings/Knowledge/Leads
 ```
 
-### Empty State (No Agents)
-- Shows large CTA: "Create Your First AI Agent"
-- Explains what the agent can do
-- "Takes about 2 minutes to set up"
-
-### Agents List
-- Shows all agents with: Name, Status (Active/Inactive), Conversations count, Leads count
-- Hover reveals dropdown: View Dashboard, Settings, Delete
-- "New Agent" button in header
-
----
-
-## 5-Step Onboarding Wizard
-
-### Header Design (Updated 2026-02-08)
-- Back arrow button on left (navigates to /agents)
-- Title "Create New Agent" with subtitle "Set up your AI sales assistant in minutes"
-- Cancel button on right with outline styling
-
-### Step 1: Business Info
-- Business Name (required)
-- Business Description (required)
-- Products/Services (optional)
-
-### Step 2: Knowledge Base
-- Drag-and-drop file upload
-- Supports: PDF, DOCX, Excel, CSV, Images, TXT
-- Files are chunked and embedded for semantic search
-- Can skip and add later
-
-### Step 3: Settings
-**Communication Style:**
-- Tone: Professional / Friendly Professional / Casual / Luxury
-- Primary Language: Uzbek / Russian / English
-- Response Length: Concise / Balanced / Detailed
-- Emoji Usage: Never / Minimal / Moderate / Frequent
-
-**Messages:**
-- Greeting Message (auto-generates if empty)
-- Closing Message (when ready to buy)
-
-**Rate Limiting:**
-- Response Delay: 0-5 seconds
-- Max Messages/Minute: 5-20 or Unlimited
-
-**Lead Collection:**
-- Toggle: Name, Phone, Product Interest, Budget, Location
-
-### Step 4: Test Chat
-- Browser-based chat simulator
-- Shows agent greeting with business name
-- Expandable Debug Panel (stage, hotness, score, RAG used)
-- Reset button to start fresh
-- Hint: "Try asking about your products, prices, or delivery"
-
-### Step 5: Connect
-- Telegram bot token input
-- Instructions to get token from @BotFather
-- Bitrix24 CRM (Coming Soon)
-- Can skip and connect later
+### Authentication Flow (Updated 2026-02-08)
+1. User registers with email, password, name, business
+2. System creates user with `email_confirmed=false`
+3. Confirmation email sent via Resend
+4. User clicks link in email → `/confirm-email?token=...`
+5. Token validated, user marked as confirmed
+6. User can now log in
+7. Login blocked with 403 if email not confirmed
 
 ---
 
-## Agent Performance Dashboard
+## Bug Fixes Completed (2026-02-08)
 
-### Overview
-Comprehensive analytics dashboard showing agent performance metrics.
+### Bug 0: Email Confirmation
+**Status**: ✅ FIXED
+- Registration creates unconfirmed users
+- Login blocked with 403 and helpful message if not confirmed
+- Confirmation email sent via Resend
+- Resend confirmation option available
+- Password reset flow implemented (requires DB columns)
 
-### Components
-1. **Stat Cards** (4 cards):
-   - Conversations (with % change vs last period)
-   - Leads Generated (with % change)
-   - Conversion Rate (%)
-   - Avg Response Time (seconds)
+### Bug 1: RAG/Knowledge Base  
+**Status**: ✅ FIXED (with limitations)
+- Documents now store actual extracted content
+- Embeddings cached in memory and loaded from DB
+- Test chat returns `rag_context_used` and `rag_context_count`
+- **Note**: Full persistence requires `chunks_data` column in documents table
 
-2. **Lead Quality Chart**:
-   - Hot/Warm/Cold distribution
-   - Visual bar with color coding
-
-3. **Score Distribution**:
-   - 76-100 (High Intent)
-   - 51-75 (Medium)
-   - 26-50 (Low)
-   - 0-25 (Very Low)
-
-4. **Top Products Asked**:
-   - Ranked list with count and percentage
-
-5. **Sales Funnel**:
-   - 6 stages: Awareness → Interest → Consideration → Intent → Evaluation → Purchase
-   - Bar chart visualization
-
-6. **Daily Leads Trend**:
-   - Bar chart by day
-
-### Features
-- Period selector: Last 7/14/30/90 days
-- Settings button to edit agent
-- Back navigation to agents list
-- Telegram connection status badge
+### Bug 2: Telegram Bot Error
+**Status**: ✅ FIXED
+- Improved error handling in webhook
+- Better logging for debugging
+- Graceful degradation on errors
+- HTML parse mode fallback
 
 ---
 
-## RAG System (Semantic Search)
+## Bitrix24 MCP Integration (Planned)
 
-### Document Processing Pipeline
-1. **Upload** - Accept PDF, DOCX, Excel, CSV, Images, TXT
-2. **Extraction** - PyMuPDF for PDF, python-docx for Word, pandas for Excel, GPT-4V for images
-3. **Chunking** - Smart sentence-based chunking with overlap
-4. **Embedding** - OpenAI text-embedding-3-small (1536 dimensions)
-5. **Storage** - In-memory cache per document (NOT PERSISTENT)
-
-### Search Flow
-1. User sends message
-2. Generate query embedding
-3. Cosine similarity search across all document chunks
-4. Return top-5 most relevant chunks (min 25% similarity)
-5. Inject context into LLM prompt
-
----
-
-## What's Been Implemented
-
-### 2026-02-08 - Dashboard & Onboarding Fix
-**Agent Performance Dashboard:**
-- Implemented stat cards with period comparison
-- Added Lead Quality, Score Distribution, Top Products charts
-- Sales Funnel with 6 stages
-- Daily Leads Trend chart
-- Period selector (7/14/30/90 days)
-
-**Onboarding Header Redesign:**
-- Added back arrow button on left
-- Title with subtitle
-- Styled Cancel button on right
-
-**Backend Fixes:**
-- Fixed /api/dashboard/analytics endpoint (conversations.started_at not created_at)
-- Added error handling for database queries
-
-### 2026-02-08 - Major Restructure
-**New Agent Management Flow:**
-- Users land on /agents page (not dashboard)
-- Empty state with CTA if no agents
-- Agent cards showing status and stats
-- 5-step onboarding wizard
-
-**Enhanced RAG:**
-- File upload with automatic chunking
-- OpenAI embeddings (text-embedding-3-small)
-- Semantic search across documents
-- Image description via GPT-4V
-
-**Chat Simulator:**
-- Browser-based testing before Telegram
-- Shows AI responses in real-time
-- Debug panel with stage, hotness, score
+A detailed technical design document has been created at `/app/memory/BITRIX24_MCP_INTEGRATION.md` covering:
+- Data model (add columns to tenants table)
+- BitrixMcpClient class for API calls
+- Backend endpoints: connect, test, disconnect, status
+- Frontend UI component
+- Security considerations
+- Implementation phases
 
 ---
 
 ## API Endpoints Reference
 
+### Authentication
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/register` | POST | Register new user (sends confirmation email) |
+| `/api/auth/login` | POST | Login (requires confirmed email) |
+| `/api/auth/confirm-email` | GET | Confirm email with token |
+| `/api/auth/resend-confirmation` | POST | Resend confirmation email |
+| `/api/auth/forgot-password` | POST | Request password reset |
+| `/api/auth/reset-password` | POST | Reset password with token |
+| `/api/auth/me` | GET | Get current user |
+
+### Agent Management
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/agents` | GET | List all agents |
 | `/api/agents/{id}` | DELETE | Delete agent |
 | `/api/chat/test` | POST | Test agent in browser |
-| `/api/auth/register` | POST | Register new user |
-| `/api/auth/login` | POST | Login and get JWT |
-| `/api/auth/me` | GET | Get current user |
+
+### Telegram
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/api/telegram/bot` | POST/GET/DELETE | Manage Telegram bot |
 | `/api/telegram/webhook` | POST | Telegram webhook handler |
+
+### Dashboard & Analytics
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/api/dashboard/stats` | GET | KPI statistics |
 | `/api/dashboard/analytics` | GET | Comprehensive analytics |
 | `/api/leads` | GET | List leads |
-| `/api/config` | GET/PUT | Tenant configuration |
+
+### Documents (RAG)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/api/documents` | GET/POST | Knowledge base |
 | `/api/documents/upload` | POST | Upload file with embedding |
 | `/api/documents/search` | POST | Semantic search |
-| `/api/integrations/status` | GET | Integration status |
+
+---
+
+## Database Schema Requirements
+
+### Missing Columns (Need to add in Supabase)
+
+**users table:**
+```sql
+ALTER TABLE users ADD COLUMN reset_token TEXT;
+ALTER TABLE users ADD COLUMN reset_token_expiry TIMESTAMPTZ;
+```
+
+**documents table:**
+```sql
+ALTER TABLE documents ADD COLUMN chunk_count INTEGER;
+ALTER TABLE documents ADD COLUMN chunks_data JSONB;
+```
+
+**tenants table (for Bitrix24 MCP):**
+```sql
+ALTER TABLE tenants ADD COLUMN bitrix_mcp_token TEXT;
+ALTER TABLE tenants ADD COLUMN bitrix_mcp_url TEXT DEFAULT 'https://mcp.bitrix24.com/mcp/';
+ALTER TABLE tenants ADD COLUMN bitrix_mcp_connected_at TIMESTAMPTZ;
+```
 
 ---
 
 ## Test Credentials
 - **Email**: test2@teleagent.uz
 - **Password**: testpass123
+- **Note**: This user has `email_confirmed=true`
 
 ---
 
-## Known Issues / Limitations
+## Known Limitations
 
-- **RAG Not Persistent**: Embeddings stored in memory cache, lost on server restart
-- **Bitrix24**: MOCKED - Running in demo mode
-- **Google Sheets**: NOT IMPLEMENTED - Shows "Coming Soon"
-- **Email Confirmation**: Token generated but emails not sent
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Email Sending | NEEDS API KEY | Resend placeholder key - actual emails won't be sent |
+| RAG Persistence | PARTIAL | Works in memory, DB columns needed for persistence |
+| Password Reset | NEEDS DB | Requires reset_token columns |
+| Bitrix24 CRM | MOCKED | Design complete, implementation pending |
+| Google Sheets | NOT IMPLEMENTED | Shows "Coming Soon" |
 
 ---
 
 ## Backlog
 
-### P1 (Next Priority)
-- Persist embeddings to database (add pgvector or chunks column)
-- Conversation History & Viewer page
-- Follow-up Automation system
+### P0 (Critical)
+- [ ] Add missing DB columns (users: reset_token, documents: chunks_data)
+- [ ] Configure real Resend API key
+- [ ] Implement Bitrix24 MCP integration
 
-### P2
-- Human Takeover feature
-- Real Bitrix24 OAuth integration
-- Custom field builder
+### P1 (High)
+- [ ] Conversation History & Viewer page
+- [ ] Follow-up Automation system
+- [ ] Human Takeover feature
 
-### P3
-- Voice message support
-- WhatsApp integration
-- Advanced analytics
-- Multi-user access with roles
+### P2 (Medium)
+- [ ] Multi-user access with roles
+- [ ] Visual conversation flow builder
+- [ ] E-commerce integration (Shopify)
+
+### P3 (Low)
+- [ ] Voice message support
+- [ ] WhatsApp integration
+- [ ] Broadcast messaging
 
 ---
 
 ## Test Reports
-- `/app/test_reports/iteration_7.json` - Latest (100% pass rate)
+- `/app/test_reports/iteration_8.json` - Latest (100% pass rate, 43 tests)
+- `/app/backend/tests/test_bug_fixes.py` - Bug fix test suite
 - `/app/backend/tests/test_api_endpoints.py` - 23 API tests
+
+---
+
+## Files Reference
+
+### Backend
+- `/app/backend/server.py` - Main FastAPI app
+- `/app/backend/document_processor.py` - RAG processing
+- `/app/backend/.env` - Environment variables
+
+### Frontend
+- `/app/frontend/src/App.js` - Routes
+- `/app/frontend/src/pages/LoginPage.js` - Auth with confirmation flow
+- `/app/frontend/src/pages/ConfirmEmail.js` - Email confirmation page
+- `/app/frontend/src/pages/ResetPassword.js` - Password reset page
+- `/app/frontend/src/pages/AgentsPage.js` - Agent listing
+- `/app/frontend/src/pages/AgentOnboarding.js` - 5-step wizard
+- `/app/frontend/src/pages/AgentDashboard.js` - Performance analytics
+
+### Documentation
+- `/app/memory/PRD.md` - This file
+- `/app/memory/BITRIX24_MCP_INTEGRATION.md` - Bitrix24 MCP technical design
