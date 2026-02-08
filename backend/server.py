@@ -16,7 +16,9 @@ import jwt
 import httpx
 from openai import AsyncOpenAI
 import json
+import asyncio
 from supabase import create_client, Client
+import resend
 
 # Import document processor for RAG
 from document_processor import (
@@ -38,6 +40,11 @@ logger = logging.getLogger(__name__)
 supabase_url = os.environ.get('SUPABASE_URL')
 supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
 supabase: Client = create_client(supabase_url, supabase_key)
+
+# Initialize Resend for email
+resend.api_key = os.environ.get('RESEND_API_KEY')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+FRONTEND_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://saleschat-ai-1.preview.emergentagent.com')
 
 app = FastAPI(title="TeleAgent - AI Sales Agent")
 api_router = APIRouter(prefix="/api")
