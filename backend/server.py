@@ -1029,15 +1029,19 @@ async def delete_document(doc_id: str, current_user: Dict = Depends(get_current_
 async def get_integrations_status(current_user: Dict = Depends(get_current_user)):
     tenant_id = current_user["tenant_id"]
     
-    tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).eq('is_active', True).execute()
-    telegram_bot = tg_result.data[0] if tg_result.data else None
+    # Get Telegram bot status
+    try:
+        tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).eq('is_active', True).execute()
+        telegram_bot = tg_result.data[0] if tg_result.data else None
+    except Exception:
+        telegram_bot = None
     
-    bitrix_result = supabase.table('integrations_bitrix').select('*').eq('tenant_id', tenant_id).execute()
-    bitrix = bitrix_result.data[0] if bitrix_result.data else None
+    # Bitrix status - table may not exist yet, return demo mode
+    bitrix_status = {"connected": False, "is_demo": True, "domain": None}
     
     return {
         "telegram": {"connected": telegram_bot is not None, "bot_username": telegram_bot.get("bot_username") if telegram_bot else None, "last_webhook_at": telegram_bot.get("last_webhook_at") if telegram_bot else None},
-        "bitrix": {"connected": bitrix.get("is_connected", False) if bitrix else False, "is_demo": not bitrix.get("is_connected", False) if bitrix else True, "domain": bitrix.get("bitrix_domain") if bitrix else None},
+        "bitrix": bitrix_status,
         "google_sheets": {"connected": False, "sheet_id": None}
     }
 
