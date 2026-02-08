@@ -1034,17 +1034,26 @@ async def get_config_defaults():
 # Maximum file size (10MB)
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
+# In-memory cache for document embeddings (per tenant)
+# In production, use Redis or store in DB with pgvector
+document_embeddings_cache = {}
+
 @api_router.get("/documents")
 async def get_documents(current_user: Dict = Depends(get_current_user)):
     """List all documents for the tenant"""
-    result = supabase.table('documents').select('id, title, file_type, file_size, chunk_count, created_at').eq('tenant_id', current_user["tenant_id"]).order('created_at', desc=True).execute()
+    try:
+        result = supabase.table('documents').select('*').eq('tenant_id', current_user["tenant_id"]).order('created_at', desc=True).execute()
+    except Exception as e:
+        logger.warning(f"Documents query error: {e}")
+        return []
+    
     return [
         {
             "id": doc["id"],
             "title": doc["title"],
             "file_type": doc.get("file_type", "text"),
             "file_size": doc.get("file_size"),
-            "chunk_count": doc.get("chunk_count", 1),
+            "chunk_count": document_embeddings_cache.get(doc["id"], {}).get("chunk_count", 1),
             "created_at": doc.get("created_at", "")
         } 
         for doc in (result.data or [])
