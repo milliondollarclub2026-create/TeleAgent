@@ -305,16 +305,30 @@ const AgentOnboarding = () => {
     <div className="min-h-[calc(100vh-2rem)]" data-testid="agent-onboarding">
       {/* Progress Header */}
       <div className="bg-white border-b border-slate-200 rounded-t-lg -mx-4 lg:-mx-6 -mt-4 lg:-mt-6 mb-6">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-lg font-semibold font-['Plus_Jakarta_Sans'] text-slate-900">
-              Create New Agent
-            </h1>
+        <div className="max-w-4xl mx-auto px-6 py-5">
+          {/* Header Row */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => navigate('/agents')}
+                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
+                data-testid="back-to-agents-btn"
+              >
+                <ArrowLeft className="w-4 h-4 text-slate-600" strokeWidth={2} />
+              </button>
+              <div>
+                <h1 className="text-xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900">
+                  Create New Agent
+                </h1>
+                <p className="text-sm text-slate-500 mt-0.5">Set up your AI sales assistant in minutes</p>
+              </div>
+            </div>
             <Button 
-              variant="ghost" 
+              variant="outline" 
               size="sm" 
-              className="text-slate-500"
+              className="text-slate-500 hover:text-slate-700 border-slate-200"
               onClick={() => navigate('/agents')}
+              data-testid="cancel-onboarding-btn"
             >
               Cancel
             </Button>
