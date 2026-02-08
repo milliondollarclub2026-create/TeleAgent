@@ -142,12 +142,22 @@ def create_chunks_with_overlap(
     # Add final chunk
     if current_chunk:
         chunk_text = " ".join(current_chunk)
-        if count_tokens(chunk_text) >= MIN_CHUNK_TOKENS:
+        token_count = count_tokens(chunk_text)
+        # Always include content, even if small (for short documents)
+        if token_count > 0:
             chunks.append({
                 "text": chunk_text,
-                "token_count": count_tokens(chunk_text),
+                "token_count": token_count,
                 "source": source_info
             })
+    
+    # If no chunks were created but we have original text, create a single chunk
+    if not chunks and text.strip():
+        chunks.append({
+            "text": text.strip(),
+            "token_count": count_tokens(text.strip()),
+            "source": source_info
+        })
     
     return chunks
 
