@@ -163,6 +163,116 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# ============ Email Service ============
+async def send_confirmation_email(email: str, name: str, token: str) -> bool:
+    """Send email confirmation link to new user"""
+    try:
+        confirmation_url = f"{FRONTEND_URL}/confirm-email?token={token}"
+        
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #10b981; margin: 0;">TeleAgent</h1>
+                <p style="color: #64748b; margin-top: 5px;">AI Sales Agent Platform</p>
+            </div>
+            
+            <h2 style="color: #1e293b;">Welcome, {name}!</h2>
+            
+            <p style="color: #475569; line-height: 1.6;">
+                Thank you for registering with TeleAgent. Please confirm your email address 
+                by clicking the button below:
+            </p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{confirmation_url}" 
+                   style="background-color: #10b981; color: white; padding: 12px 30px; 
+                          text-decoration: none; border-radius: 6px; font-weight: bold;
+                          display: inline-block;">
+                    Confirm Email
+                </a>
+            </div>
+            
+            <p style="color: #64748b; font-size: 14px;">
+                Or copy and paste this link into your browser:<br/>
+                <a href="{confirmation_url}" style="color: #10b981; word-break: break-all;">
+                    {confirmation_url}
+                </a>
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;"/>
+            
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">
+                If you didn't create an account, you can safely ignore this email.
+            </p>
+        </div>
+        """
+        
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [email],
+            "subject": "Confirm your TeleAgent account",
+            "html": html_content
+        }
+        
+        # Run sync SDK in thread to keep FastAPI non-blocking
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        logger.info(f"Confirmation email sent to {email}, id: {result.get('id')}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send confirmation email to {email}: {e}")
+        return False
+
+
+async def send_password_reset_email(email: str, name: str, token: str) -> bool:
+    """Send password reset link"""
+    try:
+        reset_url = f"{FRONTEND_URL}/reset-password?token={token}"
+        
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #10b981; margin: 0;">TeleAgent</h1>
+            </div>
+            
+            <h2 style="color: #1e293b;">Password Reset Request</h2>
+            
+            <p style="color: #475569; line-height: 1.6;">
+                Hi {name}, we received a request to reset your password. 
+                Click the button below to create a new password:
+            </p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{reset_url}" 
+                   style="background-color: #10b981; color: white; padding: 12px 30px; 
+                          text-decoration: none; border-radius: 6px; font-weight: bold;
+                          display: inline-block;">
+                    Reset Password
+                </a>
+            </div>
+            
+            <p style="color: #64748b; font-size: 14px;">
+                This link expires in 1 hour. If you didn't request this, ignore this email.
+            </p>
+        </div>
+        """
+        
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [email],
+            "subject": "Reset your TeleAgent password",
+            "html": html_content
+        }
+        
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        logger.info(f"Password reset email sent to {email}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {e}")
+        return False
+
+
 # ============ Pydantic Models ============
 class RegisterRequest(BaseModel):
     email: EmailStr
