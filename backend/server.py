@@ -1379,14 +1379,119 @@ async def get_config_defaults():
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
 # In-memory cache for document embeddings (per tenant)
-# In production, use Redis or store in DB with pgvector
+# This cache is populated from DB on first access
 document_embeddings_cache = {}
+_cache_loaded_tenants = set()  # Track which tenants have been loaded
+
+
+async def load_embeddings_from_db(tenant_id: str):
+    """Load document embeddings from database into memory cache for a tenant"""
+    global _cache_loaded_tenants
+    
+    if tenant_id in _cache_loaded_tenants:
+        return  # Already loaded
+    
+    try:
+        # Get all documents for this tenant that have chunks stored
+        result = supabase.table('documents').select('*').eq('tenant_id', tenant_id).execute()
+        
+        if not result.data:
+            _cache_loaded_tenants.add(tenant_id)
+            return
+        
+        for doc in result.data:
+            doc_id = doc['id']
+            
+            # Skip if already in cache
+            if doc_id in document_embeddings_cache:
+                continue
+            
+            # Check if document has chunks stored in chunks_data column
+            chunks_data = doc.get('chunks_data')
+            if chunks_data:
+                try:
+                    # Parse JSON chunks data
+                    if isinstance(chunks_data, str):
+                        chunks = json.loads(chunks_data)
+                    else:
+                        chunks = chunks_data
+                    
+                    document_embeddings_cache[doc_id] = {
+                        "chunks": chunks,
+                        "chunk_count": len(chunks),
+                        "tenant_id": tenant_id
+                    }
+                    logger.info(f"Loaded {len(chunks)} chunks for document {doc_id} from DB")
+                except Exception as e:
+                    logger.warning(f"Could not parse chunks_data for doc {doc_id}: {e}")
+            else:
+                # For legacy documents without chunks_data, try to process content
+                content = doc.get('content', '')
+                if content and not content.startswith('[File:'):
+                    # This is a text document with actual content
+                    chunks = process_text(content, doc.get('title', 'Document'))
+                    if chunks:
+                        # Generate embeddings
+                        try:
+                            chunk_texts = [c["text"] for c in chunks]
+                            embeddings = await generate_embeddings_batch(chunk_texts)
+                            
+                            chunks_with_embeddings = []
+                            for chunk, embedding in zip(chunks, embeddings):
+                                chunks_with_embeddings.append({
+                                    "text": chunk["text"],
+                                    "source": chunk.get("source", doc.get('title', 'Document')),
+                                    "token_count": chunk.get("token_count", 0),
+                                    "embedding": embedding
+                                })
+                            
+                            document_embeddings_cache[doc_id] = {
+                                "chunks": chunks_with_embeddings,
+                                "chunk_count": len(chunks_with_embeddings),
+                                "tenant_id": tenant_id
+                            }
+                            
+                            # Save to DB for future loads
+                            await save_chunks_to_db(doc_id, chunks_with_embeddings)
+                            logger.info(f"Generated and cached {len(chunks)} chunks for legacy doc {doc_id}")
+                        except Exception as e:
+                            logger.warning(f"Could not generate embeddings for doc {doc_id}: {e}")
+        
+        _cache_loaded_tenants.add(tenant_id)
+        logger.info(f"Finished loading embeddings for tenant {tenant_id}")
+        
+    except Exception as e:
+        logger.error(f"Error loading embeddings from DB for tenant {tenant_id}: {e}")
+
+
+async def save_chunks_to_db(doc_id: str, chunks: List[Dict]):
+    """Save document chunks with embeddings to database"""
+    try:
+        # Store chunks as JSON in the chunks_data column
+        # Note: We'll need to add this column if it doesn't exist
+        chunks_json = json.dumps(chunks)
+        
+        supabase.table('documents').update({
+            "chunks_data": chunks_json,
+            "chunk_count": len(chunks)
+        }).eq('id', doc_id).execute()
+        
+        logger.info(f"Saved {len(chunks)} chunks to DB for document {doc_id}")
+    except Exception as e:
+        # Column might not exist yet - log but don't fail
+        logger.warning(f"Could not save chunks to DB (column may not exist): {e}")
+
 
 @api_router.get("/documents")
 async def get_documents(current_user: Dict = Depends(get_current_user)):
     """List all documents for the tenant"""
     try:
-        result = supabase.table('documents').select('*').eq('tenant_id', current_user["tenant_id"]).order('created_at', desc=True).execute()
+        tenant_id = current_user["tenant_id"]
+        
+        # Ensure embeddings are loaded from DB
+        await load_embeddings_from_db(tenant_id)
+        
+        result = supabase.table('documents').select('*').eq('tenant_id', tenant_id).order('created_at', desc=True).execute()
     except Exception as e:
         logger.warning(f"Documents query error: {e}")
         return []
@@ -1397,7 +1502,7 @@ async def get_documents(current_user: Dict = Depends(get_current_user)):
             "title": doc["title"],
             "file_type": doc.get("file_type", "text"),
             "file_size": doc.get("file_size"),
-            "chunk_count": document_embeddings_cache.get(doc["id"], {}).get("chunk_count", 1),
+            "chunk_count": doc.get("chunk_count") or document_embeddings_cache.get(doc["id"], {}).get("chunk_count", 1),
             "created_at": doc.get("created_at", "")
         } 
         for doc in (result.data or [])
@@ -1408,6 +1513,8 @@ async def get_documents(current_user: Dict = Depends(get_current_user)):
 async def create_document(request: DocumentCreate, current_user: Dict = Depends(get_current_user)):
     """Create a text document with automatic embedding generation"""
     try:
+        tenant_id = current_user["tenant_id"]
+        
         # Process text content into chunks
         chunks = process_text(request.content, request.title)
         
@@ -1430,24 +1537,32 @@ async def create_document(request: DocumentCreate, current_user: Dict = Depends(
         
         doc_id = str(uuid.uuid4())
         
-        # Store document in Supabase (basic columns only)
+        # Store document in Supabase with chunks
         doc = {
             "id": doc_id,
-            "tenant_id": current_user["tenant_id"],
+            "tenant_id": tenant_id,
             "title": request.title,
-            "content": request.content,
+            "content": request.content,  # Store actual content
             "file_type": "text",
             "file_size": len(request.content),
+            "chunk_count": len(chunks),
+            "chunks_data": json.dumps(chunks_with_embeddings),  # Store chunks with embeddings
             "created_at": now_iso()
         }
         
-        supabase.table('documents').insert(doc).execute()
+        try:
+            supabase.table('documents').insert(doc).execute()
+        except Exception as e:
+            # If chunks_data column doesn't exist, try without it
+            logger.warning(f"Insert with chunks_data failed, trying without: {e}")
+            doc_without_chunks = {k: v for k, v in doc.items() if k != 'chunks_data'}
+            supabase.table('documents').insert(doc_without_chunks).execute()
         
-        # Store embeddings in memory cache
+        # Store in memory cache
         document_embeddings_cache[doc_id] = {
             "chunks": chunks_with_embeddings,
             "chunk_count": len(chunks),
-            "tenant_id": current_user["tenant_id"]
+            "tenant_id": tenant_id
         }
         
         logger.info(f"Document created: {request.title}, {len(chunks)} chunks with embeddings")
@@ -1477,6 +1592,8 @@ async def upload_document(
     Files are chunked and embedded for semantic search.
     """
     try:
+        tenant_id = current_user["tenant_id"]
+        
         # Validate file size
         file_content = await file.read()
         file_size = len(file_content)
@@ -1498,6 +1615,7 @@ async def upload_document(
         
         # Prepare chunks with embeddings
         chunks_with_embeddings = []
+        extracted_text = []
         for chunk, embedding in zip(chunks, embeddings):
             chunks_with_embeddings.append({
                 "text": chunk["text"],
@@ -1505,6 +1623,7 @@ async def upload_document(
                 "token_count": chunk.get("token_count", 0),
                 "embedding": embedding
             })
+            extracted_text.append(chunk["text"])
         
         # Determine file type category
         filename_lower = filename.lower()
@@ -1521,24 +1640,33 @@ async def upload_document(
         
         doc_id = str(uuid.uuid4())
         
-        # Store document in Supabase (basic columns only)
+        # Store document in Supabase WITH actual content and chunks
+        full_content = "\n\n".join(extracted_text)  # Store extracted text
         doc = {
             "id": doc_id,
-            "tenant_id": current_user["tenant_id"],
+            "tenant_id": tenant_id,
             "title": doc_title,
-            "content": f"[File: {filename}] - {len(chunks)} chunks processed",
+            "content": full_content[:50000] if full_content else f"[File: {filename}]",  # Store actual extracted text (limit size)
             "file_type": file_type,
             "file_size": file_size,
+            "chunk_count": len(chunks),
+            "chunks_data": json.dumps(chunks_with_embeddings),  # Store chunks with embeddings
             "created_at": now_iso()
         }
         
-        supabase.table('documents').insert(doc).execute()
+        try:
+            supabase.table('documents').insert(doc).execute()
+        except Exception as e:
+            # If chunks_data column doesn't exist, try without it
+            logger.warning(f"Insert with chunks_data failed, trying without: {e}")
+            doc_without_chunks = {k: v for k, v in doc.items() if k not in ['chunks_data', 'chunk_count']}
+            supabase.table('documents').insert(doc_without_chunks).execute()
         
         # Store embeddings in memory cache
         document_embeddings_cache[doc_id] = {
             "chunks": chunks_with_embeddings,
             "chunk_count": len(chunks),
-            "tenant_id": current_user["tenant_id"]
+            "tenant_id": tenant_id
         }
         
         logger.info(f"Document uploaded: {doc_title}, {len(chunks)} chunks, {file_type}")
