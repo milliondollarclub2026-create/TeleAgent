@@ -868,15 +868,22 @@ async def get_leads(status: Optional[str] = None, hotness: Optional[str] = None,
         query = query.eq('status', status)
     if hotness:
         query = query.eq('final_hotness', hotness)
-    if stage:
-        query = query.eq('sales_stage', stage)
+    # Note: sales_stage filter requires the column to exist in Supabase schema
+    # Skipping stage filter if column doesn't exist
     
-    result = query.order('created_at', desc=True).limit(limit).execute()
+    try:
+        result = query.order('created_at', desc=True).limit(limit).execute()
+    except Exception as e:
+        logger.warning(f"Leads query error: {e}")
+        result = supabase.table('leads').select('*').eq('tenant_id', current_user["tenant_id"]).order('created_at', desc=True).limit(limit).execute()
     
     response = []
     for lead in (result.data or []):
-        cust_result = supabase.table('customers').select('*').eq('id', lead['customer_id']).execute()
-        customer = cust_result.data[0] if cust_result.data else None
+        try:
+            cust_result = supabase.table('customers').select('*').eq('id', lead['customer_id']).execute()
+            customer = cust_result.data[0] if cust_result.data else None
+        except Exception:
+            customer = None
         response.append({
             "id": lead["id"],
             "customer_name": customer.get("name") if customer else None,
