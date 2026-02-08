@@ -14,10 +14,10 @@
 - **Backend**: FastAPI (Python)
 - **Database**: Supabase (PostgreSQL)
 - **LLM**: OpenAI GPT-4o
-- **RAG**: OpenAI text-embedding-3-small + in-memory vector search
-- **Email**: Resend (for confirmation emails)
+- **RAG**: OpenAI text-embedding-3-small + semantic search
+- **Email**: Resend (confirmation & password reset)
 - **Messaging**: Telegram Bot API (webhook mode)
-- **CRM**: Bitrix24 MCP (planned), currently demo mode
+- **CRM**: Bitrix24 REST API (via webhook URL)
 
 ### Key Components
 1. **Agent Management** - Multi-agent support with per-agent configuration
@@ -27,6 +27,8 @@
 5. **Sales Pipeline** - 6-stage funnel with objection handling
 6. **Agent Performance Dashboard** - Analytics with charts and KPIs
 7. **Email Confirmation Flow** - User verification before login
+8. **Bitrix24 CRM Integration** - Full webhook-based CRM access
+9. **CRM Chat** - AI-powered chat for querying CRM data
 
 ---
 
@@ -35,103 +37,90 @@
 ```
 Register → Confirm Email → Login → Agents Page → [Create New Agent] → 5-Step Wizard → Test → Connect Telegram
                                         ↓
-                                View Agent Dashboard → Manage Settings/Knowledge/Leads
+                                View Agent Dashboard → CRM Chat / Manage Settings / Knowledge / Leads
 ```
 
-### Authentication Flow (Updated 2026-02-08)
-1. User registers with email, password, name, business
-2. System creates user with `email_confirmed=false`
-3. Confirmation email sent via Resend
-4. User clicks link in email → `/confirm-email?token=...`
-5. Token validated, user marked as confirmed
-6. User can now log in
-7. Login blocked with 403 if email not confirmed
-
 ---
 
-## Bug Fixes Completed (2026-02-08)
+## New Features (2026-02-08)
 
-### Bug 0: Email Confirmation
-**Status**: ✅ FIXED
-- Registration creates unconfirmed users
-- Login blocked with 403 and helpful message if not confirmed
-- Confirmation email sent via Resend
+### Email Confirmation System ✅
+- Registration creates user with `email_confirmed=false`
+- Sends confirmation email via Resend
+- Login blocked (403) until email confirmed
 - Resend confirmation option available
-- Password reset flow implemented (requires DB columns)
+- Password reset flow with email link
 
-### Bug 1: RAG/Knowledge Base  
-**Status**: ✅ FIXED (with limitations)
-- Documents now store actual extracted content
-- Embeddings cached in memory and loaded from DB
-- Test chat returns `rag_context_used` and `rag_context_count`
-- **Note**: Full persistence requires `chunks_data` column in documents table
+### Bitrix24 CRM Integration ✅
+Full webhook-based CRM integration:
 
-### Bug 2: Telegram Bot Error
-**Status**: ✅ FIXED
-- Improved error handling in webhook
-- Better logging for debugging
-- Graceful degradation on errors
-- HTML parse mode fallback
+**Connection Flow:**
+1. User goes to Connections page
+2. Enters Bitrix24 webhook URL (from portal's inbound webhooks)
+3. System tests connection automatically
+4. CRM data becomes available
+
+**Capabilities:**
+- **Leads**: List, create, update, search by phone
+- **Deals**: List, view, track pipeline
+- **Products**: Browse catalog, search, pricing
+- **Contacts**: Find by phone, view purchase history
+- **Analytics**: Conversion rates, top products, trends
+
+### CRM Chat ✅
+AI-powered chat interface for querying CRM data:
+- Access from Agent Dashboard via "CRM Chat" button
+- Ask natural language questions:
+  - "What are our top selling products?"
+  - "Show me recent leads"
+  - "What's our conversion rate?"
+  - "How many deals are in the pipeline?"
+- Powered by GPT-4o with live CRM data context
 
 ---
 
-## Bitrix24 MCP Integration (Planned)
-
-A detailed technical design document has been created at `/app/memory/BITRIX24_MCP_INTEGRATION.md` covering:
-- Data model (add columns to tenants table)
-- BitrixMcpClient class for API calls
-- Backend endpoints: connect, test, disconnect, status
-- Frontend UI component
-- Security considerations
-- Implementation phases
-
----
-
-## API Endpoints Reference
+## API Endpoints
 
 ### Authentication
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/auth/register` | POST | Register new user (sends confirmation email) |
+| `/api/auth/register` | POST | Register (sends confirmation email) |
 | `/api/auth/login` | POST | Login (requires confirmed email) |
 | `/api/auth/confirm-email` | GET | Confirm email with token |
 | `/api/auth/resend-confirmation` | POST | Resend confirmation email |
 | `/api/auth/forgot-password` | POST | Request password reset |
 | `/api/auth/reset-password` | POST | Reset password with token |
-| `/api/auth/me` | GET | Get current user |
 
-### Agent Management
+### Bitrix24 CRM
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/bitrix-crm/connect` | POST | Connect with webhook URL |
+| `/api/bitrix-crm/status` | GET | Get connection status |
+| `/api/bitrix-crm/test` | POST | Test connection |
+| `/api/bitrix-crm/disconnect` | POST | Disconnect CRM |
+| `/api/bitrix-crm/leads` | GET | List leads |
+| `/api/bitrix-crm/deals` | GET | List deals |
+| `/api/bitrix-crm/products` | GET | List products |
+| `/api/bitrix-crm/analytics` | GET | Get analytics |
+| `/api/bitrix-crm/chat` | POST | CRM Chat AI queries |
+
+### Agent & Telegram
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/agents` | GET | List all agents |
-| `/api/agents/{id}` | DELETE | Delete agent |
 | `/api/chat/test` | POST | Test agent in browser |
-
-### Telegram
-| Endpoint | Method | Description |
-|----------|--------|-------------|
 | `/api/telegram/bot` | POST/GET/DELETE | Manage Telegram bot |
 | `/api/telegram/webhook` | POST | Telegram webhook handler |
 
-### Dashboard & Analytics
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/dashboard/stats` | GET | KPI statistics |
-| `/api/dashboard/analytics` | GET | Comprehensive analytics |
-| `/api/leads` | GET | List leads |
-
-### Documents (RAG)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/documents` | GET/POST | Knowledge base |
-| `/api/documents/upload` | POST | Upload file with embedding |
-| `/api/documents/search` | POST | Semantic search |
-
 ---
 
-## Database Schema Requirements
+## Database Schema Additions Needed
 
-### Missing Columns (Need to add in Supabase)
+**tenants table:**
+```sql
+ALTER TABLE tenants ADD COLUMN bitrix_webhook_url TEXT;
+ALTER TABLE tenants ADD COLUMN bitrix_connected_at TIMESTAMPTZ;
+```
 
 **users table:**
 ```sql
@@ -145,62 +134,19 @@ ALTER TABLE documents ADD COLUMN chunk_count INTEGER;
 ALTER TABLE documents ADD COLUMN chunks_data JSONB;
 ```
 
-**tenants table (for Bitrix24 MCP):**
-```sql
-ALTER TABLE tenants ADD COLUMN bitrix_mcp_token TEXT;
-ALTER TABLE tenants ADD COLUMN bitrix_mcp_url TEXT DEFAULT 'https://mcp.bitrix24.com/mcp/';
-ALTER TABLE tenants ADD COLUMN bitrix_mcp_connected_at TIMESTAMPTZ;
-```
-
 ---
 
 ## Test Credentials
 - **Email**: test2@teleagent.uz
 - **Password**: testpass123
-- **Note**: This user has `email_confirmed=true`
-
----
-
-## Known Limitations
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Email Sending | NEEDS API KEY | Resend placeholder key - actual emails won't be sent |
-| RAG Persistence | PARTIAL | Works in memory, DB columns needed for persistence |
-| Password Reset | NEEDS DB | Requires reset_token columns |
-| Bitrix24 CRM | MOCKED | Design complete, implementation pending |
-| Google Sheets | NOT IMPLEMENTED | Shows "Coming Soon" |
-
----
-
-## Backlog
-
-### P0 (Critical)
-- [ ] Add missing DB columns (users: reset_token, documents: chunks_data)
-- [ ] Configure real Resend API key
-- [ ] Implement Bitrix24 MCP integration
-
-### P1 (High)
-- [ ] Conversation History & Viewer page
-- [ ] Follow-up Automation system
-- [ ] Human Takeover feature
-
-### P2 (Medium)
-- [ ] Multi-user access with roles
-- [ ] Visual conversation flow builder
-- [ ] E-commerce integration (Shopify)
-
-### P3 (Low)
-- [ ] Voice message support
-- [ ] WhatsApp integration
-- [ ] Broadcast messaging
+- **Status**: email_confirmed=true
 
 ---
 
 ## Test Reports
-- `/app/test_reports/iteration_8.json` - Latest (100% pass rate, 43 tests)
-- `/app/backend/tests/test_bug_fixes.py` - Bug fix test suite
-- `/app/backend/tests/test_api_endpoints.py` - 23 API tests
+- `/app/test_reports/iteration_9.json` - Latest (100% pass rate, 64 tests)
+- All backend tests: 64/64 passed
+- Frontend tests: All features verified
 
 ---
 
@@ -208,18 +154,44 @@ ALTER TABLE tenants ADD COLUMN bitrix_mcp_connected_at TIMESTAMPTZ;
 
 ### Backend
 - `/app/backend/server.py` - Main FastAPI app
+- `/app/backend/bitrix_crm.py` - Bitrix24 CRM client
 - `/app/backend/document_processor.py` - RAG processing
-- `/app/backend/.env` - Environment variables
+- `/app/backend/.env` - Environment variables (Resend key configured)
 
 ### Frontend
-- `/app/frontend/src/App.js` - Routes
+- `/app/frontend/src/App.js` - Routes (includes CRM Chat)
 - `/app/frontend/src/pages/LoginPage.js` - Auth with confirmation flow
 - `/app/frontend/src/pages/ConfirmEmail.js` - Email confirmation page
 - `/app/frontend/src/pages/ResetPassword.js` - Password reset page
-- `/app/frontend/src/pages/AgentsPage.js` - Agent listing
-- `/app/frontend/src/pages/AgentOnboarding.js` - 5-step wizard
-- `/app/frontend/src/pages/AgentDashboard.js` - Performance analytics
+- `/app/frontend/src/pages/CRMChatPage.js` - CRM Chat interface
+- `/app/frontend/src/pages/ConnectionsPage.js` - Bitrix24 connection UI
+- `/app/frontend/src/pages/AgentDashboard.js` - CRM Chat button added
 
-### Documentation
-- `/app/memory/PRD.md` - This file
-- `/app/memory/BITRIX24_MCP_INTEGRATION.md` - Bitrix24 MCP technical design
+### Test Files
+- `/app/backend/tests/test_bitrix_crm.py` - Bitrix24 CRM tests
+- `/app/backend/tests/test_api_endpoints.py` - API tests
+- `/app/backend/tests/test_bug_fixes.py` - Bug fix tests
+
+---
+
+## Backlog
+
+### P0 (Critical) - DONE ✅
+- [x] Email confirmation via Resend
+- [x] Bitrix24 CRM integration (webhook)
+- [x] CRM Chat feature
+
+### P1 (High)
+- [ ] Add DB columns for full persistence
+- [ ] Conversation History & Viewer page
+- [ ] Customer recognition in Telegram bot
+
+### P2 (Medium)
+- [ ] Follow-up Automation system
+- [ ] Human Takeover feature
+- [ ] Multi-user access with roles
+
+### P3 (Low)
+- [ ] Voice message support
+- [ ] WhatsApp integration
+- [ ] Broadcast messaging
