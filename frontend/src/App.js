@@ -5,6 +5,8 @@ import { Toaster } from "./components/ui/sonner";
 
 // Pages
 import LoginPage from "./pages/LoginPage";
+import ConfirmEmail from "./pages/ConfirmEmail";
+import ResetPassword from "./pages/ResetPassword";
 import DashboardLayout from "./layouts/DashboardLayout";
 import AgentsPage from "./pages/AgentsPage";
 import AgentOnboarding from "./pages/AgentOnboarding";
@@ -20,6 +22,8 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/confirm-email" element={<ConfirmEmail />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/agents/new" element={<AgentOnboarding />} />
           <Route path="/" element={<DashboardLayout />}>
             <Route index element={<Navigate to="/agents" replace />} />
