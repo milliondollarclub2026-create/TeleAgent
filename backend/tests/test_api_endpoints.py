@@ -169,6 +169,63 @@ class TestDashboardEndpoints:
             assert "cold" in day
         
         print(f"✓ Leads per day: {len(data)} days of data")
+    
+    def test_dashboard_analytics(self, auth_headers):
+        """Test /api/dashboard/analytics endpoint - Agent Performance Dashboard data"""
+        response = requests.get(f"{BASE_URL}/api/dashboard/analytics?days=7", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Validate summary section
+        assert "summary" in data
+        summary = data["summary"]
+        assert "conversations" in summary
+        assert "leads" in summary
+        assert "conversion_rate" in summary
+        assert "avg_response_time" in summary
+        
+        # Validate each summary item has value and change
+        for key in ["conversations", "leads", "conversion_rate", "avg_response_time"]:
+            assert "value" in summary[key]
+            assert "change" in summary[key]
+        
+        # Validate hotness distribution
+        assert "hotness_distribution" in data
+        assert isinstance(data["hotness_distribution"], list)
+        assert len(data["hotness_distribution"]) == 3  # Hot, Warm, Cold
+        
+        # Validate score distribution
+        assert "score_distribution" in data
+        score_dist = data["score_distribution"]
+        assert "0-25" in score_dist
+        assert "26-50" in score_dist
+        assert "51-75" in score_dist
+        assert "76-100" in score_dist
+        
+        # Validate leads by stage
+        assert "leads_by_stage" in data
+        stages = data["leads_by_stage"]
+        assert "awareness" in stages
+        assert "interest" in stages
+        assert "consideration" in stages
+        assert "intent" in stages
+        assert "evaluation" in stages
+        assert "purchase" in stages
+        
+        # Validate top products
+        assert "top_products" in data
+        assert isinstance(data["top_products"], list)
+        
+        # Validate daily trend
+        assert "daily_trend" in data
+        assert isinstance(data["daily_trend"], list)
+        assert len(data["daily_trend"]) == 7  # 7 days
+        
+        # Validate period_days
+        assert "period_days" in data
+        assert data["period_days"] == 7
+        
+        print(f"✓ Dashboard analytics: {summary['leads']['value']} leads, {summary['conversations']['value']} conversations")
 
 
 class TestLeadsEndpoints:
