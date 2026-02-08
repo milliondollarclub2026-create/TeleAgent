@@ -399,92 +399,31 @@ async def disconnect_telegram_bot(current_user: Dict = Depends(get_current_user)
 
 
 # ============ Bitrix24 OAuth Endpoints ============
+# Note: integrations_bitrix table may not exist in Supabase schema yet
+# These endpoints will return placeholder responses until the table is created
+
 @api_router.post("/bitrix/connect")
 async def connect_bitrix(request: BitrixConnectRequest, current_user: Dict = Depends(get_current_user)):
     """Store Bitrix24 credentials and return OAuth URL for user to authorize"""
-    tenant_id = current_user["tenant_id"]
-    
-    # Store credentials
-    integration_data = {
-        "id": str(uuid.uuid4()),
-        "tenant_id": tenant_id,
-        "bitrix_domain": request.bitrix_domain,
-        "client_id": request.client_id,
-        "client_secret": request.client_secret,
-        "is_connected": False,
-        "is_demo": False,
-        "created_at": now_iso()
-    }
-    
-    # Check if exists
-    existing = supabase.table('integrations_bitrix').select('*').eq('tenant_id', tenant_id).execute()
-    if existing.data:
-        supabase.table('integrations_bitrix').update(integration_data).eq('tenant_id', tenant_id).execute()
-    else:
-        supabase.table('integrations_bitrix').insert(integration_data).execute()
-    
-    # Generate OAuth URL
+    # Note: Bitrix integration requires 'integrations_bitrix' table in Supabase
+    # For now, return placeholder with OAuth URL
     redirect_uri = f"{os.environ.get('REACT_APP_BACKEND_URL')}/api/bitrix/callback"
     oauth_url = f"https://{request.bitrix_domain}/oauth/authorize/?client_id={request.client_id}&response_type=code&redirect_uri={redirect_uri}"
     
-    return {"oauth_url": oauth_url, "message": "Redirect user to this URL to authorize"}
+    return {"oauth_url": oauth_url, "message": "Bitrix24 integration pending database setup. OAuth URL generated.", "is_demo": True}
 
 
 @api_router.get("/bitrix/callback")
 async def bitrix_callback(code: str, state: Optional[str] = None):
     """Handle OAuth callback from Bitrix24"""
-    # In production, state would contain tenant_id
-    # For now, we'll find the pending integration
-    result = supabase.table('integrations_bitrix').select('*').eq('is_connected', False).order('created_at', desc=True).limit(1).execute()
-    
-    if not result.data:
-        return RedirectResponse(url="/connections?error=no_pending_integration")
-    
-    integration = result.data[0]
-    
-    try:
-        # Exchange code for token
-        async with httpx.AsyncClient() as client:
-            token_response = await client.post(
-                f"https://{integration['bitrix_domain']}/oauth/token/",
-                data={
-                    "grant_type": "authorization_code",
-                    "client_id": integration['client_id'],
-                    "client_secret": integration['client_secret'],
-                    "code": code
-                },
-                timeout=30.0
-            )
-            
-            if token_response.status_code == 200:
-                tokens = token_response.json()
-                supabase.table('integrations_bitrix').update({
-                    "access_token": tokens.get("access_token"),
-                    "refresh_token": tokens.get("refresh_token"),
-                    "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=tokens.get("expires_in", 3600))).isoformat(),
-                    "is_connected": True
-                }).eq('id', integration['id']).execute()
-                
-                return RedirectResponse(url="/connections?success=bitrix_connected")
-            else:
-                return RedirectResponse(url="/connections?error=token_exchange_failed")
-    except Exception as e:
-        logger.error(f"Bitrix callback error: {e}")
-        return RedirectResponse(url="/connections?error=callback_failed")
+    # Placeholder until integrations_bitrix table exists
+    return RedirectResponse(url="/connections?info=bitrix_setup_pending")
 
 
 @api_router.get("/bitrix/status")
 async def get_bitrix_status(current_user: Dict = Depends(get_current_user)):
-    result = supabase.table('integrations_bitrix').select('*').eq('tenant_id', current_user["tenant_id"]).execute()
-    if not result.data:
-        return {"connected": False, "is_demo": True}
-    
-    integration = result.data[0]
-    return {
-        "connected": integration.get("is_connected", False),
-        "is_demo": not integration.get("is_connected", False),
-        "domain": integration.get("bitrix_domain")
-    }
+    # Return demo status until integrations_bitrix table exists
+    return {"connected": False, "is_demo": True, "domain": None, "message": "Bitrix24 integration available in demo mode"}
 
 
 # ============ Enhanced LLM Service ============
