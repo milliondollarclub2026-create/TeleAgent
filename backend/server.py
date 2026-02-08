@@ -29,6 +29,9 @@ from document_processor import (
     generate_embeddings_batch
 )
 
+# Import Bitrix24 CRM client
+from bitrix_crm import BitrixCRMClient, BitrixAPIError, create_bitrix_client
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
