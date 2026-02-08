@@ -293,32 +293,105 @@ const ConnectionsPage = () => {
           )}
         </ConnectionCard>
 
-        {/* Bitrix24 */}
+        {/* Bitrix24 CRM */}
         <ConnectionCard
           title="Bitrix24 CRM"
           description="Sync leads and contacts with your Bitrix24 account"
           icon={Link2}
           iconBg="bg-indigo-100"
-          connected={integrations?.bitrix?.connected}
+          connected={bitrixStatus?.connected}
+          status={bitrixStatus?.connected ? 'CRM Connected' : null}
           testId="bitrix-connection"
         >
-          <div className="space-y-3">
-            {integrations?.bitrix?.is_demo && (
-              <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
-                <div className="flex items-center gap-2 text-amber-700">
-                  <AlertTriangle className="w-4 h-4" strokeWidth={2} />
-                  <span className="font-medium text-sm">Running in Demo Mode</span>
+          {bitrixStatus?.connected ? (
+            <div className="space-y-3">
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+                <div className="flex items-center gap-2 text-emerald-700">
+                  <Zap className="w-4 h-4" strokeWidth={2} />
+                  <span className="font-medium text-sm">Bitrix24 CRM is connected</span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1.5">
-                  Leads are stored locally. Connect your Bitrix24 account for full CRM sync.
-                </p>
+                {bitrixStatus.connected_at && (
+                  <p className="text-xs text-slate-500 mt-1.5">
+                    Connected: {new Date(bitrixStatus.connected_at).toLocaleString()}
+                  </p>
+                )}
               </div>
-            )}
-            <Button variant="outline" size="sm" disabled className="text-slate-500" data-testid="connect-bitrix-btn">
-              <Link2 className="w-4 h-4 mr-2" strokeWidth={1.75} />
-              Connect Bitrix24 (Coming Soon)
-            </Button>
-          </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={testBitrixConnection}
+                  disabled={testingBitrix}
+                  data-testid="test-bitrix-btn"
+                >
+                  {testingBitrix && <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={2} />}
+                  Test Connection
+                </Button>
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                  onClick={disconnectBitrix}
+                  data-testid="disconnect-bitrix-btn"
+                >
+                  Disconnect
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+                <div className="flex items-start gap-2 text-blue-800">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" strokeWidth={2} />
+                  <div className="text-sm">
+                    <p className="font-medium">How to get your webhook URL:</p>
+                    <ol className="mt-1 text-blue-700 text-xs space-y-0.5 list-decimal list-inside">
+                      <li>Go to your Bitrix24 portal</li>
+                      <li>Navigate to Developer Resources → Inbound webhooks</li>
+                      <li>Create webhook with CRM permissions</li>
+                      <li>Copy the webhook URL</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="bitrixWebhook" className="text-slate-700 text-sm">Webhook URL</Label>
+                <div className="relative">
+                  <Input
+                    id="bitrixWebhook"
+                    type={showBitrixUrl ? "text" : "password"}
+                    placeholder="https://your-portal.bitrix24.kz/rest/1/abc123xyz/"
+                    value={bitrixWebhookUrl}
+                    onChange={(e) => setBitrixWebhookUrl(e.target.value)}
+                    className="pr-10 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+                    data-testid="bitrix-webhook-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowBitrixUrl(!showBitrixUrl)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showBitrixUrl ? (
+                      <EyeOff className="w-4 h-4" strokeWidth={1.75} />
+                    ) : (
+                      <Eye className="w-4 h-4" strokeWidth={1.75} />
+                    )}
+                  </button>
+                </div>
+              </div>
+              <Button 
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={connectBitrix}
+                disabled={connectingBitrix}
+                data-testid="connect-bitrix-btn"
+              >
+                {connectingBitrix && <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={2} />}
+                <Link2 className="w-4 h-4 mr-2" strokeWidth={1.75} />
+                Connect Bitrix24
+              </Button>
+            </div>
+          )}
         </ConnectionCard>
 
         {/* Google Sheets */}
