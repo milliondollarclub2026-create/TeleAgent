@@ -1175,21 +1175,27 @@ async def upload_document(
         else:
             file_type = "text"
         
-        # Store document with chunks
+        doc_id = str(uuid.uuid4())
+        
+        # Store document in Supabase (basic columns only)
         doc = {
-            "id": str(uuid.uuid4()),
+            "id": doc_id,
             "tenant_id": current_user["tenant_id"],
             "title": doc_title,
             "content": f"[File: {filename}] - {len(chunks)} chunks processed",
             "file_type": file_type,
-            "file_name": filename,
             "file_size": file_size,
-            "chunk_count": len(chunks),
-            "chunks": json.dumps(chunks_with_embeddings),
             "created_at": now_iso()
         }
         
         supabase.table('documents').insert(doc).execute()
+        
+        # Store embeddings in memory cache
+        document_embeddings_cache[doc_id] = {
+            "chunks": chunks_with_embeddings,
+            "chunk_count": len(chunks),
+            "tenant_id": current_user["tenant_id"]
+        }
         
         logger.info(f"Document uploaded: {doc_title}, {len(chunks)} chunks, {file_type}")
         
