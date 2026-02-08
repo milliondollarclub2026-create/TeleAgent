@@ -95,11 +95,16 @@ const Sidebar = () => {
       </nav>
 
       {/* Collapse toggle button */}
-      <div className="px-2 py-2 border-t border-slate-100 hidden lg:block">
+      <div className={`py-2 border-t border-slate-100 hidden lg:block ${collapsed ? 'px-1.5' : 'px-2'}`}>
         <button
-          onClick={toggleSidebar}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors text-sm"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleSidebar();
+          }}
+          className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors text-sm ${collapsed ? 'px-0' : 'px-3'}`}
           data-testid="toggle-sidebar-btn"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? (
             <ChevronRight className="w-4 h-4" strokeWidth={1.75} />
