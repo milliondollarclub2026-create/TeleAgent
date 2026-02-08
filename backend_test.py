@@ -302,7 +302,8 @@ class TeleAgentAPITester:
         if self.failed_tests:
             self.log("\n❌ FAILED TESTS:")
             for test in self.failed_tests:
-                self.log(f"   • {test['test']}: {test.get('error', f\"Status {test.get('actual')} != {test.get('expected')}\")}")
+                error_msg = test.get('error', f"Status {test.get('actual')} != {test.get('expected')}")
+                self.log(f"   • {test['test']}: {error_msg}")
         
         self.log("=" * 60)
         
