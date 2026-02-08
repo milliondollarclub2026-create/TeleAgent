@@ -184,6 +184,16 @@ const AgentDashboard = () => {
           <Button 
             variant="outline" 
             size="sm"
+            onClick={() => navigate(`/agents/${agentId}/crm-chat`)}
+            className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+            data-testid="crm-chat-btn"
+          >
+            <MessageSquare className="w-4 h-4 mr-2" strokeWidth={1.75} />
+            CRM Chat
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
             onClick={() => navigate(`/agents/${agentId}/settings`)}
           >
             <Settings className="w-4 h-4 mr-2" strokeWidth={1.75} />
