@@ -11,6 +11,7 @@ import DashboardLayout from "./layouts/DashboardLayout";
 import AgentsPage from "./pages/AgentsPage";
 import AgentOnboarding from "./pages/AgentOnboarding";
 import AgentDashboard from "./pages/AgentDashboard";
+import CRMChatPage from "./pages/CRMChatPage";
 import LeadsPage from "./pages/LeadsPage";
 import ConnectionsPage from "./pages/ConnectionsPage";
 import SalesAgentPage from "./pages/SalesAgentPage";
@@ -29,6 +30,7 @@ function App() {
             <Route index element={<Navigate to="/agents" replace />} />
             <Route path="agents" element={<AgentsPage />} />
             <Route path="agents/:agentId" element={<AgentDashboard />} />
+            <Route path="agents/:agentId/crm-chat" element={<CRMChatPage />} />
             <Route path="agents/:agentId/settings" element={<SalesAgentPage />} />
             <Route path="dashboard" element={<Navigate to="/agents" replace />} />
             <Route path="leads" element={<LeadsPage />} />
