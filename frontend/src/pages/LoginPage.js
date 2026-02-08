@@ -6,7 +6,6 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { 
-  Bot, 
   Mail, 
   Lock, 
   User, 
@@ -15,7 +14,10 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  Sparkles
+  Zap,
+  TrendingUp,
+  Users,
+  MessageSquare
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -42,8 +44,8 @@ const LoginPage = () => {
         await login(email, password);
         toast.success('Welcome back!');
       } else {
-        const result = await register(email, password, name, businessName);
-        toast.success(result?.message || 'Account created successfully!');
+        await register(email, password, name, businessName);
+        toast.success('Account created successfully!');
       }
       navigate('/dashboard');
     } catch (err) {
@@ -55,86 +57,93 @@ const LoginPage = () => {
     }
   };
 
+  const features = [
+    { icon: MessageSquare, text: "AI-powered Telegram sales agent" },
+    { icon: TrendingUp, text: "Lead scoring & pipeline tracking" },
+    { icon: Users, text: "CRM integration with Bitrix24" },
+  ];
+
   return (
-    <div className="min-h-screen flex">
-      {/* Left side - Image */}
-      <div 
-        className="hidden lg:flex lg:w-1/2 relative bg-cover bg-center"
-        style={{
-          backgroundImage: 'url(https://images.unsplash.com/photo-1626788106664-dd5470a14082?crop=entropy&cs=srgb&fm=jpg&q=85)'
-        }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
-        <div className="relative z-10 flex flex-col justify-center p-12">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/30">
-              <Bot className="w-7 h-7 text-primary" strokeWidth={1.5} />
+    <div className="min-h-screen flex bg-[#F5F7F6]">
+      {/* Left side - Branding */}
+      <div className="hidden lg:flex lg:w-1/2 bg-white border-r border-slate-200 flex-col justify-center p-12">
+        <div className="max-w-md">
+          <div className="flex items-center gap-2 mb-8">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-white" strokeWidth={2} />
             </div>
-            <span className="text-2xl font-bold font-['Manrope']">TeleAgent</span>
+            <span className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">TeleAgent</span>
           </div>
-          <h1 className="text-4xl font-bold font-['Manrope'] mb-4 leading-tight">
-            AI Sales Agent<br />
-            <span className="text-gradient">for Telegram</span>
+          
+          <h1 className="text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-3 leading-tight">
+            Convert Telegram chats<br />
+            <span className="text-emerald-600">into paying customers</span>
           </h1>
-          <p className="text-lg text-muted-foreground max-w-md leading-relaxed">
-            Convert Telegram chats into paying customers with intelligent lead qualification and CRM integration.
+          
+          <p className="text-slate-600 mb-8 leading-relaxed">
+            AI sales agent that speaks Uzbek, Russian & English. Qualifies leads, handles objections, and closes deals automatically.
           </p>
-          <div className="mt-8 flex items-center gap-2 text-sm text-muted-foreground">
-            <Sparkles className="w-4 h-4 text-primary" strokeWidth={1.5} />
-            <span>Powered by GPT-4 • Speaks Uzbek, Russian & English</span>
+          
+          <div className="space-y-3">
+            {features.map(({ icon: Icon, text }, index) => (
+              <div key={index} className="flex items-center gap-3 text-slate-700">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                  <Icon className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
+                </div>
+                <span className="text-sm">{text}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
       {/* Right side - Form */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <Card className="w-full max-w-md bg-card border-border shadow-xl">
-          <CardHeader className="space-y-1 text-center">
-            <div className="lg:hidden flex items-center justify-center gap-2 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/30">
-                <Bot className="w-6 h-6 text-primary" strokeWidth={1.5} />
+      <div className="flex-1 flex items-center justify-center p-6">
+        <Card className="w-full max-w-sm bg-white border-slate-200 shadow-sm">
+          <CardHeader className="space-y-1 pb-4">
+            <div className="lg:hidden flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
+                <Zap className="w-4 h-4 text-white" strokeWidth={2} />
               </div>
-              <span className="text-xl font-bold font-['Manrope']">TeleAgent</span>
+              <span className="text-lg font-bold text-slate-900">TeleAgent</span>
             </div>
-            <CardTitle className="text-2xl font-['Manrope']">
-              {isLogin ? 'Welcome back' : 'Create an account'}
+            <CardTitle className="text-xl font-['Plus_Jakarta_Sans'] text-slate-900">
+              {isLogin ? 'Welcome back' : 'Create account'}
             </CardTitle>
-            <CardDescription>
-              {isLogin 
-                ? 'Enter your credentials to access your dashboard' 
-                : 'Start converting Telegram leads today'}
+            <CardDescription className="text-slate-500 text-sm">
+              {isLogin ? 'Sign in to your dashboard' : 'Start converting leads today'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
               {!isLogin && (
                 <>
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Your Name</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name" className="text-slate-700 text-sm">Your Name</Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" strokeWidth={1.75} />
                       <Input
                         id="name"
                         data-testid="register-name-input"
                         placeholder="John Doe"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="pl-10"
+                        className="pl-9 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                         required={!isLogin}
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="business">Business Name</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="business" className="text-slate-700 text-sm">Business Name</Label>
                     <div className="relative">
-                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" strokeWidth={1.75} />
                       <Input
                         id="business"
                         data-testid="register-business-input"
                         placeholder="My Company LLC"
                         value={businessName}
                         onChange={(e) => setBusinessName(e.target.value)}
-                        className="pl-10"
+                        className="pl-9 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                         required={!isLogin}
                       />
                     </div>
@@ -142,10 +151,10 @@ const LoginPage = () => {
                 </>
               )}
               
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="email" className="text-slate-700 text-sm">Email</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" strokeWidth={1.75} />
                   <Input
                     id="email"
                     type="email"
@@ -153,16 +162,16 @@ const LoginPage = () => {
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
+                    className="pl-9 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                     required
                   />
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="password" className="text-slate-700 text-sm">Password</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" strokeWidth={1.75} />
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
@@ -170,56 +179,49 @@ const LoginPage = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10"
+                    className="pl-9 pr-9 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     data-testid="toggle-password-visibility"
                   >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" strokeWidth={1.5} />
-                    ) : (
-                      <Eye className="w-4 h-4" strokeWidth={1.5} />
-                    )}
+                    {showPassword ? <EyeOff className="w-4 h-4" strokeWidth={1.75} /> : <Eye className="w-4 h-4" strokeWidth={1.75} />}
                   </button>
                 </div>
               </div>
 
               {error && (
-                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                <div className="p-2.5 rounded-md bg-red-50 border border-red-200 text-red-700 text-xs">
                   {error}
                 </div>
               )}
 
               <Button 
                 type="submit" 
-                className="w-full"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 h-9 text-sm"
                 data-testid="login-submit-btn"
                 disabled={loading}
               >
                 {loading ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" strokeWidth={1.5} />
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" strokeWidth={2} />
                 ) : (
-                  <ArrowRight className="w-4 h-4 mr-2" strokeWidth={1.5} />
+                  <ArrowRight className="w-4 h-4 mr-2" strokeWidth={2} />
                 )}
                 {isLogin ? 'Sign In' : 'Create Account'}
               </Button>
             </form>
 
-            <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">
+            <div className="mt-4 text-center text-sm">
+              <span className="text-slate-500">
                 {isLogin ? "Don't have an account? " : "Already have an account? "}
               </span>
               <button
                 type="button"
-                onClick={() => {
-                  setIsLogin(!isLogin);
-                  setError('');
-                }}
-                className="text-primary hover:underline font-medium"
+                onClick={() => { setIsLogin(!isLogin); setError(''); }}
+                className="text-emerald-600 hover:text-emerald-700 font-medium"
                 data-testid="toggle-auth-mode-btn"
               >
                 {isLogin ? 'Sign up' : 'Sign in'}

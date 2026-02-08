@@ -10,8 +10,8 @@ const DashboardLayout = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F7F6]">
+        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
       </div>
     );
   }
@@ -21,9 +21,9 @@ const DashboardLayout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#F5F7F6]">
       <Sidebar />
-      <main className="md:ml-64 p-6 md:p-8">
+      <main className="lg:ml-52 p-4 lg:p-6">
         <Outlet />
       </main>
       <Toaster position="top-right" />

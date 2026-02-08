@@ -4,9 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { 
   LayoutDashboard, 
   Users, 
-  Link2, 
+  Plug, 
   Bot, 
-  BookOpen, 
+  FileText, 
   LogOut,
   Menu,
   X,
@@ -18,9 +18,9 @@ import { useState } from 'react';
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/leads', icon: Users, label: 'Leads' },
-  { path: '/connections', icon: Link2, label: 'Connections' },
+  { path: '/connections', icon: Plug, label: 'Connections' },
   { path: '/sales-agent', icon: Bot, label: 'Sales Agent' },
-  { path: '/knowledge-base', icon: BookOpen, label: 'Knowledge Base' },
+  { path: '/knowledge-base', icon: FileText, label: 'Knowledge Base' },
 ];
 
 const Sidebar = () => {
@@ -36,63 +36,59 @@ const Sidebar = () => {
   const NavContent = () => (
     <>
       {/* Logo */}
-      <div className="p-6 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/30">
-            <Zap className="w-5 h-5 text-primary" strokeWidth={1.5} />
+      <div className="p-4 border-b border-slate-200">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
+            <Zap className="w-4 h-4 text-white" strokeWidth={2} />
           </div>
-          <div>
-            <span className="text-lg font-bold font-['Manrope']">TeleAgent</span>
-            <p className="text-xs text-muted-foreground truncate max-w-[140px]">
-              {user?.business_name || 'AI Sales Agent'}
-            </p>
-          </div>
+          <span className="text-base font-semibold text-slate-900 font-['Plus_Jakarta_Sans']">TeleAgent</span>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-2 space-y-0.5">
         {navItems.map(({ path, icon: Icon, label }) => (
           <NavLink
             key={path}
             to={path}
             onClick={() => setMobileOpen(false)}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+              `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
                 isActive
-                  ? 'bg-primary/10 text-primary border border-primary/20'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`
             }
             data-testid={`nav-${label.toLowerCase().replace(' ', '-')}`}
           >
-            <Icon className="w-5 h-5" strokeWidth={1.5} />
+            <Icon className="w-4 h-4" strokeWidth={1.75} />
             {label}
           </NavLink>
         ))}
       </nav>
 
       {/* User section */}
-      <div className="p-4 border-t border-border">
-        <div className="flex items-center gap-3 px-3 py-2 mb-2">
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30">
-            <span className="text-sm font-medium text-primary">
+      <div className="p-3 border-t border-slate-200">
+        <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
+          <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center">
+            <span className="text-xs font-semibold text-emerald-700">
               {user?.name?.[0]?.toUpperCase() || 'U'}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            <p className="text-xs font-medium text-slate-900 truncate">{user?.name || 'User'}</p>
+            <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
           </div>
         </div>
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+          size="sm"
+          className="w-full justify-start gap-2 text-slate-500 hover:text-red-600 hover:bg-red-50 h-8"
           onClick={handleLogout}
           data-testid="logout-btn"
         >
-          <LogOut className="w-5 h-5" strokeWidth={1.5} />
-          Sign Out
+          <LogOut className="w-3.5 h-3.5" strokeWidth={1.75} />
+          <span className="text-xs">Sign Out</span>
         </Button>
       </div>
     </>
@@ -102,27 +98,27 @@ const Sidebar = () => {
     <>
       {/* Mobile menu button */}
       <button
-        className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-card border border-border"
+        className="lg:hidden fixed top-3 left-3 z-50 p-2 rounded-lg bg-white border border-slate-200 shadow-sm"
         onClick={() => setMobileOpen(!mobileOpen)}
         data-testid="mobile-menu-btn"
       >
-        {mobileOpen ? <X className="w-5 h-5" strokeWidth={1.5} /> : <Menu className="w-5 h-5" strokeWidth={1.5} />}
+        {mobileOpen ? <X className="w-4 h-4 text-slate-600" /> : <Menu className="w-4 h-4 text-slate-600" />}
       </button>
 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div 
-          className="md:hidden fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+          className="lg:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Compact width */}
       <aside className={`
-        fixed top-0 left-0 h-screen w-64 bg-card border-r border-border flex flex-col z-40
-        transition-transform duration-300
+        fixed top-0 left-0 h-screen w-52 bg-white border-r border-slate-200 flex flex-col z-40
+        transition-transform duration-200
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-        md:translate-x-0
+        lg:translate-x-0
       `}>
         <NavContent />
       </aside>
