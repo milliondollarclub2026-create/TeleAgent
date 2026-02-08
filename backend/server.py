@@ -1281,6 +1281,113 @@ async def get_integrations_status(current_user: Dict = Depends(get_current_user)
     }
 
 
+# ============ Agents Endpoints ============
+@api_router.get("/agents")
+async def get_agents(current_user: Dict = Depends(get_current_user)):
+    """List all agents for the user"""
+    # For now, treat each tenant config as an agent
+    try:
+        config = supabase.table('tenant_configs').select('*').eq('tenant_id', current_user["tenant_id"]).execute()
+        
+        if not config.data or not config.data[0].get('business_name'):
+            return []
+        
+        # Get stats
+        leads_result = supabase.table('leads').select('id').eq('tenant_id', current_user["tenant_id"]).execute()
+        convos_result = supabase.table('conversations').select('id').eq('tenant_id', current_user["tenant_id"]).execute()
+        telegram_result = supabase.table('telegram_bots').select('*').eq('tenant_id', current_user["tenant_id"]).eq('is_active', True).execute()
+        
+        agent_config = config.data[0]
+        
+        return [{
+            "id": current_user["tenant_id"],
+            "name": agent_config.get('business_name', 'My Agent'),
+            "status": "active" if telegram_result.data else "inactive",
+            "channel": "telegram" if telegram_result.data else None,
+            "leads_count": len(leads_result.data) if leads_result.data else 0,
+            "conversations_count": len(convos_result.data) if convos_result.data else 0,
+            "created_at": agent_config.get('created_at', now_iso())
+        }]
+    except Exception as e:
+        logger.error(f"Get agents error: {e}")
+        return []
+
+
+@api_router.delete("/agents/{agent_id}")
+async def delete_agent(agent_id: str, current_user: Dict = Depends(get_current_user)):
+    """Delete an agent (resets config)"""
+    try:
+        # Reset the config
+        supabase.table('tenant_configs').update({
+            "business_name": None,
+            "business_description": None,
+            "products_services": None
+        }).eq('tenant_id', current_user["tenant_id"]).execute()
+        
+        # Delete documents
+        supabase.table('documents').delete().eq('tenant_id', current_user["tenant_id"]).execute()
+        
+        # Delete telegram bot
+        supabase.table('telegram_bots').delete().eq('tenant_id', current_user["tenant_id"]).execute()
+        
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Delete agent error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete agent")
+
+
+# ============ Test Chat Endpoint ============
+class TestChatRequest(BaseModel):
+    message: str
+    conversation_history: List[Dict] = []
+
+@api_router.post("/chat/test")
+async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_current_user)):
+    """
+    Test the AI agent in browser without Telegram.
+    Simulates a conversation for testing purposes.
+    """
+    try:
+        tenant_id = current_user["tenant_id"]
+        
+        # Get config
+        config_result = supabase.table('tenant_configs').select('*').eq('tenant_id', tenant_id).execute()
+        config = config_result.data[0] if config_result.data else {}
+        
+        # Build conversation context
+        lead_context = {
+            "current_stage": "awareness",
+            "fields_collected": {},
+            "score": 50
+        }
+        
+        # Format messages for LLM
+        messages_for_llm = []
+        for msg in request.conversation_history:
+            role = "assistant" if msg.get("role") == "agent" else "user"
+            messages_for_llm.append({"role": role, "content": msg.get("text", "")})
+        messages_for_llm.append({"role": "user", "content": request.message})
+        
+        # Get RAG context
+        business_context = await get_business_context_semantic(tenant_id, request.message)
+        
+        # Call LLM
+        llm_result = await call_sales_agent(messages_for_llm, config, lead_context, business_context, tenant_id, request.message)
+        
+        return {
+            "reply": llm_result.get("reply", "I'm here to help! What would you like to know?"),
+            "sales_stage": llm_result.get("sales_stage", "awareness"),
+            "hotness": llm_result.get("hotness", "warm"),
+            "score": llm_result.get("score", 50),
+            "fields_collected": llm_result.get("fields_collected", {}),
+            "rag_context_used": len(business_context) > 0
+        }
+        
+    except Exception as e:
+        logger.error(f"Test chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============ Health Check ============
 @api_router.get("/")
 async def root():
