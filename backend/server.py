@@ -745,11 +745,11 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
             "fields_collected": existing_lead.get("fields_collected", {}) if existing_lead else {}
         }
         
-        # Get business context (RAG)
-        business_context = get_business_context(tenant_id, text)
+        # Get business context (Semantic RAG)
+        business_context = await get_business_context_semantic(tenant_id, text)
         
         # Call enhanced LLM
-        llm_result = await call_sales_agent(messages_for_llm, config, lead_context, business_context)
+        llm_result = await call_sales_agent(messages_for_llm, config, lead_context, business_context, tenant_id, text)
         
         # Update or create lead with enhanced data
         await update_lead_from_llm(tenant_id, customer, existing_lead, llm_result)
