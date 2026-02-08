@@ -988,27 +988,223 @@ async def get_config_defaults():
     }
 
 
-# ============ Documents Endpoints ============
+# ============ Documents Endpoints (Enhanced with RAG) ============
+
+# Maximum file size (10MB)
+MAX_FILE_SIZE = 10 * 1024 * 1024
+
 @api_router.get("/documents")
 async def get_documents(current_user: Dict = Depends(get_current_user)):
-    result = supabase.table('documents').select('*').eq('tenant_id', current_user["tenant_id"]).order('created_at', desc=True).execute()
-    return [{"id": doc["id"], "title": doc["title"], "file_type": doc.get("file_type", "text"), "file_size": doc.get("file_size"), "created_at": doc.get("created_at", "")} for doc in (result.data or [])]
+    """List all documents for the tenant"""
+    result = supabase.table('documents').select('id, title, file_type, file_size, chunk_count, created_at').eq('tenant_id', current_user["tenant_id"]).order('created_at', desc=True).execute()
+    return [
+        {
+            "id": doc["id"],
+            "title": doc["title"],
+            "file_type": doc.get("file_type", "text"),
+            "file_size": doc.get("file_size"),
+            "chunk_count": doc.get("chunk_count", 1),
+            "created_at": doc.get("created_at", "")
+        } 
+        for doc in (result.data or [])
+    ]
 
 
 @api_router.post("/documents")
 async def create_document(request: DocumentCreate, current_user: Dict = Depends(get_current_user)):
-    doc = {"id": str(uuid.uuid4()), "tenant_id": current_user["tenant_id"], "title": request.title, "content": request.content, "file_type": "text", "file_size": len(request.content), "created_at": now_iso()}
-    supabase.table('documents').insert(doc).execute()
-    return {"id": doc["id"], "title": doc["title"], "created_at": doc["created_at"]}
+    """Create a text document with automatic embedding generation"""
+    try:
+        # Process text content into chunks
+        chunks = process_text(request.content, request.title)
+        
+        if not chunks:
+            raise HTTPException(status_code=400, detail="No content could be processed")
+        
+        # Generate embeddings for chunks
+        chunk_texts = [chunk["text"] for chunk in chunks]
+        embeddings = await generate_embeddings_batch(chunk_texts)
+        
+        # Prepare chunks with embeddings
+        chunks_with_embeddings = []
+        for chunk, embedding in zip(chunks, embeddings):
+            chunks_with_embeddings.append({
+                "text": chunk["text"],
+                "source": chunk.get("source", request.title),
+                "token_count": chunk.get("token_count", 0),
+                "embedding": embedding
+            })
+        
+        # Store document
+        doc = {
+            "id": str(uuid.uuid4()),
+            "tenant_id": current_user["tenant_id"],
+            "title": request.title,
+            "content": request.content,
+            "file_type": "text",
+            "file_size": len(request.content),
+            "chunk_count": len(chunks),
+            "chunks": json.dumps(chunks_with_embeddings),
+            "created_at": now_iso()
+        }
+        
+        supabase.table('documents').insert(doc).execute()
+        
+        logger.info(f"Document created: {request.title}, {len(chunks)} chunks with embeddings")
+        
+        return {
+            "id": doc["id"],
+            "title": doc["title"],
+            "chunk_count": len(chunks),
+            "created_at": doc["created_at"]
+        }
+        
+    except Exception as e:
+        logger.error(f"Document creation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/documents/upload")
+async def upload_document(
+    file: UploadFile = File(...),
+    title: Optional[str] = Form(None),
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Upload a file (PDF, DOCX, Excel, CSV, Image, TXT) and process it for RAG.
+    Files are chunked and embedded for semantic search.
+    """
+    try:
+        # Validate file size
+        file_content = await file.read()
+        file_size = len(file_content)
+        
+        if file_size > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail=f"File too large. Maximum size is {MAX_FILE_SIZE // 1024 // 1024}MB")
+        
+        if file_size == 0:
+            raise HTTPException(status_code=400, detail="File is empty")
+        
+        filename = file.filename or "uploaded_file"
+        doc_title = title or filename
+        content_type = file.content_type or "application/octet-stream"
+        
+        logger.info(f"Processing upload: {filename}, type: {content_type}, size: {file_size}")
+        
+        # Process document and generate embeddings
+        chunks, embeddings = await process_document(file_content, filename, content_type)
+        
+        # Prepare chunks with embeddings
+        chunks_with_embeddings = []
+        for chunk, embedding in zip(chunks, embeddings):
+            chunks_with_embeddings.append({
+                "text": chunk["text"],
+                "source": chunk.get("source", filename),
+                "token_count": chunk.get("token_count", 0),
+                "embedding": embedding
+            })
+        
+        # Determine file type category
+        filename_lower = filename.lower()
+        if filename_lower.endswith('.pdf'):
+            file_type = "pdf"
+        elif filename_lower.endswith('.docx'):
+            file_type = "docx"
+        elif filename_lower.endswith(('.xlsx', '.xls', '.csv')):
+            file_type = "spreadsheet"
+        elif filename_lower.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
+            file_type = "image"
+        else:
+            file_type = "text"
+        
+        # Store document with chunks
+        doc = {
+            "id": str(uuid.uuid4()),
+            "tenant_id": current_user["tenant_id"],
+            "title": doc_title,
+            "content": f"[File: {filename}] - {len(chunks)} chunks processed",
+            "file_type": file_type,
+            "file_name": filename,
+            "file_size": file_size,
+            "chunk_count": len(chunks),
+            "chunks": json.dumps(chunks_with_embeddings),
+            "created_at": now_iso()
+        }
+        
+        supabase.table('documents').insert(doc).execute()
+        
+        logger.info(f"Document uploaded: {doc_title}, {len(chunks)} chunks, {file_type}")
+        
+        return {
+            "id": doc["id"],
+            "title": doc_title,
+            "file_type": file_type,
+            "file_size": file_size,
+            "chunk_count": len(chunks),
+            "created_at": doc["created_at"],
+            "message": f"Successfully processed {filename} into {len(chunks)} searchable chunks"
+        }
+        
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Upload error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
 
 
 @api_router.delete("/documents/{doc_id}")
 async def delete_document(doc_id: str, current_user: Dict = Depends(get_current_user)):
+    """Delete a document"""
     result = supabase.table('documents').select('*').eq('id', doc_id).eq('tenant_id', current_user["tenant_id"]).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Document not found")
     supabase.table('documents').delete().eq('id', doc_id).execute()
     return {"success": True}
+
+
+@api_router.post("/documents/search")
+async def search_documents(
+    query: str,
+    top_k: int = 5,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Semantic search across all tenant documents.
+    Returns the most relevant chunks based on query similarity.
+    """
+    try:
+        # Get all documents for tenant
+        result = supabase.table('documents').select('chunks').eq('tenant_id', current_user["tenant_id"]).execute()
+        
+        if not result.data:
+            return {"results": [], "message": "No documents in knowledge base"}
+        
+        # Collect all chunks with embeddings
+        all_chunks = []
+        for doc in result.data:
+            if doc.get("chunks"):
+                try:
+                    chunks = json.loads(doc["chunks"])
+                    all_chunks.extend(chunks)
+                except:
+                    pass
+        
+        if not all_chunks:
+            return {"results": [], "message": "No searchable content found"}
+        
+        # Perform semantic search
+        results = await semantic_search(query, all_chunks, top_k=top_k)
+        
+        return {
+            "results": results,
+            "total_chunks_searched": len(all_chunks),
+            "query": query
+        }
+        
+    except Exception as e:
+        logger.error(f"Search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============ Integration Status ============
