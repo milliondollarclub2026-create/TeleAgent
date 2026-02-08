@@ -720,6 +720,263 @@ async def get_bitrix_status(current_user: Dict = Depends(get_current_user)):
     return {"connected": False, "is_demo": True, "domain": None, "message": "Bitrix24 integration available in demo mode"}
 
 
+# ============ Bitrix24 Webhook Integration ============
+# Modern webhook-based CRM integration for full AI access
+
+class BitrixWebhookConnect(BaseModel):
+    webhook_url: str = Field(..., description="Bitrix24 webhook URL")
+
+
+class CRMChatRequest(BaseModel):
+    message: str = Field(..., description="User question about CRM data")
+    conversation_history: List[Dict] = Field(default=[], description="Previous messages in conversation")
+
+
+async def get_bitrix_client(tenant_id: str) -> Optional[BitrixCRMClient]:
+    """Get Bitrix24 client for tenant if configured"""
+    try:
+        result = supabase.table('tenants').select('bitrix_webhook_url').eq('id', tenant_id).execute()
+        if result.data and result.data[0].get('bitrix_webhook_url'):
+            return create_bitrix_client(result.data[0]['bitrix_webhook_url'])
+    except Exception as e:
+        logger.warning(f"Could not get Bitrix client: {e}")
+    return None
+
+
+@api_router.post("/bitrix-crm/connect")
+async def connect_bitrix_webhook(
+    request: BitrixWebhookConnect, 
+    current_user: Dict = Depends(get_current_user)
+):
+    """Connect Bitrix24 CRM via webhook URL"""
+    tenant_id = current_user["tenant_id"]
+    
+    # Test the connection
+    client = create_bitrix_client(request.webhook_url)
+    if not client:
+        raise HTTPException(status_code=400, detail="Invalid webhook URL")
+    
+    test_result = await client.test_connection()
+    
+    if not test_result.get("ok"):
+        raise HTTPException(status_code=400, detail=f"Connection failed: {test_result.get('message')}")
+    
+    # Save webhook URL to tenant
+    try:
+        supabase.table('tenants').update({
+            "bitrix_webhook_url": request.webhook_url,
+            "bitrix_connected_at": now_iso()
+        }).eq('id', tenant_id).execute()
+    except Exception as e:
+        # Column might not exist - try to add tenant config instead
+        logger.warning(f"Could not save to tenants, trying tenant_configs: {e}")
+        try:
+            supabase.table('tenant_configs').update({
+                "bitrix_webhook_url": request.webhook_url,
+                "bitrix_connected_at": now_iso()
+            }).eq('tenant_id', tenant_id).execute()
+        except:
+            pass
+    
+    return {
+        "success": True,
+        "message": "Bitrix24 CRM connected successfully!",
+        "portal_user": test_result.get("portal_user"),
+        "crm_mode": test_result.get("crm_mode")
+    }
+
+
+@api_router.post("/bitrix-crm/test")
+async def test_bitrix_webhook(current_user: Dict = Depends(get_current_user)):
+    """Test Bitrix24 CRM connection"""
+    tenant_id = current_user["tenant_id"]
+    
+    client = await get_bitrix_client(tenant_id)
+    if not client:
+        return {"ok": False, "message": "Bitrix24 not connected"}
+    
+    return await client.test_connection()
+
+
+@api_router.post("/bitrix-crm/disconnect")
+async def disconnect_bitrix_webhook(current_user: Dict = Depends(get_current_user)):
+    """Disconnect Bitrix24 CRM"""
+    tenant_id = current_user["tenant_id"]
+    
+    try:
+        supabase.table('tenants').update({
+            "bitrix_webhook_url": None,
+            "bitrix_connected_at": None
+        }).eq('id', tenant_id).execute()
+    except:
+        try:
+            supabase.table('tenant_configs').update({
+                "bitrix_webhook_url": None,
+                "bitrix_connected_at": None
+            }).eq('tenant_id', tenant_id).execute()
+        except:
+            pass
+    
+    return {"success": True, "message": "Bitrix24 disconnected"}
+
+
+@api_router.get("/bitrix-crm/status")
+async def get_bitrix_webhook_status(current_user: Dict = Depends(get_current_user)):
+    """Get Bitrix24 CRM connection status"""
+    tenant_id = current_user["tenant_id"]
+    
+    try:
+        result = supabase.table('tenants').select('bitrix_webhook_url, bitrix_connected_at').eq('id', tenant_id).execute()
+        if result.data and result.data[0].get('bitrix_webhook_url'):
+            return {
+                "connected": True,
+                "connected_at": result.data[0].get('bitrix_connected_at')
+            }
+    except:
+        pass
+    
+    return {"connected": False, "connected_at": None}
+
+
+@api_router.get("/bitrix-crm/leads")
+async def get_bitrix_leads(
+    limit: int = 50,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get leads from Bitrix24 CRM"""
+    client = await get_bitrix_client(current_user["tenant_id"])
+    if not client:
+        raise HTTPException(status_code=400, detail="Bitrix24 not connected")
+    
+    try:
+        leads = await client.list_leads(limit=limit)
+        return {"leads": leads, "total": len(leads)}
+    except BitrixAPIError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/bitrix-crm/deals")
+async def get_bitrix_deals(
+    limit: int = 50,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get deals from Bitrix24 CRM"""
+    client = await get_bitrix_client(current_user["tenant_id"])
+    if not client:
+        raise HTTPException(status_code=400, detail="Bitrix24 not connected")
+    
+    try:
+        deals = await client.list_deals(limit=limit)
+        return {"deals": deals, "total": len(deals)}
+    except BitrixAPIError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/bitrix-crm/products")
+async def get_bitrix_products(
+    limit: int = 100,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get products from Bitrix24 CRM"""
+    client = await get_bitrix_client(current_user["tenant_id"])
+    if not client:
+        raise HTTPException(status_code=400, detail="Bitrix24 not connected")
+    
+    try:
+        products = await client.list_products(limit=limit)
+        return {"products": products, "total": len(products)}
+    except BitrixAPIError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/bitrix-crm/analytics")
+async def get_bitrix_analytics(current_user: Dict = Depends(get_current_user)):
+    """Get CRM analytics summary"""
+    client = await get_bitrix_client(current_user["tenant_id"])
+    if not client:
+        raise HTTPException(status_code=400, detail="Bitrix24 not connected")
+    
+    try:
+        analytics = await client.get_analytics_summary()
+        top_products = await client.get_top_products(limit=10)
+        analytics["top_products"] = top_products
+        return analytics
+    except BitrixAPIError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/bitrix-crm/chat")
+async def crm_chat(
+    request: CRMChatRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    CRM Chat - AI-powered chat interface for querying CRM data.
+    Ask questions like:
+    - "What are our top selling products?"
+    - "Show me leads from this week"
+    - "What's our conversion rate?"
+    - "How many deals are in the pipeline?"
+    """
+    tenant_id = current_user["tenant_id"]
+    
+    client = await get_bitrix_client(tenant_id)
+    if not client:
+        raise HTTPException(status_code=400, detail="Bitrix24 not connected. Please connect your CRM first.")
+    
+    try:
+        # Get relevant CRM context based on the question
+        crm_context = await client.get_context_for_ai(request.message)
+        
+        # Build conversation messages
+        messages = [
+            {
+                "role": "system",
+                "content": f"""You are a helpful CRM assistant for a business using Bitrix24. 
+You have access to the following CRM data:
+
+{crm_context}
+
+Answer the user's questions based on this data. Be specific with numbers and facts.
+If asked about trends or comparisons, use the data provided to give insights.
+Keep responses concise but informative. Use formatting (bullet points, numbers) when helpful.
+If the data doesn't contain enough information to answer, say so clearly.
+
+Language: Respond in the same language the user uses (English, Russian, or Uzbek)."""
+            }
+        ]
+        
+        # Add conversation history
+        for msg in request.conversation_history[-10:]:  # Last 10 messages
+            role = "assistant" if msg.get("role") == "assistant" else "user"
+            messages.append({"role": role, "content": msg.get("text", msg.get("content", ""))})
+        
+        # Add current message
+        messages.append({"role": "user", "content": request.message})
+        
+        # Call OpenAI
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            temperature=0.3,
+            max_tokens=1000
+        )
+        
+        reply = response.choices[0].message.content
+        
+        return {
+            "reply": reply,
+            "crm_context_used": True,
+            "data_sources": ["leads", "deals", "products", "analytics"]
+        }
+        
+    except BitrixAPIError as e:
+        raise HTTPException(status_code=500, detail=f"CRM error: {str(e)}")
+    except Exception as e:
+        logger.error(f"CRM Chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============ Enhanced LLM Service ============
 def get_enhanced_system_prompt(config: Dict, lead_context: Dict = None) -> str:
     """Generate comprehensive system prompt with sales pipeline awareness"""
