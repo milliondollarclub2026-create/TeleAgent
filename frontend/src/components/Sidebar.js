@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, createContext, useContext } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -10,10 +10,15 @@ import {
   LogOut,
   Menu,
   X,
-  Zap
+  Zap,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { useState } from 'react';
+
+// Create context for sidebar state
+export const SidebarContext = createContext();
+export const useSidebar = () => useContext(SidebarContext);
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -23,10 +28,22 @@ const navItems = [
   { path: '/knowledge-base', icon: FileText, label: 'Knowledge Base' },
 ];
 
+export const SidebarProvider = ({ children }) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const toggleSidebar = () => setCollapsed(!collapsed);
+  
+  return (
+    <SidebarContext.Provider value={{ collapsed, setCollapsed, toggleSidebar }}>
+      {children}
+    </SidebarContext.Provider>
+  );
+};
+
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { collapsed, toggleSidebar } = useSidebar();
 
   const handleLogout = () => {
     logout();
@@ -35,61 +52,109 @@ const Sidebar = () => {
 
   const NavContent = () => (
     <>
-      {/* Logo */}
-      <div className="p-4 border-b border-slate-200">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
-            <Zap className="w-4 h-4 text-white" strokeWidth={2} />
+      {/* Logo - Top Left */}
+      <div className={`p-4 border-b border-slate-200 ${collapsed ? 'px-3' : ''}`}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-sm flex-shrink-0">
+            <Zap className="w-5 h-5 text-white" strokeWidth={2.25} />
           </div>
-          <span className="text-base font-semibold text-slate-900 font-['Plus_Jakarta_Sans']">TeleAgent</span>
+          {!collapsed && (
+            <span className="text-lg font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">
+              TeleAgent
+            </span>
+          )}
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-2 space-y-0.5">
+      <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
         {navItems.map(({ path, icon: Icon, label }) => (
           <NavLink
             key={path}
             to={path}
             onClick={() => setMobileOpen(false)}
+            title={collapsed ? label : undefined}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150 ${
+              `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group relative ${
                 isActive
-                  ? 'bg-emerald-50 text-emerald-700'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              }`
+                  ? 'bg-emerald-50 text-emerald-700 shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              } ${collapsed ? 'justify-center px-2.5' : ''}`
             }
             data-testid={`nav-${label.toLowerCase().replace(' ', '-')}`}
           >
-            <Icon className="w-4 h-4" strokeWidth={1.75} />
-            {label}
+            <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${collapsed ? '' : ''}`} strokeWidth={1.75} />
+            {!collapsed && <span>{label}</span>}
+            {collapsed && (
+              <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-slate-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg">
+                {label}
+              </div>
+            )}
           </NavLink>
         ))}
       </nav>
 
-      {/* User section */}
-      <div className="p-3 border-t border-slate-200">
-        <div className="flex items-center gap-2 px-2 py-1.5 mb-1">
-          <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center">
-            <span className="text-xs font-semibold text-emerald-700">
-              {user?.name?.[0]?.toUpperCase() || 'U'}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-slate-900 truncate">{user?.name || 'User'}</p>
-            <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
-          </div>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 text-slate-500 hover:text-red-600 hover:bg-red-50 h-8"
-          onClick={handleLogout}
-          data-testid="logout-btn"
+      {/* Collapse toggle button */}
+      <div className="px-2 py-2 border-t border-slate-100 hidden lg:block">
+        <button
+          onClick={toggleSidebar}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors text-sm"
+          data-testid="toggle-sidebar-btn"
         >
-          <LogOut className="w-3.5 h-3.5" strokeWidth={1.75} />
-          <span className="text-xs">Sign Out</span>
-        </Button>
+          {collapsed ? (
+            <ChevronRight className="w-4 h-4" strokeWidth={1.75} />
+          ) : (
+            <>
+              <ChevronLeft className="w-4 h-4" strokeWidth={1.75} />
+              <span className="text-xs font-medium">Collapse</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* User section */}
+      <div className={`p-3 border-t border-slate-200 ${collapsed ? 'p-2' : ''}`}>
+        {!collapsed ? (
+          <>
+            <div className="flex items-center gap-2.5 px-2 py-2 mb-2 rounded-lg bg-slate-50">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-sm">
+                <span className="text-xs font-bold text-white">
+                  {user?.name?.[0]?.toUpperCase() || 'U'}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-900 truncate">{user?.name || 'User'}</p>
+                <p className="text-xs text-slate-500 truncate">{user?.business_name || user?.email}</p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2 text-slate-500 hover:text-red-600 hover:bg-red-50 h-9"
+              onClick={handleLogout}
+              data-testid="logout-btn"
+            >
+              <LogOut className="w-4 h-4" strokeWidth={1.75} />
+              <span className="text-sm">Sign Out</span>
+            </Button>
+          </>
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-sm">
+              <span className="text-xs font-bold text-white">
+                {user?.name?.[0]?.toUpperCase() || 'U'}
+              </span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+              data-testid="logout-btn-collapsed"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" strokeWidth={1.75} />
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
@@ -98,28 +163,32 @@ const Sidebar = () => {
     <>
       {/* Mobile menu button */}
       <button
-        className="lg:hidden fixed top-3 left-3 z-50 p-2 rounded-lg bg-white border border-slate-200 shadow-sm"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
         onClick={() => setMobileOpen(!mobileOpen)}
         data-testid="mobile-menu-btn"
       >
-        {mobileOpen ? <X className="w-4 h-4 text-slate-600" /> : <Menu className="w-4 h-4 text-slate-600" />}
+        {mobileOpen ? <X className="w-5 h-5 text-slate-600" /> : <Menu className="w-5 h-5 text-slate-600" />}
       </button>
 
       {/* Mobile overlay */}
       {mobileOpen && (
         <div 
-          className="lg:hidden fixed inset-0 bg-black/20 backdrop-blur-sm z-40"
+          className="lg:hidden fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Sidebar - Compact width */}
-      <aside className={`
-        fixed top-0 left-0 h-screen w-52 bg-white border-r border-slate-200 flex flex-col z-40
-        transition-transform duration-200
-        ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0
-      `}>
+      {/* Sidebar */}
+      <aside 
+        className={`
+          fixed top-0 left-0 h-screen bg-white border-r border-slate-200 flex flex-col z-40
+          transition-all duration-200 ease-out
+          ${collapsed ? 'w-[68px]' : 'w-56'}
+          ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
+          lg:translate-x-0
+        `}
+        data-testid="sidebar"
+      >
         <NavContent />
       </aside>
     </>
