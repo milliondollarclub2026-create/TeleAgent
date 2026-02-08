@@ -1,18 +1,19 @@
 import React, { useState, createContext, useContext } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
-  LayoutDashboard, 
+  Bot, 
   Users, 
   Plug, 
-  Bot, 
+  Settings, 
   FileText, 
   LogOut,
   Menu,
   X,
   Zap,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  LayoutDashboard
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
@@ -20,12 +21,16 @@ import { Button } from '../components/ui/button';
 export const SidebarContext = createContext();
 export const useSidebar = () => useContext(SidebarContext);
 
-const navItems = [
-  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+const mainNavItems = [
+  { path: '/agents', icon: Bot, label: 'Agents' },
   { path: '/leads', icon: Users, label: 'Leads' },
-  { path: '/connections', icon: Plug, label: 'Connections' },
-  { path: '/sales-agent', icon: Bot, label: 'Sales Agent' },
+];
+
+const agentNavItems = [
+  { path: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', relative: true },
+  { path: 'settings', icon: Settings, label: 'Settings', relative: true },
   { path: '/knowledge-base', icon: FileText, label: 'Knowledge Base' },
+  { path: '/connections', icon: Plug, label: 'Connections' },
 ];
 
 export const SidebarProvider = ({ children }) => {
@@ -42,8 +47,14 @@ export const SidebarProvider = ({ children }) => {
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { collapsed, toggleSidebar } = useSidebar();
+
+  // Check if we're viewing a specific agent
+  const agentMatch = location.pathname.match(/\/agents\/([^/]+)/);
+  const currentAgentId = agentMatch ? agentMatch[1] : null;
+  const isInAgentContext = currentAgentId && currentAgentId !== 'new';
 
   const handleLogout = () => {
     logout();
@@ -66,32 +77,78 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ path, icon: Icon, label }) => (
-          <NavLink
-            key={path}
-            to={path}
-            onClick={() => setMobileOpen(false)}
-            title={collapsed ? label : undefined}
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group relative ${
-                isActive
-                  ? 'bg-emerald-50 text-emerald-700 shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              } ${collapsed ? 'justify-center px-2.5' : ''}`
-            }
-            data-testid={`nav-${label.toLowerCase().replace(' ', '-')}`}
-          >
-            <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${collapsed ? '' : ''}`} strokeWidth={1.75} />
-            {!collapsed && <span>{label}</span>}
-            {collapsed && (
-              <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-slate-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg">
-                {label}
-              </div>
-            )}
-          </NavLink>
-        ))}
+      {/* Main Navigation */}
+      <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+        {/* Primary Nav */}
+        <div className="space-y-0.5">
+          {mainNavItems.map(({ path, icon: Icon, label }) => (
+            <NavLink
+              key={path}
+              to={path}
+              onClick={() => setMobileOpen(false)}
+              title={collapsed ? label : undefined}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group relative ${
+                  isActive
+                    ? 'bg-emerald-50 text-emerald-700 shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                } ${collapsed ? 'justify-center px-2.5' : ''}`
+              }
+              data-testid={`nav-${label.toLowerCase().replace(' ', '-')}`}
+            >
+              <Icon className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.75} />
+              {!collapsed && <span>{label}</span>}
+              {collapsed && (
+                <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-slate-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg">
+                  {label}
+                </div>
+              )}
+            </NavLink>
+          ))}
+        </div>
+
+        {/* Agent Context Nav */}
+        {isInAgentContext && (
+          <>
+            <div className={`pt-3 mt-3 border-t border-slate-100 ${collapsed ? 'mx-1' : ''}`}>
+              {!collapsed && (
+                <p className="px-3 py-1.5 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                  Current Agent
+                </p>
+              )}
+            </div>
+            <div className="space-y-0.5">
+              {agentNavItems.map(({ path, icon: Icon, label, relative }) => {
+                const fullPath = relative ? `/agents/${currentAgentId}${path === 'dashboard' ? '' : `/${path}`}` : path;
+                
+                return (
+                  <NavLink
+                    key={path}
+                    to={fullPath}
+                    onClick={() => setMobileOpen(false)}
+                    title={collapsed ? label : undefined}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group relative ${
+                        isActive
+                          ? 'bg-emerald-50 text-emerald-700 shadow-sm'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      } ${collapsed ? 'justify-center px-2.5' : ''}`
+                    }
+                    data-testid={`nav-agent-${label.toLowerCase().replace(' ', '-')}`}
+                  >
+                    <Icon className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.75} />
+                    {!collapsed && <span>{label}</span>}
+                    {collapsed && (
+                      <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-slate-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg">
+                        {label}
+                      </div>
+                    )}
+                  </NavLink>
+                );
+              })}
+            </div>
+          </>
+        )}
       </nav>
 
       {/* Collapse toggle button */}
