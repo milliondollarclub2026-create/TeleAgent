@@ -29,31 +29,31 @@ const ConnectionCard = ({
   icon: Icon, 
   connected, 
   status,
-  iconColor,
+  iconBg,
   children,
   testId
 }) => (
-  <Card className="card-hover" data-testid={testId}>
-    <CardHeader>
+  <Card className="bg-white border-slate-200 shadow-sm" data-testid={testId}>
+    <CardHeader className="pb-4">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
             connected 
-              ? 'bg-emerald-500/20 border-emerald-500/30' 
-              : iconColor || 'bg-muted border-border'
+              ? 'bg-emerald-100' 
+              : iconBg || 'bg-slate-100'
           }`}>
-            <Icon className={`w-6 h-6 ${connected ? 'text-emerald-500' : 'text-muted-foreground'}`} strokeWidth={1.5} />
+            <Icon className={`w-5 h-5 ${connected ? 'text-emerald-600' : 'text-slate-500'}`} strokeWidth={1.75} />
           </div>
           <div>
-            <CardTitle className="text-lg font-['Manrope']">{title}</CardTitle>
-            <CardDescription className="mt-1">{description}</CardDescription>
+            <CardTitle className="text-base font-semibold font-['Plus_Jakarta_Sans'] text-slate-900">{title}</CardTitle>
+            <CardDescription className="text-sm text-slate-500 mt-0.5">{description}</CardDescription>
           </div>
         </div>
         <Badge 
           variant="outline" 
           className={connected 
-            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' 
-            : 'bg-muted text-muted-foreground'
+            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+            : 'bg-slate-50 text-slate-500 border-slate-200'
           }
         >
           {connected ? (
@@ -64,7 +64,7 @@ const ConnectionCard = ({
         </Badge>
       </div>
       {status && (
-        <p className="text-sm text-muted-foreground mt-2">{status}</p>
+        <p className="text-sm text-emerald-600 font-medium mt-2">{status}</p>
       )}
     </CardHeader>
     <CardContent>{children}</CardContent>
@@ -129,27 +129,25 @@ const ConnectionsPage = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" strokeWidth={1.5} />
+        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" strokeWidth={2} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-fade-in" data-testid="connections-page">
+    <div className="space-y-5 animate-fade-in" data-testid="connections-page">
       <div>
-        <h1 className="text-3xl font-bold font-['Manrope'] tracking-tight">Connections</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your integrations with external services
-        </p>
+        <h1 className="text-xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900">Connections</h1>
+        <p className="text-slate-500 text-sm mt-0.5">Manage your integrations with external services</p>
       </div>
 
-      <div className="grid gap-6">
+      <div className="grid gap-4">
         {/* Telegram Bot */}
         <ConnectionCard
           title="Telegram Bot"
           description="Connect your Telegram bot to receive and respond to messages"
           icon={Bot}
-          iconColor="bg-blue-500/20 border-blue-500/30"
+          iconBg="bg-blue-100"
           connected={integrations?.telegram?.connected}
           status={integrations?.telegram?.bot_username 
             ? `@${integrations.telegram.bot_username}` 
@@ -157,20 +155,22 @@ const ConnectionsPage = () => {
           testId="telegram-connection"
         >
           {integrations?.telegram?.connected ? (
-            <div className="space-y-4">
-              <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                <div className="flex items-center gap-2 text-emerald-500">
-                  <Zap className="w-5 h-5" strokeWidth={1.5} />
-                  <span className="font-medium">Bot is active and receiving messages</span>
+            <div className="space-y-3">
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+                <div className="flex items-center gap-2 text-emerald-700">
+                  <Zap className="w-4 h-4" strokeWidth={2} />
+                  <span className="font-medium text-sm">Bot is active and receiving messages</span>
                 </div>
                 {integrations.telegram.last_webhook_at && (
-                  <p className="text-sm text-muted-foreground mt-2">
+                  <p className="text-xs text-slate-500 mt-1.5">
                     Last webhook: {new Date(integrations.telegram.last_webhook_at).toLocaleString()}
                   </p>
                 )}
               </div>
               <Button 
-                variant="destructive" 
+                variant="outline"
+                size="sm"
+                className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                 onClick={disconnectTelegramBot}
                 data-testid="disconnect-bot-btn"
               >
@@ -178,9 +178,9 @@ const ConnectionsPage = () => {
               </Button>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="botToken">Bot Token</Label>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="botToken" className="text-slate-700 text-sm">Bot Token</Label>
                 <div className="relative">
                   <Input
                     id="botToken"
@@ -188,39 +188,41 @@ const ConnectionsPage = () => {
                     placeholder="Enter your bot token from @BotFather"
                     value={botToken}
                     onChange={(e) => setBotToken(e.target.value)}
-                    className="pr-10"
+                    className="pr-10 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                     data-testid="bot-token-input"
                   />
                   <button
                     type="button"
                     onClick={() => setShowToken(!showToken)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   >
                     {showToken ? (
-                      <EyeOff className="w-4 h-4" strokeWidth={1.5} />
+                      <EyeOff className="w-4 h-4" strokeWidth={1.75} />
                     ) : (
-                      <Eye className="w-4 h-4" strokeWidth={1.5} />
+                      <Eye className="w-4 h-4" strokeWidth={1.75} />
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-slate-500">
                   Get your token from{' '}
                   <a 
                     href="https://t.me/BotFather" 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="text-primary hover:underline"
+                    className="text-emerald-600 hover:underline"
                   >
-                    @BotFather <ExternalLink className="w-3 h-3 inline" strokeWidth={1.5} />
+                    @BotFather <ExternalLink className="w-3 h-3 inline" strokeWidth={1.75} />
                   </a>
                 </p>
               </div>
               <Button 
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700"
                 onClick={connectTelegramBot}
                 disabled={connectingBot}
                 data-testid="connect-bot-btn"
               >
-                {connectingBot && <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={1.5} />}
+                {connectingBot && <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={2} />}
                 Connect Bot
               </Button>
             </div>
@@ -232,24 +234,24 @@ const ConnectionsPage = () => {
           title="Bitrix24 CRM"
           description="Sync leads and contacts with your Bitrix24 account"
           icon={Link2}
-          iconColor="bg-indigo-500/20 border-indigo-500/30"
+          iconBg="bg-indigo-100"
           connected={integrations?.bitrix?.connected}
           testId="bitrix-connection"
         >
-          <div className="space-y-4">
+          <div className="space-y-3">
             {integrations?.bitrix?.is_demo && (
-              <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                <div className="flex items-center gap-2 text-amber-500">
-                  <AlertTriangle className="w-5 h-5" strokeWidth={1.5} />
-                  <span className="font-medium">Running in Demo Mode</span>
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+                <div className="flex items-center gap-2 text-amber-700">
+                  <AlertTriangle className="w-4 h-4" strokeWidth={2} />
+                  <span className="font-medium text-sm">Running in Demo Mode</span>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
+                <p className="text-xs text-slate-500 mt-1.5">
                   Leads are stored locally. Connect your Bitrix24 account for full CRM sync.
                 </p>
               </div>
             )}
-            <Button variant="outline" disabled data-testid="connect-bitrix-btn">
-              <Link2 className="w-4 h-4 mr-2" strokeWidth={1.5} />
+            <Button variant="outline" size="sm" disabled className="text-slate-500" data-testid="connect-bitrix-btn">
+              <Link2 className="w-4 h-4 mr-2" strokeWidth={1.75} />
               Connect Bitrix24 (Coming Soon)
             </Button>
           </div>
@@ -260,27 +262,28 @@ const ConnectionsPage = () => {
           title="Google Sheets"
           description="Fallback option to store leads in a Google Sheet"
           icon={FileSpreadsheet}
-          iconColor="bg-green-500/20 border-green-500/30"
+          iconBg="bg-green-100"
           connected={integrations?.google_sheets?.connected}
           testId="sheets-connection"
         >
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="sheetId">Sheet ID</Label>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="sheetId" className="text-slate-700 text-sm">Sheet ID</Label>
               <Input
                 id="sheetId"
                 placeholder="Enter your Google Sheet ID"
                 value={sheetId}
                 onChange={(e) => setSheetId(e.target.value)}
                 disabled
+                className="h-9 border-slate-200"
                 data-testid="sheet-id-input"
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-slate-500">
                 Find the Sheet ID in your Google Sheets URL
               </p>
             </div>
-            <Button variant="outline" disabled data-testid="connect-sheets-btn">
-              <FileSpreadsheet className="w-4 h-4 mr-2" strokeWidth={1.5} />
+            <Button variant="outline" size="sm" disabled className="text-slate-500" data-testid="connect-sheets-btn">
+              <FileSpreadsheet className="w-4 h-4 mr-2" strokeWidth={1.75} />
               Connect Sheet (Coming Soon)
             </Button>
           </div>
