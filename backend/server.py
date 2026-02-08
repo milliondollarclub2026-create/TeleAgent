@@ -564,9 +564,16 @@ async def get_bot_info(bot_token: str) -> Optional[Dict]:
 async def set_telegram_webhook(bot_token: str, webhook_url: str) -> Dict:
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{TELEGRAM_API_BASE}{bot_token}/setWebhook", json={"url": webhook_url, "allowed_updates": ["message"], "drop_pending_updates": True}, timeout=30.0)
-            return response.json()
+            response = await client.post(
+                f"{TELEGRAM_API_BASE}{bot_token}/setWebhook", 
+                json={"url": webhook_url, "allowed_updates": ["message"], "drop_pending_updates": True}, 
+                timeout=30.0
+            )
+            result = response.json()
+            logger.info(f"Webhook setup result: {result}")
+            return result
     except Exception as e:
+        logger.error(f"Failed to set webhook: {e}")
         return {"ok": False, "error": str(e)}
 
 async def delete_telegram_webhook(bot_token: str) -> Dict:
@@ -577,12 +584,37 @@ async def delete_telegram_webhook(bot_token: str) -> Dict:
         return {"ok": False, "error": str(e)}
 
 async def send_telegram_message(bot_token: str, chat_id: int, text: str) -> bool:
+    """Send a message via Telegram Bot API"""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(f"{TELEGRAM_API_BASE}{bot_token}/sendMessage", json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, timeout=30.0)
-            return response.status_code == 200
+            response = await client.post(
+                f"{TELEGRAM_API_BASE}{bot_token}/sendMessage", 
+                json={
+                    "chat_id": chat_id, 
+                    "text": text, 
+                    "parse_mode": "HTML"
+                }, 
+                timeout=30.0
+            )
+            result = response.json()
+            
+            if not result.get("ok"):
+                logger.error(f"Telegram API error: {result}")
+                
+                # If HTML parse mode failed, try without it
+                if "can't parse" in str(result.get("description", "")).lower():
+                    response = await client.post(
+                        f"{TELEGRAM_API_BASE}{bot_token}/sendMessage", 
+                        json={"chat_id": chat_id, "text": text}, 
+                        timeout=30.0
+                    )
+                    result = response.json()
+                    
+            return result.get("ok", False)
     except Exception as e:
-        logger.error(f"Failed to send message: {e}")
+        logger.error(f"Failed to send Telegram message: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 async def send_typing_action(bot_token: str, chat_id: int):
