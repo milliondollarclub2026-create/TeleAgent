@@ -261,15 +261,15 @@ async def register(request: RegisterRequest):
     }
     supabase.table('users').insert(user).execute()
     
-    # Create default config with sales pipeline defaults
+    # Create default config - only include columns that exist in the database
     config = {
         "tenant_id": tenant_id, "business_name": request.business_name, "collect_phone": True,
-        "agent_tone": "professional", "primary_language": "uz", "vertical": "default",
-        "objection_playbook": DEFAULT_OBJECTION_PLAYBOOK,
-        "closing_scripts": DEFAULT_CLOSING_SCRIPTS,
-        "required_fields": DEFAULT_REQUIRED_FIELDS
+        "agent_tone": "professional", "primary_language": "uz", "vertical": "default"
     }
-    supabase.table('tenant_configs').insert(config).execute()
+    try:
+        supabase.table('tenant_configs').insert(config).execute()
+    except Exception as e:
+        logger.warning(f"Could not create tenant config: {e}")
     
     token = create_access_token(user_id, tenant_id, request.email)
     return AuthResponse(
