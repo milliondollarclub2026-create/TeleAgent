@@ -5,9 +5,11 @@ import {
   MessageSquare, 
   UserCheck, 
   Flame, 
-  Repeat, 
+  RefreshCw, 
   TrendingUp,
-  Calendar
+  Calendar,
+  ArrowUpRight,
+  ArrowDownRight
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -25,7 +27,7 @@ import { Skeleton } from '../components/ui/skeleton';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const StatCard = ({ title, value, icon: Icon, color, loading }) => (
+const StatCard = ({ title, value, icon: Icon, color, trend, loading }) => (
   <Card className="card-hover" data-testid={`stat-${title.toLowerCase().replace(' ', '-')}`}>
     <CardContent className="p-6">
       <div className="flex items-center justify-between">
@@ -34,11 +36,19 @@ const StatCard = ({ title, value, icon: Icon, color, loading }) => (
           {loading ? (
             <Skeleton className="h-8 w-20 mt-1" />
           ) : (
-            <p className="text-3xl font-bold font-['Manrope'] mt-1">{value}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-3xl font-bold font-['Manrope']">{value}</p>
+              {trend && (
+                <span className={`flex items-center text-xs ${trend > 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                  {trend > 0 ? <ArrowUpRight className="w-3 h-3" strokeWidth={2} /> : <ArrowDownRight className="w-3 h-3" strokeWidth={2} />}
+                  {Math.abs(trend)}%
+                </span>
+              )}
+            </div>
           )}
         </div>
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
-          <Icon className="w-6 h-6" />
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${color}`}>
+          <Icon className="w-6 h-6" strokeWidth={1.5} />
         </div>
       </div>
     </CardContent>
@@ -100,28 +110,28 @@ const DashboardPage = () => {
           title="Conversations"
           value={stats?.total_conversations || 0}
           icon={MessageSquare}
-          color="bg-primary/20 text-primary"
+          color="bg-primary/20 text-primary border-primary/30"
           loading={loading}
         />
         <StatCard
           title="Total Leads"
           value={stats?.total_leads || 0}
           icon={UserCheck}
-          color="bg-emerald-500/20 text-emerald-500"
+          color="bg-emerald-500/20 text-emerald-500 border-emerald-500/30"
           loading={loading}
         />
         <StatCard
           title="Hot Leads"
           value={stats?.hot_leads || 0}
           icon={Flame}
-          color="bg-orange-500/20 text-orange-500"
+          color="bg-orange-500/20 text-orange-500 border-orange-500/30"
           loading={loading}
         />
         <StatCard
           title="Returning"
           value={stats?.returning_customers || 0}
-          icon={Repeat}
-          color="bg-violet-500/20 text-violet-500"
+          icon={RefreshCw}
+          color="bg-violet-500/20 text-violet-500 border-violet-500/30"
           loading={loading}
         />
       </div>
@@ -132,7 +142,7 @@ const DashboardPage = () => {
         <Card className="lg:col-span-1" data-testid="leads-chart">
           <CardHeader>
             <CardTitle className="text-lg font-['Manrope'] flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-primary" />
+              <TrendingUp className="w-5 h-5 text-primary" strokeWidth={1.5} />
               Leads per Day
             </CardTitle>
           </CardHeader>
@@ -174,7 +184,7 @@ const DashboardPage = () => {
         <Card className="lg:col-span-1" data-testid="recent-leads">
           <CardHeader>
             <CardTitle className="text-lg font-['Manrope'] flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-primary" />
+              <Calendar className="w-5 h-5 text-primary" strokeWidth={1.5} />
               Recent Leads
             </CardTitle>
           </CardHeader>
@@ -187,7 +197,7 @@ const DashboardPage = () => {
               </div>
             ) : recentLeads.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <UserCheck className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <UserCheck className="w-12 h-12 mx-auto mb-3 opacity-50" strokeWidth={1.5} />
                 <p>No leads yet</p>
                 <p className="text-sm">Connect your Telegram bot to start capturing leads</p>
               </div>

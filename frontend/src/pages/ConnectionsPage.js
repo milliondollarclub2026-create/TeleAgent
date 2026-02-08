@@ -7,13 +7,16 @@ import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { 
   Bot, 
-  LinkIcon, 
+  Link2, 
   FileSpreadsheet, 
   Check, 
   X, 
   Loader2,
   ExternalLink,
-  AlertCircle
+  AlertTriangle,
+  Zap,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -26,6 +29,7 @@ const ConnectionCard = ({
   icon: Icon, 
   connected, 
   status,
+  iconColor,
   children,
   testId
 }) => (
@@ -33,10 +37,12 @@ const ConnectionCard = ({
     <CardHeader>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-            connected ? 'bg-emerald-500/20' : 'bg-muted'
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${
+            connected 
+              ? 'bg-emerald-500/20 border-emerald-500/30' 
+              : iconColor || 'bg-muted border-border'
           }`}>
-            <Icon className={`w-6 h-6 ${connected ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+            <Icon className={`w-6 h-6 ${connected ? 'text-emerald-500' : 'text-muted-foreground'}`} strokeWidth={1.5} />
           </div>
           <div>
             <CardTitle className="text-lg font-['Manrope']">{title}</CardTitle>
@@ -51,9 +57,9 @@ const ConnectionCard = ({
           }
         >
           {connected ? (
-            <><Check className="w-3 h-3 mr-1" /> Connected</>
+            <><Check className="w-3 h-3 mr-1" strokeWidth={2} /> Connected</>
           ) : (
-            <><X className="w-3 h-3 mr-1" /> Not Connected</>
+            <><X className="w-3 h-3 mr-1" strokeWidth={2} /> Not Connected</>
           )}
         </Badge>
       </div>
@@ -69,6 +75,7 @@ const ConnectionsPage = () => {
   const [integrations, setIntegrations] = useState(null);
   const [loading, setLoading] = useState(true);
   const [botToken, setBotToken] = useState('');
+  const [showToken, setShowToken] = useState(false);
   const [connectingBot, setConnectingBot] = useState(false);
   const [sheetId, setSheetId] = useState('');
 
@@ -122,7 +129,7 @@ const ConnectionsPage = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" strokeWidth={1.5} />
       </div>
     );
   }
@@ -142,6 +149,7 @@ const ConnectionsPage = () => {
           title="Telegram Bot"
           description="Connect your Telegram bot to receive and respond to messages"
           icon={Bot}
+          iconColor="bg-blue-500/20 border-blue-500/30"
           connected={integrations?.telegram?.connected}
           status={integrations?.telegram?.bot_username 
             ? `@${integrations.telegram.bot_username}` 
@@ -152,7 +160,7 @@ const ConnectionsPage = () => {
             <div className="space-y-4">
               <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                 <div className="flex items-center gap-2 text-emerald-500">
-                  <Check className="w-5 h-5" />
+                  <Zap className="w-5 h-5" strokeWidth={1.5} />
                   <span className="font-medium">Bot is active and receiving messages</span>
                 </div>
                 {integrations.telegram.last_webhook_at && (
@@ -173,13 +181,28 @@ const ConnectionsPage = () => {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="botToken">Bot Token</Label>
-                <Input
-                  id="botToken"
-                  placeholder="Enter your bot token from @BotFather"
-                  value={botToken}
-                  onChange={(e) => setBotToken(e.target.value)}
-                  data-testid="bot-token-input"
-                />
+                <div className="relative">
+                  <Input
+                    id="botToken"
+                    type={showToken ? "text" : "password"}
+                    placeholder="Enter your bot token from @BotFather"
+                    value={botToken}
+                    onChange={(e) => setBotToken(e.target.value)}
+                    className="pr-10"
+                    data-testid="bot-token-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowToken(!showToken)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showToken ? (
+                      <EyeOff className="w-4 h-4" strokeWidth={1.5} />
+                    ) : (
+                      <Eye className="w-4 h-4" strokeWidth={1.5} />
+                    )}
+                  </button>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Get your token from{' '}
                   <a 
@@ -188,7 +211,7 @@ const ConnectionsPage = () => {
                     rel="noopener noreferrer"
                     className="text-primary hover:underline"
                   >
-                    @BotFather <ExternalLink className="w-3 h-3 inline" />
+                    @BotFather <ExternalLink className="w-3 h-3 inline" strokeWidth={1.5} />
                   </a>
                 </p>
               </div>
@@ -197,7 +220,7 @@ const ConnectionsPage = () => {
                 disabled={connectingBot}
                 data-testid="connect-bot-btn"
               >
-                {connectingBot && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {connectingBot && <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={1.5} />}
                 Connect Bot
               </Button>
             </div>
@@ -208,15 +231,16 @@ const ConnectionsPage = () => {
         <ConnectionCard
           title="Bitrix24 CRM"
           description="Sync leads and contacts with your Bitrix24 account"
-          icon={LinkIcon}
+          icon={Link2}
+          iconColor="bg-indigo-500/20 border-indigo-500/30"
           connected={integrations?.bitrix?.connected}
           testId="bitrix-connection"
         >
           <div className="space-y-4">
             {integrations?.bitrix?.is_demo && (
-              <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                <div className="flex items-center gap-2 text-yellow-500">
-                  <AlertCircle className="w-5 h-5" />
+              <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <div className="flex items-center gap-2 text-amber-500">
+                  <AlertTriangle className="w-5 h-5" strokeWidth={1.5} />
                   <span className="font-medium">Running in Demo Mode</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
@@ -225,7 +249,7 @@ const ConnectionsPage = () => {
               </div>
             )}
             <Button variant="outline" disabled data-testid="connect-bitrix-btn">
-              <LinkIcon className="w-4 h-4 mr-2" />
+              <Link2 className="w-4 h-4 mr-2" strokeWidth={1.5} />
               Connect Bitrix24 (Coming Soon)
             </Button>
           </div>
@@ -236,6 +260,7 @@ const ConnectionsPage = () => {
           title="Google Sheets"
           description="Fallback option to store leads in a Google Sheet"
           icon={FileSpreadsheet}
+          iconColor="bg-green-500/20 border-green-500/30"
           connected={integrations?.google_sheets?.connected}
           testId="sheets-connection"
         >
@@ -255,7 +280,7 @@ const ConnectionsPage = () => {
               </p>
             </div>
             <Button variant="outline" disabled data-testid="connect-sheets-btn">
-              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              <FileSpreadsheet className="w-4 h-4 mr-2" strokeWidth={1.5} />
               Connect Sheet (Coming Soon)
             </Button>
           </div>

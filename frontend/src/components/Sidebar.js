@@ -4,13 +4,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { 
   LayoutDashboard, 
   Users, 
-  Link as LinkIcon, 
+  Link2, 
   Bot, 
   BookOpen, 
-  Settings,
   LogOut,
   Menu,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useState } from 'react';
@@ -18,7 +18,7 @@ import { useState } from 'react';
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/leads', icon: Users, label: 'Leads' },
-  { path: '/connections', icon: LinkIcon, label: 'Connections' },
+  { path: '/connections', icon: Link2, label: 'Connections' },
   { path: '/sales-agent', icon: Bot, label: 'Sales Agent' },
   { path: '/knowledge-base', icon: BookOpen, label: 'Knowledge Base' },
 ];
@@ -38,8 +38,8 @@ const Sidebar = () => {
       {/* Logo */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-            <Bot className="w-6 h-6 text-primary" />
+          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/30">
+            <Zap className="w-5 h-5 text-primary" strokeWidth={1.5} />
           </div>
           <div>
             <span className="text-lg font-bold font-['Manrope']">TeleAgent</span>
@@ -66,7 +66,7 @@ const Sidebar = () => {
             }
             data-testid={`nav-${label.toLowerCase().replace(' ', '-')}`}
           >
-            <Icon className="w-5 h-5" />
+            <Icon className="w-5 h-5" strokeWidth={1.5} />
             {label}
           </NavLink>
         ))}
@@ -75,7 +75,7 @@ const Sidebar = () => {
       {/* User section */}
       <div className="p-4 border-t border-border">
         <div className="flex items-center gap-3 px-3 py-2 mb-2">
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30">
             <span className="text-sm font-medium text-primary">
               {user?.name?.[0]?.toUpperCase() || 'U'}
             </span>
@@ -91,7 +91,7 @@ const Sidebar = () => {
           onClick={handleLogout}
           data-testid="logout-btn"
         >
-          <LogOut className="w-5 h-5" />
+          <LogOut className="w-5 h-5" strokeWidth={1.5} />
           Sign Out
         </Button>
       </div>
@@ -106,7 +106,7 @@ const Sidebar = () => {
         onClick={() => setMobileOpen(!mobileOpen)}
         data-testid="mobile-menu-btn"
       >
-        {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        {mobileOpen ? <X className="w-5 h-5" strokeWidth={1.5} /> : <Menu className="w-5 h-5" strokeWidth={1.5} />}
       </button>
 
       {/* Mobile overlay */}

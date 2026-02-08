@@ -14,7 +14,8 @@ import {
   Building2,
   MessageSquare,
   Phone,
-  Globe
+  Globe,
+  Sparkles
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -72,7 +73,7 @@ const SalesAgentPage = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" strokeWidth={1.5} />
       </div>
     );
   }
@@ -88,9 +89,9 @@ const SalesAgentPage = () => {
         </div>
         <Button onClick={saveConfig} disabled={saving} data-testid="save-config-btn">
           {saving ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={1.5} />
           ) : (
-            <Save className="w-4 h-4 mr-2" />
+            <Save className="w-4 h-4 mr-2" strokeWidth={1.5} />
           )}
           Save Changes
         </Button>
@@ -101,8 +102,8 @@ const SalesAgentPage = () => {
         <Card className="card-hover" data-testid="business-info-card">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-primary" />
+              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/30">
+                <Building2 className="w-5 h-5 text-primary" strokeWidth={1.5} />
               </div>
               <div>
                 <CardTitle className="text-lg font-['Manrope']">Business Information</CardTitle>
@@ -184,8 +185,8 @@ const SalesAgentPage = () => {
         <Card className="card-hover" data-testid="agent-persona-card">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                <Bot className="w-5 h-5 text-emerald-500" />
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
+                <Bot className="w-5 h-5 text-emerald-500" strokeWidth={1.5} />
               </div>
               <div>
                 <CardTitle className="text-lg font-['Manrope']">Agent Persona</CardTitle>
@@ -224,6 +225,7 @@ const SalesAgentPage = () => {
                   <SelectContent>
                     <SelectItem value="uz">O'zbek (Uzbek)</SelectItem>
                     <SelectItem value="ru">Русский (Russian)</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -231,7 +233,7 @@ const SalesAgentPage = () => {
 
             <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
               <div className="flex items-center gap-3">
-                <Phone className="w-5 h-5 text-muted-foreground" />
+                <Phone className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
                 <div>
                   <p className="font-medium">Collect Phone Number</p>
                   <p className="text-sm text-muted-foreground">
@@ -252,8 +254,8 @@ const SalesAgentPage = () => {
         <Card className="card-hover" data-testid="greeting-card">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center">
-                <MessageSquare className="w-5 h-5 text-violet-500" />
+              <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center border border-violet-500/30">
+                <MessageSquare className="w-5 h-5 text-violet-500" strokeWidth={1.5} />
               </div>
               <div>
                 <CardTitle className="text-lg font-['Manrope']">Greeting Message</CardTitle>
@@ -263,14 +265,48 @@ const SalesAgentPage = () => {
           </CardHeader>
           <CardContent>
             <Textarea
-              placeholder="Assalomu alaykum! Men sizga qanday yordam bera olaman? / Здравствуйте! Чем могу помочь?"
+              placeholder="Assalomu alaykum! Men sizga qanday yordam bera olaman? / Здравствуйте! Чем могу помочь? / Hello! How can I help you?"
               value={config.greeting_message || ''}
               onChange={(e) => handleChange('greeting_message', e.target.value)}
               rows={3}
               data-testid="greeting-message-input"
             />
             <p className="text-xs text-muted-foreground mt-2">
-              Leave empty to use the default bilingual greeting
+              Leave empty to use the default trilingual greeting (Uzbek, Russian, English)
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* How RAG Works */}
+        <Card className="card-hover border-dashed" data-testid="rag-info-card">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center border border-amber-500/30">
+                <Sparkles className="w-5 h-5 text-amber-500" strokeWidth={1.5} />
+              </div>
+              <div>
+                <CardTitle className="text-lg font-['Manrope']">How the AI Uses Your Knowledge Base</CardTitle>
+                <CardDescription>Understanding the RAG (Retrieval-Augmented Generation) system</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm text-muted-foreground">
+            <p>
+              When a customer asks a question, the AI searches your uploaded documents for relevant information 
+              and uses it to provide accurate, contextual responses.
+            </p>
+            <div className="space-y-2">
+              <p className="font-medium text-foreground">What to upload:</p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>Product catalogs with prices and specifications</li>
+                <li>Service descriptions and packages</li>
+                <li>Frequently asked questions (FAQ)</li>
+                <li>Company policies (returns, shipping, etc.)</li>
+                <li>Contact information and working hours</li>
+              </ul>
+            </div>
+            <p className="text-xs italic">
+              Currently supports text documents. PDF and file upload coming soon.
             </p>
           </CardContent>
         </Card>
