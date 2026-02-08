@@ -20,14 +20,28 @@ TEST_PASSWORD = "testpass123"
 
 @pytest.fixture
 def auth_token():
-    """Get authentication token for tests"""
+    """Get authentication token for tests - register a new user to get token"""
+    # First try to login with existing test user
     response = requests.post(f"{BASE_URL}/api/auth/login", json={
         "email": TEST_EMAIL,
         "password": TEST_PASSWORD
     })
     if response.status_code == 200:
         return response.json()["token"]
-    pytest.skip(f"Authentication failed: {response.status_code} - {response.text}")
+    
+    # If login fails (user not confirmed), register a new test user
+    # Registration returns a valid token even for unconfirmed users
+    unique_email = f"test_auth_{uuid.uuid4().hex[:8]}@test.com"
+    reg_response = requests.post(f"{BASE_URL}/api/auth/register", json={
+        "email": unique_email,
+        "password": "testpass123",
+        "name": "Test Auth User",
+        "business_name": "Test Business"
+    })
+    if reg_response.status_code == 200:
+        return reg_response.json()["token"]
+    
+    pytest.skip(f"Could not get authentication token: {reg_response.text}")
 
 
 @pytest.fixture
