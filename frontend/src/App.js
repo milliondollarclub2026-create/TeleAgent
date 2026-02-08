@@ -24,7 +24,7 @@ function App() {
             <Route index element={<Navigate to="/agents" replace />} />
             <Route path="agents" element={<AgentsPage />} />
             <Route path="agents/new" element={<AgentOnboarding />} />
-            <Route path="agents/:agentId" element={<DashboardPage />} />
+            <Route path="agents/:agentId" element={<AgentDashboard />} />
             <Route path="agents/:agentId/settings" element={<SalesAgentPage />} />
             <Route path="dashboard" element={<Navigate to="/agents" replace />} />
             <Route path="leads" element={<LeadsPage />} />
