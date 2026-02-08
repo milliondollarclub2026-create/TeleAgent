@@ -173,7 +173,7 @@ class Document(Base):
     content = Column(Text)
     file_type = Column(String(50))
     file_size = Column(Integer)
-    metadata = Column(JSON, default=dict)
+    doc_metadata = Column(JSON, default=dict)
     created_at = Column(DateTime(timezone=True), default=utc_now)
     
     tenant = relationship('Tenant', back_populates='documents')
