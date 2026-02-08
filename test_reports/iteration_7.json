@@ -1,0 +1,91 @@
+{
+  "summary": "Tested Agent Performance Dashboard and Onboarding header. Fixed critical bug in /api/dashboard/analytics endpoint (conversations table uses 'started_at' not 'created_at', messages table has no tenant_id). All 23 backend tests pass (100%). Frontend: Dashboard shows all sections correctly, period selector works, onboarding header has proper layout.",
+  
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "passed_tests": [
+    "Agent Dashboard - Stat cards (Conversations, Leads Generated, Conversion Rate, Avg Response)",
+    "Agent Dashboard - Lead Quality chart with Hot/Warm/Cold distribution",
+    "Agent Dashboard - Score Distribution (76-100, 51-75, 26-50, 0-25)",
+    "Agent Dashboard - Top Products Asked section",
+    "Agent Dashboard - Sales Funnel (Awareness, Interest, Consideration, Intent, Evaluation, Purchase)",
+    "Agent Dashboard - Daily Leads Trend chart",
+    "Agent Dashboard - Period selector (Last 7/14/30/90 days) works correctly",
+    "Agent Dashboard - Navigation from /agents page by clicking agent card",
+    "Agents page - Agent cards display with status, conversations count, leads count",
+    "Agent Onboarding header - Back arrow button on left",
+    "Agent Onboarding header - Title 'Create New Agent' with subtitle",
+    "Agent Onboarding header - Cancel button on right with outline variant",
+    "Backend /api/dashboard/analytics endpoint - returns all dashboard data",
+    "All 23 backend API tests pass"
+  ],
+  
+  "test_report_links": [
+    "/app/backend/tests/test_api_endpoints.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  
+  "action_items": [],
+  
+  "critical_code_review_comments": [
+    "Fixed: /api/dashboard/analytics was failing due to 'conversations.created_at' column not existing - changed to 'started_at'",
+    "Fixed: Removed messages table query from analytics endpoint as it doesn't have tenant_id column",
+    "Added error handling with try/catch for database queries in analytics endpoint",
+    "Fixed: test_api_endpoints.py BASE_URL was empty - added default URL"
+  ],
+  
+  "updated_files": [
+    "/app/backend/server.py - Fixed analytics endpoint to use 'started_at' for conversations, removed messages query, added error handling",
+    "/app/backend/tests/test_api_endpoints.py - Fixed BASE_URL default, added test_dashboard_analytics test"
+  ],
+  
+  "success_rate": {
+    "backend": "100% (23/23 tests passed)",
+    "frontend": "100% (All features working)"
+  },
+  
+  "test_credentials": {
+    "email": "test2@teleagent.uz",
+    "password": "testpass123"
+  },
+  
+  "seed_data_creation": "None - used existing test agent 'Navigation Test'",
+  
+  "retest_needed": false,
+  
+  "should_main_agent_self_test": true,
+  
+  "context_for_next_testing_agent": "Agent Performance Dashboard fully tested and working. Dashboard shows: 4 stat cards, Lead Quality chart, Score Distribution, Top Products, Sales Funnel (6 stages), Daily Leads Trend. Period selector allows 7/14/30/90 days. Onboarding header has back arrow, title with subtitle, and Cancel button. Bitrix24 is MOCKED (demo mode).",
+  
+  "mocked_apis": {
+    "Bitrix24 CRM": "Running in demo mode - /api/bitrix/status returns is_demo: true"
+  },
+  
+  "features_tested": {
+    "agent_dashboard": {
+      "stat_cards": "Conversations, Leads Generated, Conversion Rate, Avg Response - all with 'vs last period' comparison",
+      "charts": "Lead Quality (Hot/Warm/Cold), Score Distribution (4 ranges), Top Products Asked",
+      "funnel": "Sales Funnel with 6 stages (Awareness → Purchase)",
+      "trend": "Daily Leads Trend bar chart",
+      "period_selector": "Last 7/14/30/90 days dropdown"
+    },
+    "agents_page": {
+      "agent_cards": "Display name, status badge, conversations count, leads count",
+      "navigation": "Clicking card navigates to /agents/{agentId} dashboard"
+    },
+    "onboarding_header": {
+      "back_button": "Left side, navigates to /agents",
+      "title": "'Create New Agent' with subtitle 'Set up your AI sales assistant in minutes'",
+      "cancel_button": "Right side, outline variant"
+    }
+  }
+}
