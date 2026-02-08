@@ -8,7 +8,7 @@ import LoginPage from "./pages/LoginPage";
 import DashboardLayout from "./layouts/DashboardLayout";
 import AgentsPage from "./pages/AgentsPage";
 import AgentOnboarding from "./pages/AgentOnboarding";
-import DashboardPage from "./pages/DashboardPage";
+import AgentDashboard from "./pages/AgentDashboard";
 import LeadsPage from "./pages/LeadsPage";
 import ConnectionsPage from "./pages/ConnectionsPage";
 import SalesAgentPage from "./pages/SalesAgentPage";
