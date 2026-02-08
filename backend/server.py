@@ -782,11 +782,14 @@ You MUST respond with valid JSON in this exact format:
 
 async def get_business_context_semantic(tenant_id: str, query: str, top_k: int = 5) -> List[str]:
     """
-    Semantic RAG - finds relevant context using embeddings from memory cache.
-    Falls back to keyword matching if no embeddings available.
+    Semantic RAG - finds relevant context using embeddings.
+    First loads from DB cache, then performs semantic search.
     """
     try:
-        # First check memory cache for embeddings
+        # Ensure embeddings are loaded from DB for this tenant
+        await load_embeddings_from_db(tenant_id)
+        
+        # Collect all chunks from memory cache for this tenant
         all_chunks = []
         for doc_id, doc_data in document_embeddings_cache.items():
             if doc_data.get("tenant_id") == tenant_id:
@@ -794,13 +797,18 @@ async def get_business_context_semantic(tenant_id: str, query: str, top_k: int =
         
         # If we have chunks with embeddings, use semantic search
         if all_chunks and all_chunks[0].get("embedding"):
+            logger.info(f"Performing semantic search over {len(all_chunks)} chunks for tenant {tenant_id}")
             results = await semantic_search(query, all_chunks, top_k=top_k, min_similarity=0.25)
-            return [
+            context = [
                 f"[{r.get('source', 'Document')}] (relevance: {r['similarity']:.0%}): {r['text'][:600]}"
                 for r in results
             ]
+            if context:
+                logger.info(f"Found {len(context)} relevant chunks for query: {query[:50]}...")
+            return context
         
-        # Fallback to keyword matching from database
+        # Fallback to keyword matching from database content
+        logger.info(f"No embeddings found, falling back to keyword search for tenant {tenant_id}")
         result = supabase.table('documents').select('title, content').eq('tenant_id', tenant_id).execute()
         
         if not result.data:
@@ -811,7 +819,8 @@ async def get_business_context_semantic(tenant_id: str, query: str, top_k: int =
         
         for doc in result.data:
             content = doc.get('content', '')
-            if content and query_words & set(content.lower().split()):
+            # Skip placeholder content
+            if content and not content.startswith('[File:') and query_words & set(content.lower().split()):
                 snippet = content[:500] + "..." if len(content) > 500 else content
                 context.append(f"[{doc.get('title', 'Document')}]: {snippet}")
         
@@ -819,6 +828,8 @@ async def get_business_context_semantic(tenant_id: str, query: str, top_k: int =
         
     except Exception as e:
         logger.error(f"RAG context retrieval error: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 
