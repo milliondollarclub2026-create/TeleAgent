@@ -363,7 +363,7 @@ async def connect_telegram_bot(request: TelegramBotCreate, current_user: Dict = 
         raise HTTPException(status_code=400, detail="Invalid bot token")
     
     tenant_id = current_user["tenant_id"]
-    backend_url = os.environ.get('REACT_APP_BACKEND_URL', 'https://teleagent.preview.emergentagent.com')
+    backend_url = os.environ.get('REACT_APP_BACKEND_URL', 'https://aisales-hub-1.preview.emergentagent.com')
     webhook_url = f"{backend_url}/api/telegram/webhook"
     
     result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
