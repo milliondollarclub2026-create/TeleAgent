@@ -354,5 +354,74 @@ class TestTelegramWebhook:
         print("✓ Telegram webhook endpoint accessible")
 
 
+class TestAgentsEndpoints:
+    """Agents endpoint tests - New agent management flow"""
+    
+    def test_get_agents(self, auth_headers):
+        """Test /api/agents GET endpoint"""
+        response = requests.get(f"{BASE_URL}/api/agents", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert isinstance(data, list)
+        
+        # If there are agents, validate structure
+        if len(data) > 0:
+            agent = data[0]
+            assert "id" in agent
+            assert "name" in agent
+            assert "status" in agent
+            assert "leads_count" in agent
+            assert "conversations_count" in agent
+            print(f"✓ Agents list: {len(data)} agents found, first: {agent['name']}")
+        else:
+            print("✓ Agents list: empty (no agents yet)")
+
+
+class TestChatTestEndpoint:
+    """Test chat endpoint for browser testing"""
+    
+    def test_chat_test_endpoint(self, auth_headers):
+        """Test /api/chat/test POST endpoint"""
+        response = requests.post(f"{BASE_URL}/api/chat/test", headers=auth_headers, json={
+            "message": "What products do you offer?",
+            "conversation_history": []
+        })
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Validate response structure
+        assert "reply" in data
+        assert "sales_stage" in data
+        assert "hotness" in data
+        assert "score" in data
+        
+        # Validate data types
+        assert isinstance(data["reply"], str)
+        assert data["sales_stage"] in ["awareness", "interest", "consideration", "intent", "evaluation", "purchase"]
+        assert data["hotness"] in ["hot", "warm", "cold"]
+        assert isinstance(data["score"], int)
+        
+        print(f"✓ Chat test: reply received, stage={data['sales_stage']}, hotness={data['hotness']}")
+    
+    def test_chat_test_with_history(self, auth_headers):
+        """Test /api/chat/test with conversation history"""
+        response = requests.post(f"{BASE_URL}/api/chat/test", headers=auth_headers, json={
+            "message": "I'm interested in the AI Chatbot",
+            "conversation_history": [
+                {"role": "agent", "text": "Hello! Welcome to our store. How can I help you?"},
+                {"role": "user", "text": "What products do you offer?"},
+                {"role": "agent", "text": "We offer AI Chatbots and CRM Integration services."}
+            ]
+        })
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "reply" in data
+        assert "fields_collected" in data
+        
+        print(f"✓ Chat test with history: reply received, fields={data.get('fields_collected', {})}")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
