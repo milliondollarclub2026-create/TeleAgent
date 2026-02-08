@@ -21,7 +21,7 @@ const DashboardContent = () => {
       >
         <Outlet />
       </main>
-      <Toaster position="top-right" richColors />
+      <Toaster position="bottom-right" richColors />
     </div>
   );
 };
