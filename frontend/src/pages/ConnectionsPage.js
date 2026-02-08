@@ -78,9 +78,17 @@ const ConnectionsPage = () => {
   const [showToken, setShowToken] = useState(false);
   const [connectingBot, setConnectingBot] = useState(false);
   const [sheetId, setSheetId] = useState('');
+  
+  // Bitrix24 state
+  const [bitrixWebhookUrl, setBitrixWebhookUrl] = useState('');
+  const [showBitrixUrl, setShowBitrixUrl] = useState(false);
+  const [connectingBitrix, setConnectingBitrix] = useState(false);
+  const [testingBitrix, setTestingBitrix] = useState(false);
+  const [bitrixStatus, setBitrixStatus] = useState({ connected: false });
 
   useEffect(() => {
     fetchIntegrations();
+    fetchBitrixStatus();
   }, []);
 
   const fetchIntegrations = async () => {
@@ -92,6 +100,15 @@ const ConnectionsPage = () => {
       toast.error('Failed to load integrations');
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const fetchBitrixStatus = async () => {
+    try {
+      const response = await axios.get(`${API}/bitrix-crm/status`);
+      setBitrixStatus(response.data);
+    } catch (error) {
+      console.error('Failed to fetch Bitrix status:', error);
     }
   };
 
@@ -123,6 +140,53 @@ const ConnectionsPage = () => {
       fetchIntegrations();
     } catch (error) {
       toast.error('Failed to disconnect bot');
+    }
+  };
+  
+  const connectBitrix = async () => {
+    if (!bitrixWebhookUrl.trim()) {
+      toast.error('Please enter your Bitrix24 webhook URL');
+      return;
+    }
+
+    setConnectingBitrix(true);
+    try {
+      const response = await axios.post(`${API}/bitrix-crm/connect`, {
+        webhook_url: bitrixWebhookUrl
+      });
+      toast.success(response.data.message || 'Bitrix24 connected successfully!');
+      setBitrixWebhookUrl('');
+      fetchBitrixStatus();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to connect Bitrix24');
+    } finally {
+      setConnectingBitrix(false);
+    }
+  };
+  
+  const testBitrixConnection = async () => {
+    setTestingBitrix(true);
+    try {
+      const response = await axios.post(`${API}/bitrix-crm/test`);
+      if (response.data.ok) {
+        toast.success('Connection test successful!');
+      } else {
+        toast.error(`Test failed: ${response.data.message}`);
+      }
+    } catch (error) {
+      toast.error('Test failed. Please check your webhook URL.');
+    } finally {
+      setTestingBitrix(false);
+    }
+  };
+  
+  const disconnectBitrix = async () => {
+    try {
+      await axios.post(`${API}/bitrix-crm/disconnect`);
+      toast.success('Bitrix24 disconnected');
+      fetchBitrixStatus();
+    } catch (error) {
+      toast.error('Failed to disconnect');
     }
   };
 
