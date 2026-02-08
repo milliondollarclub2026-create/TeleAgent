@@ -17,8 +17,15 @@ from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
-# Initialize OpenAI client
-openai_client = AsyncOpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+# Lazy initialization of OpenAI client
+_openai_client = None
+
+def get_openai_client():
+    """Get or create OpenAI client with lazy initialization"""
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = AsyncOpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+    return _openai_client
 
 # Embedding model config
 EMBEDDING_MODEL = "text-embedding-3-small"
