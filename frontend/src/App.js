@@ -34,7 +34,7 @@ function App() {
           </Route>
           <Route path="*" element={<Navigate to="/agents" replace />} />
         </Routes>
-        <Toaster position="top-right" richColors />
+        <Toaster position="bottom-right" richColors />
       </BrowserRouter>
     </AuthProvider>
   );
