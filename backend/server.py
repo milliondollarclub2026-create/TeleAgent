@@ -1786,7 +1786,11 @@ async def upload_document(
             # If chunks_data column doesn't exist, try without it
             logger.warning(f"Insert with chunks_data failed, trying without: {e}")
             doc_without_chunks = {k: v for k, v in doc.items() if k not in ['chunks_data', 'chunk_count']}
-            supabase.table('documents').insert(doc_without_chunks).execute()
+            try:
+                supabase.table('documents').insert(doc_without_chunks).execute()
+            except Exception as e2:
+                logger.error(f"Document insert failed: {e2}")
+                raise HTTPException(status_code=500, detail=str(e2))
         
         # Store embeddings in memory cache
         document_embeddings_cache[doc_id] = {
