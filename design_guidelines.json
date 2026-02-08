@@ -1,0 +1,236 @@
+{
+  "design_system": {
+    "identity": {
+      "name": "E1_B2B_SaaS",
+      "archetype": "The Performance Pro (Dark Mode)",
+      "vibe": "Precision, Intelligence, Trust, Efficiency",
+      "principles": [
+        "Fusion over Imitation: Mix Swiss precision with AI fluidity",
+        "Content is King: Data must be legible and actionable",
+        "Negative Space: Use generous padding to prevent dashboard clutter",
+        "Contrast: High contrast for readability in dark mode"
+      ]
+    },
+    "typography": {
+      "font_family": {
+        "headings": "Manrope, sans-serif",
+        "body": "Inter, sans-serif",
+        "mono": "JetBrains Mono, monospace"
+      },
+      "weights": {
+        "headings": "600 (SemiBold) or 700 (Bold)",
+        "body": "400 (Regular) or 500 (Medium)"
+      },
+      "scale": {
+        "h1": "text-4xl md:text-5xl tracking-tight font-bold",
+        "h2": "text-3xl md:text-4xl tracking-tight font-semibold",
+        "h3": "text-2xl md:text-3xl tracking-tight font-semibold",
+        "h4": "text-xl md:text-2xl tracking-tight font-semibold",
+        "body_lg": "text-lg leading-relaxed",
+        "body_base": "text-base leading-relaxed",
+        "body_sm": "text-sm leading-relaxed",
+        "caption": "text-xs tracking-wide uppercase text-muted-foreground"
+      },
+      "instructions": "Use Manrope for all headings and metric numbers. Use Inter for long text, tables, and inputs. Ensure high contrast for all text."
+    },
+    "colors": {
+      "palette": {
+        "background": "#09090b",
+        "foreground": "#fafafa",
+        "card": "#18181b",
+        "card_foreground": "#fafafa",
+        "popover": "#09090b",
+        "popover_foreground": "#fafafa",
+        "primary": "#6366f1",
+        "primary_foreground": "#ffffff",
+        "secondary": "#27272a",
+        "secondary_foreground": "#fafafa",
+        "muted": "#27272a",
+        "muted_foreground": "#a1a1aa",
+        "accent": "#27272a",
+        "accent_foreground": "#fafafa",
+        "destructive": "#ef4444",
+        "destructive_foreground": "#fafafa",
+        "border": "#27272a",
+        "input": "#27272a",
+        "ring": "#6366f1",
+        "success": "#10b981",
+        "warning": "#f59e0b",
+        "info": "#3b82f6"
+      },
+      "gradients": {
+        "hero_glow": "radial-gradient(circle at center, rgba(99, 102, 241, 0.15) 0%, rgba(9, 9, 11, 0) 70%)",
+        "card_shimmer": "linear-gradient(110deg, transparent 25%, rgba(255,255,255,0.05) 50%, transparent 75%)"
+      },
+      "usage_rules": [
+        "NEVER use pure black (#000000) for backgrounds. Use #09090b.",
+        "Use Primary color (#6366f1) sparingly for main CTAs and active states.",
+        "Use Muted Foreground (#a1a1aa) for secondary text and labels.",
+        "Borders should be subtle (#27272a) to define structure without clutter."
+      ]
+    },
+    "spacing": {
+      "scale": "Tailwind default",
+      "container_padding": "p-6 md:p-8 lg:p-12",
+      "section_gap": "gap-8 md:gap-12",
+      "item_gap": "gap-4 md:gap-6",
+      "radius": {
+        "default": "rounded-lg",
+        "sm": "rounded-md",
+        "lg": "rounded-xl",
+        "full": "rounded-full"
+      }
+    },
+    "layout": {
+      "grid_system": "Bento Grid Protocol",
+      "dashboard_grid": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
+      "sidebar_width": "w-64",
+      "max_width": "max-w-7xl mx-auto",
+      "z_index": {
+        "toast": "z-50",
+        "modal": "z-40",
+        "dropdown": "z-30",
+        "sticky_nav": "z-20",
+        "base": "z-0"
+      }
+    },
+    "components": {
+      "Card": {
+        "style": "bg-card border border-border shadow-sm rounded-xl",
+        "hover": "hover:border-primary/50 transition-colors duration-300",
+        "usage": "Use for all dashboard widgets, forms, and content blocks."
+      },
+      "Button": {
+        "primary": "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md rounded-md font-medium px-4 py-2",
+        "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-md font-medium px-4 py-2",
+        "ghost": "hover:bg-accent hover:text-accent-foreground rounded-md px-4 py-2",
+        "outline": "border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md px-4 py-2"
+      },
+      "Input": {
+        "style": "bg-background border border-input focus:ring-2 focus:ring-ring focus:border-transparent rounded-md h-10 px-3 py-2 text-sm placeholder:text-muted-foreground",
+        "usage": "Use for all form fields. Ensure labels are visible."
+      },
+      "Table": {
+        "style": "w-full caption-bottom text-sm",
+        "header": "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+        "row": "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+        "cell": "p-4 align-middle [&:has([role=checkbox])]:pr-0"
+      },
+      "Sidebar": {
+        "style": "bg-card border-r border-border h-screen fixed left-0 top-0 overflow-y-auto hidden md:block",
+        "item": "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+      }
+    },
+    "visual_enhancers": {
+      "glassmorphism": "bg-black/40 backdrop-blur-xl border border-white/10",
+      "gradients": "Use subtle radial gradients for backgrounds to add depth.",
+      "shadows": "shadow-lg shadow-black/20",
+      "icons": "Use Lucide React icons. Stroke width 1.5px or 2px."
+    },
+    "motion": {
+      "transitions": "transition-all duration-200 ease-in-out",
+      "hover_lift": "hover:-translate-y-1 hover:shadow-md",
+      "fade_in": "animate-in fade-in duration-500",
+      "slide_in": "animate-in slide-in-from-bottom-4 duration-500"
+    },
+    "accessibility": {
+      "contrast": "Ensure text contrast ratio is at least 4.5:1.",
+      "focus": "Visible focus rings on all interactive elements.",
+      "aria": "Use aria-labels for icon-only buttons."
+    }
+  },
+  "assets": {
+    "images": {
+      "login_bg": {
+        "url": "https://images.unsplash.com/photo-1626788106664-dd5470a14082?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Abstract digital network connection dark blue",
+        "usage": "Background for Login/Register pages. Use with overlay."
+      },
+      "connect_bg": {
+        "url": "https://images.unsplash.com/photo-1617397493721-7f735bbbfab8?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Blue and white light streaks",
+        "usage": "Background for 'Connect' or 'AI Agent' configuration sections."
+      }
+    },
+    "icons": {
+      "library": "lucide-react",
+      "dashboard": "LayoutDashboard",
+      "leads": "Users",
+      "connections": "Link",
+      "agent": "Bot",
+      "knowledge": "BookOpen",
+      "settings": "Settings",
+      "logout": "LogOut",
+      "chart": "BarChart3",
+      "calendar": "Calendar",
+      "search": "Search",
+      "bell": "Bell",
+      "menu": "Menu",
+      "check": "CheckCircle2",
+      "alert": "AlertCircle",
+      "x": "X"
+    }
+  },
+  "pages": {
+    "Login": {
+      "layout": "Split screen: Left side image (login_bg), Right side form.",
+      "components": ["Card", "Input", "Button", "Label"],
+      "features": ["Supabase Auth", "Email/Password", "Forgot Password"]
+    },
+    "Dashboard": {
+      "layout": "Sidebar + Main Content Area. Bento Grid for widgets.",
+      "widgets": [
+        {"title": "Total Conversations", "type": "stat", "icon": "MessageSquare"},
+        {"title": "Qualified Leads", "type": "stat", "icon": "UserCheck"},
+        {"title": "Hot Leads", "type": "stat", "icon": "Flame", "color": "text-orange-500"},
+        {"title": "Returning Customers", "type": "stat", "icon": "Repeat"},
+        {"title": "Leads per Day", "type": "chart", "span": "col-span-2"},
+        {"title": "Recent Leads", "type": "table", "span": "col-span-2"}
+      ]
+    },
+    "Connections": {
+      "layout": "Grid of Cards for each integration.",
+      "integrations": [
+        {"name": "Telegram Bot", "status": "Connected/Disconnected", "action": "Configure"},
+        {"name": "Bitrix24 CRM", "status": "Connected/Disconnected", "action": "OAuth Login"},
+        {"name": "Google Sheets", "status": "Fallback", "action": "Link Sheet"}
+      ]
+    },
+    "Sales_Agent": {
+      "layout": "Form-based layout with sections.",
+      "sections": [
+        {"title": "Persona", "fields": ["Name", "Tone (Formal/Casual)", "Language"]},
+        {"title": "Business Info", "fields": ["Vertical Preset", "Description", "Key Offerings"]},
+        {"title": "Prompts", "fields": ["System Prompt Override", "Greeting Message"]}
+      ]
+    },
+    "Knowledge_Base": {
+      "layout": "List of uploaded files + Upload Area.",
+      "features": ["Drag & Drop Upload", "File List", "Delete Action", "RAG Status"]
+    },
+    "Leads": {
+      "layout": "Full-width Data Table with filters.",
+      "columns": ["Name", "Status (Hot/Warm/Cold)", "Source", "Last Interaction", "Actions"]
+    }
+  },
+  "instructions_to_main_agent": [
+    "Implement the 'Dark Mode' by default using the 'dark' class on the html/body tag.",
+    "Use the provided color palette in tailwind.config.js.",
+    "Ensure all text is legible against the dark background.",
+    "Use 'lucide-react' for all icons.",
+    "Use 'recharts' for the charts in the dashboard.",
+    "Use 'react-hook-form' + 'zod' for all forms.",
+    "Mock the backend data for now, but structure the components to receive data via props.",
+    "Ensure the sidebar is responsive (collapsible on mobile).",
+    "Add 'data-testid' to all interactive elements.",
+    "Follow the 'Bento Grid' layout for the dashboard.",
+    "Use the 'Glassmorphism' style for cards where appropriate."
+  ],
+  "universal_guidelines": [
+    "Do not use generic centered layouts.",
+    "Create depth through layered design elements.",
+    "Use 2-3x more spacing than feels comfortable.",
+    "Every interaction needs micro-animations.",
+    "Use 'sonner' for toasts."
+  ]
+}
