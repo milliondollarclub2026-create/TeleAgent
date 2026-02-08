@@ -1084,30 +1084,39 @@ async def create_document(request: DocumentCreate, current_user: Dict = Depends(
                 "embedding": embedding
             })
         
-        # Store document
+        doc_id = str(uuid.uuid4())
+        
+        # Store document in Supabase (basic columns only)
         doc = {
-            "id": str(uuid.uuid4()),
+            "id": doc_id,
             "tenant_id": current_user["tenant_id"],
             "title": request.title,
             "content": request.content,
             "file_type": "text",
             "file_size": len(request.content),
-            "chunk_count": len(chunks),
-            "chunks": json.dumps(chunks_with_embeddings),
             "created_at": now_iso()
         }
         
         supabase.table('documents').insert(doc).execute()
         
+        # Store embeddings in memory cache
+        document_embeddings_cache[doc_id] = {
+            "chunks": chunks_with_embeddings,
+            "chunk_count": len(chunks),
+            "tenant_id": current_user["tenant_id"]
+        }
+        
         logger.info(f"Document created: {request.title}, {len(chunks)} chunks with embeddings")
         
         return {
-            "id": doc["id"],
-            "title": doc["title"],
+            "id": doc_id,
+            "title": request.title,
             "chunk_count": len(chunks),
             "created_at": doc["created_at"]
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Document creation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
