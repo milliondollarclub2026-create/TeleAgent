@@ -913,12 +913,13 @@ async def get_agent_analytics(days: int = 7, current_user: Dict = Depends(get_cu
     prev_start_date = (datetime.now(timezone.utc) - timedelta(days=days*2)).isoformat()
     
     # Current period data
-    conversations = supabase.table('conversations').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date).execute()
+    # Note: conversations table uses 'started_at' instead of 'created_at'
+    conversations = supabase.table('conversations').select('*').eq('tenant_id', tenant_id).gte('started_at', start_date).execute()
     leads = supabase.table('leads').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date).execute()
     messages = supabase.table('messages').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date).execute()
     
     # Previous period for comparison
-    prev_conversations = supabase.table('conversations').select('id', count='exact').eq('tenant_id', tenant_id).gte('created_at', prev_start_date).lt('created_at', start_date).execute()
+    prev_conversations = supabase.table('conversations').select('id', count='exact').eq('tenant_id', tenant_id).gte('started_at', prev_start_date).lt('started_at', start_date).execute()
     prev_leads = supabase.table('leads').select('id', count='exact').eq('tenant_id', tenant_id).gte('created_at', prev_start_date).lt('created_at', start_date).execute()
     
     current_convos = len(conversations.data or [])
