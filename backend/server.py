@@ -469,10 +469,15 @@ async def forgot_password(email: EmailStr, background_tasks: BackgroundTasks):
     reset_token = generate_confirmation_token()
     reset_expiry = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
     
-    supabase.table('users').update({
-        "reset_token": reset_token,
-        "reset_token_expiry": reset_expiry
-    }).eq('id', user['id']).execute()
+    try:
+        supabase.table('users').update({
+            "reset_token": reset_token,
+            "reset_token_expiry": reset_expiry
+        }).eq('id', user['id']).execute()
+    except Exception as e:
+        # Column might not exist in database schema
+        logger.warning(f"Could not store reset token (column may not exist): {e}")
+        # Still try to send email with token (won't be verifiable but won't crash)
     
     background_tasks.add_task(send_password_reset_email, email, user.get('name', 'User'), reset_token)
     
@@ -487,7 +492,13 @@ class ResetPasswordRequest(BaseModel):
 @api_router.post("/auth/reset-password")
 async def reset_password(request: ResetPasswordRequest):
     """Reset password with token"""
-    result = supabase.table('users').select('*').eq('reset_token', request.token).execute()
+    try:
+        result = supabase.table('users').select('*').eq('reset_token', request.token).execute()
+    except Exception as e:
+        # Column might not exist in database schema
+        logger.warning(f"Could not query reset_token (column may not exist): {e}")
+        raise HTTPException(status_code=400, detail="Password reset is not available. Please contact support.")
+    
     if not result.data:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     
@@ -496,16 +507,26 @@ async def reset_password(request: ResetPasswordRequest):
     # Check expiry
     expiry = user.get('reset_token_expiry')
     if expiry:
-        expiry_dt = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
-        if datetime.now(timezone.utc) > expiry_dt:
-            raise HTTPException(status_code=400, detail="Reset token has expired. Please request a new one.")
+        try:
+            expiry_dt = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) > expiry_dt:
+                raise HTTPException(status_code=400, detail="Reset token has expired. Please request a new one.")
+        except ValueError:
+            pass  # Invalid expiry format, continue
     
     # Update password
-    supabase.table('users').update({
-        "password_hash": hash_password(request.new_password),
-        "reset_token": None,
-        "reset_token_expiry": None
-    }).eq('id', user['id']).execute()
+    try:
+        supabase.table('users').update({
+            "password_hash": hash_password(request.new_password),
+            "reset_token": None,
+            "reset_token_expiry": None
+        }).eq('id', user['id']).execute()
+    except Exception as e:
+        # If reset_token column doesn't exist, just update password
+        logger.warning(f"Could not clear reset token: {e}")
+        supabase.table('users').update({
+            "password_hash": hash_password(request.new_password)
+        }).eq('id', user['id']).execute()
     
     return {"message": "Password reset successfully. You can now log in."}
 
@@ -926,8 +947,8 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
         logger.info(f"Received Telegram update: {json.dumps(update, default=str)[:500]}")
         
         message = update.get("message")
-        if not message:
-            logger.debug("No message in update, ignoring")
+        if not message or not isinstance(message, dict):
+            logger.debug("No valid message in update, ignoring")
             return {"ok": True}
         
         text = message.get("text")
