@@ -1,5 +1,5 @@
-"""AI Sales Agent for Telegram + Bitrix24 - Enhanced Version with Sales Pipeline"""
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, Request, BackgroundTasks
+"""AI Sales Agent for Telegram + Bitrix24 - Enhanced Version with Sales Pipeline & RAG"""
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, Request, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -17,6 +17,15 @@ import httpx
 from openai import AsyncOpenAI
 import json
 from supabase import create_client, Client
+
+# Import document processor for RAG
+from document_processor import (
+    process_document,
+    semantic_search,
+    generate_embedding,
+    process_text,
+    generate_embeddings_batch
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
