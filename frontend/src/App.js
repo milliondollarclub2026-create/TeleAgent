@@ -20,10 +20,10 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/agents/new" element={<AgentOnboarding />} />
           <Route path="/" element={<DashboardLayout />}>
             <Route index element={<Navigate to="/agents" replace />} />
             <Route path="agents" element={<AgentsPage />} />
-            <Route path="agents/new" element={<AgentOnboarding />} />
             <Route path="agents/:agentId" element={<AgentDashboard />} />
             <Route path="agents/:agentId/settings" element={<SalesAgentPage />} />
             <Route path="dashboard" element={<Navigate to="/agents" replace />} />
