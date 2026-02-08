@@ -1265,32 +1265,6 @@ async def search_documents(
     except Exception as e:
         logger.error(f"Search error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-        
-        # Collect all chunks with embeddings
-        all_chunks = []
-        for doc in result.data:
-            if doc.get("chunks"):
-                try:
-                    chunks = json.loads(doc["chunks"])
-                    all_chunks.extend(chunks)
-                except:
-                    pass
-        
-        if not all_chunks:
-            return {"results": [], "message": "No searchable content found"}
-        
-        # Perform semantic search
-        results = await semantic_search(query, all_chunks, top_k=top_k)
-        
-        return {
-            "results": results,
-            "total_chunks_searched": len(all_chunks),
-            "query": query
-        }
-        
-    except Exception as e:
-        logger.error(f"Search error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============ Integration Status ============
