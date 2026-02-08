@@ -1675,10 +1675,14 @@ async def create_document(request: DocumentCreate, current_user: Dict = Depends(
         try:
             supabase.table('documents').insert(doc).execute()
         except Exception as e:
-            # If chunks_data column doesn't exist, try without it
+            # If chunks_data or chunk_count columns don't exist, try without them
             logger.warning(f"Insert with chunks_data failed, trying without: {e}")
-            doc_without_chunks = {k: v for k, v in doc.items() if k != 'chunks_data'}
-            supabase.table('documents').insert(doc_without_chunks).execute()
+            doc_without_chunks = {k: v for k, v in doc.items() if k not in ['chunks_data', 'chunk_count']}
+            try:
+                supabase.table('documents').insert(doc_without_chunks).execute()
+            except Exception as e2:
+                logger.error(f"Document insert failed: {e2}")
+                raise HTTPException(status_code=500, detail=str(e2))
         
         # Store in memory cache
         document_embeddings_cache[doc_id] = {
