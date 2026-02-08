@@ -324,7 +324,7 @@ async def process_image(file_content: bytes, filename: str) -> List[Dict]:
             media_type = "image/jpeg"
         
         # Call GPT-4V for description
-        response = await openai_client.chat.completions.create(
+        response = await get_openai_client().chat.completions.create(
             model="gpt-4o",
             messages=[
                 {
@@ -381,7 +381,7 @@ def process_text(content: str, title: str) -> List[Dict]:
 async def generate_embedding(text: str) -> List[float]:
     """Generate embedding for a single text using OpenAI"""
     try:
-        response = await openai_client.embeddings.create(
+        response = await get_openai_client().embeddings.create(
             model=EMBEDDING_MODEL,
             input=text,
             dimensions=EMBEDDING_DIMENSIONS
@@ -395,7 +395,7 @@ async def generate_embedding(text: str) -> List[float]:
 async def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
     """Generate embeddings for multiple texts in batch"""
     try:
-        response = await openai_client.embeddings.create(
+        response = await get_openai_client().embeddings.create(
             model=EMBEDDING_MODEL,
             input=texts,
             dimensions=EMBEDDING_DIMENSIONS
