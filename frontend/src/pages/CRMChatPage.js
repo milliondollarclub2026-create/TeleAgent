@@ -27,8 +27,13 @@ import {
   ShoppingBag
 } from 'lucide-react';
 import { toast } from 'sonner';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Storage key for chat history
+const getChatStorageKey = (agentId) => `crm_chat_history_${agentId}`;
 
 const suggestedQuestions = [
   { icon: TrendingUp, text: "What are our top selling products?" },
@@ -51,9 +56,28 @@ export default function CRMChatPage() {
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
+  // Load chat history from localStorage on mount
   useEffect(() => {
     checkCRMStatus();
-  }, []);
+    const savedMessages = localStorage.getItem(getChatStorageKey(agentId));
+    if (savedMessages) {
+      try {
+        const parsed = JSON.parse(savedMessages);
+        if (Array.isArray(parsed)) {
+          setMessages(parsed);
+        }
+      } catch (e) {
+        console.error('Failed to parse saved chat history:', e);
+      }
+    }
+  }, [agentId]);
+
+  // Save chat history to localStorage whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem(getChatStorageKey(agentId), JSON.stringify(messages));
+    }
+  }, [messages, agentId]);
 
   // Smooth scroll to bottom when new messages arrive
   const scrollToBottom = useCallback(() => {
@@ -137,11 +161,12 @@ export default function CRMChatPage() {
 
   const resetChat = () => {
     setMessages([]);
+    localStorage.removeItem(getChatStorageKey(agentId));
   };
 
   if (crmStatus.loading) {
     return (
-      <div className="h-[calc(100vh-8rem)] flex flex-col items-center justify-center gap-3">
+      <div className="h-[calc(100vh-4rem)] flex flex-col items-center justify-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center">
           <Loader2 className="w-5 h-5 animate-spin text-white" strokeWidth={2} />
         </div>
@@ -152,7 +177,7 @@ export default function CRMChatPage() {
 
   if (!crmStatus.connected) {
     return (
-      <div className="h-[calc(100vh-8rem)] flex flex-col items-center justify-center" data-testid="crm-chat-page">
+      <div className="h-[calc(100vh-4rem)] flex flex-col items-center justify-center" data-testid="crm-chat-page">
         <div className="max-w-md w-full bg-white border border-slate-200 rounded-2xl shadow-sm p-8 text-center">
           <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-6 h-6 text-slate-400" strokeWidth={1.75} />
@@ -176,7 +201,7 @@ export default function CRMChatPage() {
 
   return (
     <div
-      className="h-[calc(100vh-8rem)] flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden"
+      className="h-[calc(100vh-4rem)] flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden"
       data-testid="crm-chat-page"
     >
       {/* Fixed Header */}
@@ -274,7 +299,105 @@ export default function CRMChatPage() {
                         ? 'bg-red-50 border border-red-200 text-red-700 rounded-2xl rounded-bl-md'
                         : 'bg-slate-100 text-slate-800 rounded-2xl rounded-bl-md'
                     }`}>
-                      <div className="whitespace-pre-wrap">{msg.text}</div>
+                      {msg.role === 'user' ? (
+                        <div className="whitespace-pre-wrap">{msg.text}</div>
+                      ) : (
+                        <div className="crm-chat-markdown">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              // Tables
+                              table: ({ children }) => (
+                                <div className="overflow-x-auto my-3 -mx-1">
+                                  <table className="min-w-full border-collapse text-[12px]">
+                                    {children}
+                                  </table>
+                                </div>
+                              ),
+                              thead: ({ children }) => (
+                                <thead className="bg-slate-200/70">{children}</thead>
+                              ),
+                              th: ({ children }) => (
+                                <th className="px-3 py-2 text-left font-semibold text-slate-700 border-b border-slate-300 whitespace-nowrap">
+                                  {children}
+                                </th>
+                              ),
+                              td: ({ children }) => (
+                                <td className="px-3 py-2 border-b border-slate-200 text-slate-700">
+                                  {children}
+                                </td>
+                              ),
+                              tr: ({ children }) => (
+                                <tr className="hover:bg-slate-50/50 transition-colors">{children}</tr>
+                              ),
+                              // Headers
+                              h1: ({ children }) => (
+                                <h1 className="text-base font-bold text-slate-900 mt-4 mb-2">{children}</h1>
+                              ),
+                              h2: ({ children }) => (
+                                <h2 className="text-[14px] font-bold text-slate-900 mt-3 mb-2">{children}</h2>
+                              ),
+                              h3: ({ children }) => (
+                                <h3 className="text-[13px] font-semibold text-slate-800 mt-3 mb-1.5">{children}</h3>
+                              ),
+                              // Lists
+                              ul: ({ children }) => (
+                                <ul className="my-2 ml-1 space-y-1.5">{children}</ul>
+                              ),
+                              ol: ({ children, start }) => (
+                                <ol className="my-2 ml-1 space-y-1.5 counter-reset-custom" start={start}>
+                                  {children}
+                                </ol>
+                              ),
+                              li: ({ children, ordered, index }) => (
+                                <li className="text-slate-700 flex items-start gap-2">
+                                  {ordered ? (
+                                    <span className="font-semibold text-emerald-600 min-w-[1.25rem] flex-shrink-0">
+                                      {(index || 0) + 1}.
+                                    </span>
+                                  ) : (
+                                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                                  )}
+                                  <span className="flex-1">{children}</span>
+                                </li>
+                              ),
+                              // Text styling
+                              strong: ({ children }) => (
+                                <strong className="font-semibold text-slate-900">{children}</strong>
+                              ),
+                              em: ({ children }) => (
+                                <em className="italic text-slate-600">{children}</em>
+                              ),
+                              // Paragraphs
+                              p: ({ children }) => (
+                                <p className="mb-2 last:mb-0 text-slate-700 leading-relaxed">{children}</p>
+                              ),
+                              // Code
+                              code: ({ inline, children }) => (
+                                inline ? (
+                                  <code className="px-1.5 py-0.5 bg-slate-200 rounded text-[11px] font-mono text-slate-800">
+                                    {children}
+                                  </code>
+                                ) : (
+                                  <pre className="my-2 p-3 bg-slate-200 rounded-lg overflow-x-auto">
+                                    <code className="text-[11px] font-mono text-slate-800">{children}</code>
+                                  </pre>
+                                )
+                              ),
+                              // Blockquote
+                              blockquote: ({ children }) => (
+                                <blockquote className="my-2 pl-3 border-l-2 border-emerald-500 text-slate-600 italic">
+                                  {children}
+                                </blockquote>
+                              ),
+                              // Horizontal rule
+                              hr: () => <hr className="my-3 border-slate-200" />,
+                            }}
+                          >
+                            {msg.text}
+                          </ReactMarkdown>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
