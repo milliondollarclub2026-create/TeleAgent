@@ -132,7 +132,7 @@ export default function CRMChatPage() {
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={() => navigate(`/agents/${agentId}`)}
+            onClick={() => navigate(`/app/agents/${agentId}`)}
             className="text-slate-600"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
@@ -171,7 +171,7 @@ export default function CRMChatPage() {
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={() => navigate(`/agents/${agentId}`)}
+            onClick={() => navigate(`/app/agents/${agentId}`)}
             className="text-slate-600"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
