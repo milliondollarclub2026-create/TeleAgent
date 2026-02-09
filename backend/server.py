@@ -604,7 +604,8 @@ async def register(request: RegisterRequest):
             frontend_url = os.environ.get('FRONTEND_URL', 'https://leadrelay-frontend.onrender.com')
             confirm_url = f"{frontend_url}/confirm-email?token={confirmation_token}"
 
-            resend.emails.send({
+            logger.info(f"Sending confirmation email from '{SENDER_EMAIL}' to '{request.email}'")
+            email_response = resend.emails.send({
                 "from": SENDER_EMAIL,
                 "to": request.email,
                 "subject": "Confirm your LeadRelay account",
@@ -624,9 +625,9 @@ async def register(request: RegisterRequest):
                 </div>
                 """
             })
-            logger.info(f"Confirmation email sent to {request.email}")
+            logger.info(f"Resend response: {email_response}")
         except Exception as e:
-            logger.error(f"Failed to send confirmation email: {e}")
+            logger.error(f"Failed to send confirmation email: {e}", exc_info=True)
             # Don't fail registration if email fails - user can request resend
 
         return AuthResponse(
