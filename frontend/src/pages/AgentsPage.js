@@ -102,7 +102,7 @@ const AgentsPage = () => {
           <Button 
             size="lg"
             className="bg-emerald-600 hover:bg-emerald-700 h-12 px-8 text-base"
-            onClick={() => navigate('/agents/new')}
+            onClick={() => navigate('/app/agents/new')}
             data-testid="create-first-agent-btn"
           >
             <Plus className="w-5 h-5 mr-2" strokeWidth={2} />
