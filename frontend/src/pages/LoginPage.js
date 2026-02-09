@@ -49,7 +49,7 @@ const LoginPage = () => {
       if (isLogin) {
         await login(email, password);
         toast.success('Welcome back!');
-        navigate('/agents');
+        navigate('/app/agents');
       } else {
         await register(email, password, name, businessName);
         // Show confirmation message instead of navigating
