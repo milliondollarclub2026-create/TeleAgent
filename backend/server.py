@@ -539,48 +539,85 @@ class ResetPasswordRequest(BaseModel):
 
 @api_router.post("/auth/reset-password")
 async def reset_password(request: ResetPasswordRequest):
-    """Reset password with token"""
+    """Reset password - uses Supabase Auth if available"""
+    # Try Supabase Auth update first
+    try:
+        supabase.auth.update_user({"password": request.new_password})
+        return {"message": "Password reset successfully. You can now log in."}
+    except Exception as e:
+        logger.warning(f"Supabase auth update failed: {e}")
+    
+    # Fallback to custom token
     try:
         result = supabase.table('users').select('*').eq('reset_token', request.token).execute()
-    except Exception as e:
-        # Column might not exist in database schema
-        logger.warning(f"Could not query reset_token (column may not exist): {e}")
-        raise HTTPException(status_code=400, detail="Password reset is not available. Please contact support.")
-    
-    if not result.data:
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-    
-    user = result.data[0]
-    
-    # Check expiry
-    expiry = user.get('reset_token_expiry')
-    if expiry:
-        try:
-            expiry_dt = datetime.fromisoformat(expiry.replace('Z', '+00:00'))
-            if datetime.now(timezone.utc) > expiry_dt:
-                raise HTTPException(status_code=400, detail="Reset token has expired. Please request a new one.")
-        except ValueError:
-            pass  # Invalid expiry format, continue
-    
-    # Update password
-    try:
-        supabase.table('users').update({
-            "password_hash": hash_password(request.new_password),
-            "reset_token": None,
-            "reset_token_expiry": None
-        }).eq('id', user['id']).execute()
-    except Exception as e:
-        # If reset_token column doesn't exist, just update password
-        logger.warning(f"Could not clear reset token: {e}")
+        if not result.data:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+        
+        user = result.data[0]
+        
+        # Update password in our table
         supabase.table('users').update({
             "password_hash": hash_password(request.new_password)
         }).eq('id', user['id']).execute()
-    
-    return {"message": "Password reset successfully. You can now log in."}
+        
+        return {"message": "Password reset successfully. You can now log in."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Password reset error: {e}")
+        raise HTTPException(status_code=400, detail="Password reset failed. Please try again.")
 
 
 @api_router.post("/auth/login", response_model=AuthResponse)
 async def login(request: LoginRequest):
+    """
+    Login using Supabase Auth with fallback to custom users table.
+    Syncs email confirmation status from Supabase.
+    """
+    # Try Supabase Auth first
+    try:
+        auth_response = supabase.auth.sign_in_with_password({
+            "email": request.email,
+            "password": request.password
+        })
+        
+        if auth_response.user:
+            supabase_user = auth_response.user
+            email_confirmed = supabase_user.email_confirmed_at is not None
+            
+            # Get user from our table
+            result = supabase.table('users').select('*').eq('email', request.email).execute()
+            
+            if result.data:
+                user = result.data[0]
+                
+                # Sync email confirmation status
+                if email_confirmed and not user.get('email_confirmed'):
+                    supabase.table('users').update({
+                        "email_confirmed": True,
+                        "email_confirmed_at": now_iso()
+                    }).eq('id', user['id']).execute()
+                    user['email_confirmed'] = True
+                
+                tenant_result = supabase.table('tenants').select('*').eq('id', user['tenant_id']).execute()
+                tenant = tenant_result.data[0] if tenant_result.data else None
+                
+                token = create_access_token(user["id"], user["tenant_id"], user["email"])
+                return AuthResponse(
+                    token=token,
+                    user={
+                        "id": user["id"],
+                        "email": user["email"],
+                        "name": user.get("name"),
+                        "tenant_id": user["tenant_id"],
+                        "business_name": tenant["name"] if tenant else None,
+                        "email_confirmed": user.get("email_confirmed", email_confirmed)
+                    }
+                )
+    except Exception as e:
+        logger.info(f"Supabase auth login failed, trying fallback: {e}")
+    
+    # Fallback to custom users table
     result = supabase.table('users').select('*').eq('email', request.email).execute()
     if not result.data:
         raise HTTPException(status_code=401, detail="Invalid email or password")
