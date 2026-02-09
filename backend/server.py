@@ -47,7 +47,7 @@ supabase: Client = create_client(supabase_url, supabase_key)
 # Initialize Resend for email
 resend.api_key = os.environ.get('RESEND_API_KEY')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
-FRONTEND_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://saleschat-ai-1.preview.emergentagent.com')
+FRONTEND_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://aiagent-hub-17.preview.emergentagent.com')
 
 app = FastAPI(title="TeleAgent - AI Sales Agent")
 api_router = APIRouter(prefix="/api")
@@ -739,7 +739,7 @@ async def connect_telegram_bot(request: TelegramBotCreate, current_user: Dict = 
         raise HTTPException(status_code=400, detail="Invalid bot token")
     
     tenant_id = current_user["tenant_id"]
-    backend_url = os.environ.get('REACT_APP_BACKEND_URL', 'https://saleschat-ai-1.preview.emergentagent.com')
+    backend_url = os.environ.get('REACT_APP_BACKEND_URL', 'https://aiagent-hub-17.preview.emergentagent.com')
     webhook_url = f"{backend_url}/api/telegram/webhook"
     
     result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()

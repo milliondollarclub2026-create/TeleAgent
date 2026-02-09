@@ -8,7 +8,7 @@ import os
 import uuid
 
 # Get BASE_URL from environment or use default
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://saleschat-ai-1.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://aiagent-hub-17.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 TEST_EMAIL = "test2@teleagent.uz"

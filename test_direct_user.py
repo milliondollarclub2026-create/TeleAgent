@@ -96,7 +96,7 @@ def test_login(email, password):
     
     try:
         response = requests.post(
-            "https://saleschat-ai-1.preview.emergentagent.com/api/auth/login",
+            "https://aiagent-hub-17.preview.emergentagent.com/api/auth/login",
             json={"email": email, "password": password},
             timeout=30
         )
