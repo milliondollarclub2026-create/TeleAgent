@@ -430,60 +430,91 @@ class BitrixCRMClient:
         
         question_lower = question.lower()
         
+        # Keywords for different data types
+        lead_keywords = ["lead", "лид", "potential", "prospect", "новые", "new", "hot", "warm", "cold", "качеств"]
+        deal_keywords = ["deal", "sale", "сделк", "revenue", "pipeline", "выручк", "доход", "money", "деньг"]
+        product_keywords = ["product", "продукт", "товар", "catalog", "price", "цен", "item", "наимен"]
+        top_keywords = ["top", "best", "popular", "selling", "лучш", "популярн", "most", "highest", "самы"]
+        analytics_keywords = ["analytic", "summary", "overview", "статистик", "обзор", "trend", "тренд", "report", "отчет", "kpi", "metric", "показател"]
+        customer_keywords = ["customer", "client", "contact", "клиент", "контакт", "покупател", "buyer"]
+        all_keywords = ["all", "все", "show me", "покажи", "list", "список", "how many", "сколько", "count"]
+        
         # If asking about leads
-        if any(word in question_lower for word in ["lead", "лид", "potential", "prospect"]):
-            leads = await self.list_leads(limit=20)
+        if any(word in question_lower for word in lead_keywords):
+            leads = await self.list_leads(limit=30)
             statuses = await self.get_lead_statuses()
             status_map = {s.get("STATUS_ID"): s.get("NAME") for s in statuses}
             
             lead_summary = []
+            status_counts = {}
             for lead in leads:
-                status_name = status_map.get(lead.get("STATUS_ID"), lead.get("STATUS_ID"))
-                lead_summary.append(f"- {lead.get('TITLE', 'Untitled')} (Status: {status_name}, Created: {lead.get('DATE_CREATE', 'N/A')[:10]})")
+                status_id = lead.get("STATUS_ID", "UNKNOWN")
+                status_name = status_map.get(status_id, status_id)
+                status_counts[status_name] = status_counts.get(status_name, 0) + 1
+                lead_summary.append(f"- {lead.get('TITLE', 'Untitled')} | Status: {status_name} | Source: {lead.get('SOURCE_ID', 'N/A')} | Created: {lead.get('DATE_CREATE', 'N/A')[:10]}")
             
-            context_parts.append(f"## Recent Leads ({len(leads)} total)\n" + "\n".join(lead_summary[:10]))
+            status_breakdown = "\n".join([f"  - {status}: {count}" for status, count in sorted(status_counts.items(), key=lambda x: -x[1])])
+            context_parts.append(f"## Leads ({len(leads)} total)\n\n**By Status:**\n{status_breakdown}\n\n**Recent Leads:**\n" + "\n".join(lead_summary[:15]))
         
         # If asking about deals/sales
-        if any(word in question_lower for word in ["deal", "sale", "сделк", "revenue", "pipeline", "выручк"]):
-            deals = await self.list_deals(limit=20)
+        if any(word in question_lower for word in deal_keywords):
+            deals = await self.list_deals(limit=30)
+            stages = await self.get_deal_stages()
+            stage_map = {s.get("STATUS_ID"): s.get("NAME") for s in stages}
             
             deal_summary = []
             total_value = 0
+            stage_values = {}
             for deal in deals:
                 value = float(deal.get("OPPORTUNITY", 0))
                 total_value += value
                 currency = deal.get("CURRENCY_ID", "USD")
-                deal_summary.append(f"- {deal.get('TITLE', 'Untitled')}: {value:,.0f} {currency} (Stage: {deal.get('STAGE_ID')})")
+                stage_id = deal.get("STAGE_ID", "UNKNOWN")
+                stage_name = stage_map.get(stage_id, stage_id)
+                
+                if stage_name not in stage_values:
+                    stage_values[stage_name] = {"count": 0, "value": 0}
+                stage_values[stage_name]["count"] += 1
+                stage_values[stage_name]["value"] += value
+                
+                deal_summary.append(f"- {deal.get('TITLE', 'Untitled')}: {value:,.0f} {currency} | Stage: {stage_name} | Created: {deal.get('DATE_CREATE', 'N/A')[:10]}")
             
-            context_parts.append(f"## Recent Deals ({len(deals)} total, Pipeline: {total_value:,.0f})\n" + "\n".join(deal_summary[:10]))
+            stage_breakdown = "\n".join([f"  - {stage}: {data['count']} deals, {data['value']:,.0f} value" for stage, data in sorted(stage_values.items(), key=lambda x: -x[1]['value'])])
+            context_parts.append(f"## Deals ({len(deals)} total, Pipeline Value: {total_value:,.0f})\n\n**By Stage:**\n{stage_breakdown}\n\n**Recent Deals:**\n" + "\n".join(deal_summary[:15]))
         
         # If asking about products
-        if any(word in question_lower for word in ["product", "продукт", "товар", "catalog", "price", "цен"]):
-            products = await self.list_products(limit=20)
+        if any(word in question_lower for word in product_keywords):
+            products = await self.list_products(limit=30)
             
             product_summary = []
             for prod in products:
                 price = float(prod.get("PRICE", 0))
                 currency = prod.get("CURRENCY_ID", "USD")
-                product_summary.append(f"- {prod.get('NAME', 'Unnamed')}: {price:,.0f} {currency}")
+                active = "Active" if prod.get("ACTIVE") == "Y" else "Inactive"
+                desc = prod.get("DESCRIPTION", "")[:50] + "..." if prod.get("DESCRIPTION") else "No description"
+                product_summary.append(f"- {prod.get('NAME', 'Unnamed')}: {price:,.0f} {currency} ({active})")
             
-            context_parts.append(f"## Product Catalog ({len(products)} products)\n" + "\n".join(product_summary[:15]))
+            context_parts.append(f"## Product Catalog ({len(products)} products)\n" + "\n".join(product_summary[:20]))
         
         # If asking about top/best selling
-        if any(word in question_lower for word in ["top", "best", "popular", "selling", "лучш", "популярн"]):
+        if any(word in question_lower for word in top_keywords):
             top_products = await self.get_top_products(limit=10)
             
             if top_products:
                 top_summary = []
                 for i, prod in enumerate(top_products, 1):
-                    top_summary.append(f"{i}. {prod['name']}: {prod['count']} sold, Revenue: {prod['revenue']:,.0f}")
-                context_parts.append(f"## Top Selling Products\n" + "\n".join(top_summary))
+                    top_summary.append(f"{i}. {prod['name']}: {prod['count']} units sold, Revenue: {prod['revenue']:,.0f}")
+                context_parts.append(f"## Top Selling Products (by units sold)\n" + "\n".join(top_summary))
+            else:
+                context_parts.append("## Top Selling Products\nNo sales data available yet.")
         
         # If asking about analytics/summary/overview
-        if any(word in question_lower for word in ["analytic", "summary", "overview", "статистик", "обзор", "trend", "тренд"]):
+        if any(word in question_lower for word in analytics_keywords) or any(word in question_lower for word in all_keywords):
             analytics = await self.get_analytics_summary()
             
             context_parts.append(f"""## CRM Analytics Summary
+            
+**Key Metrics:**
 - Total Leads: {analytics['leads']['total']}
 - Total Deals: {analytics['deals']['total']}
 - Pipeline Value: {analytics['deals']['pipeline_value']:,.0f}
@@ -491,24 +522,44 @@ class BitrixCRMClient:
 - Conversion Rate: {analytics['conversion_rate']:.1f}%
 - Products in Catalog: {analytics['products']['total']}
 
-Lead Sources: {json.dumps(analytics['leads']['by_source'], indent=2)}
-Deal Stages: {json.dumps(analytics['deals']['by_stage'], indent=2)}""")
+**Lead Sources:**
+{json.dumps(analytics['leads']['by_source'], indent=2)}
+
+**Deal Stages:**
+{json.dumps(analytics['deals']['by_stage'], indent=2)}""")
         
         # If asking about customer
-        if any(word in question_lower for word in ["customer", "client", "contact", "клиент", "контакт"]):
-            # Get some contacts/leads
-            leads = await self.list_leads(limit=10)
-            context_parts.append(f"## Recent Customers/Leads\n" + 
-                               "\n".join([f"- {l.get('NAME', 'Unknown')} ({l.get('PHONE', ['N/A'])})" for l in leads[:10]]))
+        if any(word in question_lower for word in customer_keywords):
+            leads = await self.list_leads(limit=15)
+            customer_info = []
+            for l in leads:
+                phone = l.get('PHONE', [])
+                phone_str = phone[0].get('VALUE', 'N/A') if isinstance(phone, list) and phone else str(phone) if phone else 'N/A'
+                customer_info.append(f"- {l.get('NAME', 'Unknown')} | Phone: {phone_str} | Source: {l.get('SOURCE_ID', 'N/A')}")
+            context_parts.append(f"## Customers/Leads ({len(leads)} shown)\n" + "\n".join(customer_info))
         
-        # Default: provide general overview
+        # Default: provide general overview if nothing matched
         if not context_parts:
             analytics = await self.get_analytics_summary()
+            leads = await self.list_leads(limit=10)
+            deals = await self.list_deals(limit=10)
+            
+            lead_list = "\n".join([f"- {l.get('TITLE', 'Untitled')} ({l.get('STATUS_ID', 'N/A')})" for l in leads[:5]])
+            deal_list = "\n".join([f"- {d.get('TITLE', 'Untitled')}: {float(d.get('OPPORTUNITY', 0)):,.0f}" for d in deals[:5]])
+            
             context_parts.append(f"""## CRM Overview
+
+**Summary:**
 - Total Leads: {analytics['leads']['total']}
 - Total Deals: {analytics['deals']['total']}
 - Pipeline Value: {analytics['deals']['pipeline_value']:,.0f}
-- Conversion Rate: {analytics['conversion_rate']:.1f}%""")
+- Conversion Rate: {analytics['conversion_rate']:.1f}%
+
+**Recent Leads:**
+{lead_list}
+
+**Recent Deals:**
+{deal_list}""")
         
         return "\n\n".join(context_parts)
     
