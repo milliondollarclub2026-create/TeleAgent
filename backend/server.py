@@ -408,7 +408,7 @@ class LoginRequest(BaseModel):
     password: str
 
 class AuthResponse(BaseModel):
-    token: str
+    token: Optional[str] = None
     user: Dict[str, Any]
     message: Optional[str] = None
 
