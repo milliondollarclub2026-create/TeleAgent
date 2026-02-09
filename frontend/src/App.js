@@ -1,7 +1,13 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { Toaster } from "./components/ui/sonner";
+
+// Legacy route redirect component that preserves route params
+function LegacyAgentRedirect() {
+  const { agentId } = useParams();
+  return <Navigate to={`/app/agents/${agentId}`} replace />;
+}
 
 // Pages
 import LandingPage from "./pages/LandingPage";
@@ -78,7 +84,7 @@ function AppRoutes() {
       
       {/* Legacy routes - redirect to new paths */}
       <Route path="/agents" element={<Navigate to="/app/agents" replace />} />
-      <Route path="/agents/:agentId" element={<Navigate to="/app/agents/:agentId" replace />} />
+      <Route path="/agents/:agentId" element={<LegacyAgentRedirect />} />
       <Route path="/leads" element={<Navigate to="/app/leads" replace />} />
       <Route path="/connections" element={<Navigate to="/app/connections" replace />} />
       <Route path="/dashboard" element={<Navigate to="/app/agents" replace />} />

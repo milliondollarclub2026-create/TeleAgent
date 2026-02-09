@@ -17,6 +17,8 @@ import httpx
 from openai import AsyncOpenAI
 import json
 import asyncio
+import re
+import html
 from supabase import create_client, Client
 import resend
 
@@ -96,6 +98,35 @@ TELEGRAM_API_BASE = "https://api.telegram.org/bot"
 
 # OpenAI client
 openai_client = AsyncOpenAI(api_key=(os.environ.get('OPENAI_API_KEY') or '').strip())
+
+# ============ Input Sanitization ============
+def sanitize_html(text: str) -> str:
+    """Remove HTML tags and escape special characters to prevent XSS attacks."""
+    if not text or not isinstance(text, str):
+        return text
+    # Remove script tags and their contents
+    text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.IGNORECASE | re.DOTALL)
+    # Remove style tags and their contents
+    text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.IGNORECASE | re.DOTALL)
+    # Remove all HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Escape HTML entities
+    text = html.escape(text)
+    return text.strip()
+
+def sanitize_dict(data: dict, fields_to_sanitize: list) -> dict:
+    """Sanitize specific string fields in a dictionary."""
+    sanitized = data.copy()
+    for field in fields_to_sanitize:
+        if field in sanitized and isinstance(sanitized[field], str):
+            sanitized[field] = sanitize_html(sanitized[field])
+    return sanitized
+
+# Fields that should be sanitized before storage
+SANITIZE_FIELDS = [
+    'business_name', 'business_description', 'products_services',
+    'faq_objections', 'greeting_message', 'closing_message', 'name'
+]
 
 # ============ Rate Limiting ============
 # Simple in-memory rate limiter (for production, use Redis)
@@ -307,7 +338,8 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 def create_access_token(user_id: str, tenant_id: str, email: str) -> str:
     expiration = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
-    return jwt.encode({"user_id": user_id, "tenant_id": tenant_id, "email": email, "exp": expiration.timestamp()}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    # Use int for exp claim per RFC 7519 (NumericDate must be integer seconds)
+    return jwt.encode({"user_id": user_id, "tenant_id": tenant_id, "email": email, "exp": int(expiration.timestamp())}, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 def verify_token(token: str) -> Optional[Dict]:
     try:
@@ -571,20 +603,28 @@ async def register(request: RegisterRequest):
         tenant_id = str(uuid.uuid4())
         confirmation_token = secrets.token_urlsafe(32)
 
+        # Sanitize user input to prevent XSS attacks
+        safe_name = sanitize_html(request.name) if request.name else None
+        safe_business_name = sanitize_html(request.business_name) if request.business_name else None
+
         # Create tenant (using direct REST API - HTTP/1.1)
-        tenant = {"id": tenant_id, "name": request.business_name, "timezone": "Asia/Tashkent", "created_at": now_iso()}
+        tenant = {"id": tenant_id, "name": safe_business_name, "timezone": "Asia/Tashkent", "created_at": now_iso()}
         db_rest_insert('tenants', tenant)
+
+        # Token expires in 24 hours for email confirmation
+        token_expires = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
 
         # Create user record (using direct REST API - HTTP/1.1)
         user = {
             "id": user_id,
             "email": request.email,
             "password_hash": hash_password(request.password),
-            "name": request.name,
+            "name": safe_name,
             "tenant_id": tenant_id,
             "role": "admin",
             "email_confirmed": False,
             "confirmation_token": confirmation_token,
+            "token_expires_at": token_expires,
             "created_at": now_iso()
         }
         db_rest_insert('users', user)
@@ -665,9 +705,17 @@ async def confirm_email(token: str = None, type: str = None, access_token: str =
         if user.get('email_confirmed'):
             return {"message": "Email already confirmed", "redirect": "/login"}
 
+        # Check token expiration
+        token_expires = user.get('token_expires_at')
+        if token_expires:
+            expires_dt = datetime.fromisoformat(token_expires.replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) > expires_dt:
+                raise HTTPException(status_code=400, detail="Confirmation token has expired. Please request a new confirmation email.")
+
         db_rest_update('users', {
             "email_confirmed": True,
             "confirmation_token": None,
+            "token_expires_at": None,
             "email_confirmed_at": now_iso()
         }, 'id', user['id'])
 
@@ -685,10 +733,13 @@ async def resend_confirmation(email: EmailStr):
         if result and not result[0].get('email_confirmed'):
             user = result[0]
             confirmation_token = secrets.token_urlsafe(32)
+            # Token expires in 24 hours
+            token_expires = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
 
-            # Update token using direct REST API
+            # Update token with expiration using direct REST API
             db_rest_update('users', {
-                "confirmation_token": confirmation_token
+                "confirmation_token": confirmation_token,
+                "token_expires_at": token_expires
             }, 'id', user['id'])
 
             # Send email via Resend
@@ -725,10 +776,13 @@ async def forgot_password(email: EmailStr):
         if result:
             user = result[0]
             reset_token = secrets.token_urlsafe(32)
+            # Token expires in 1 hour
+            token_expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
 
-            # Store reset token using direct REST API
+            # Store reset token in separate field (doesn't interfere with email confirmation)
             db_rest_update('users', {
-                "confirmation_token": reset_token
+                "password_reset_token": reset_token,
+                "password_reset_expires_at": token_expires
             }, 'id', user['id'])
 
             # Send email via Resend
@@ -767,16 +821,24 @@ class ResetPasswordRequest(BaseModel):
 async def reset_password(request: ResetPasswordRequest):
     """Reset password using custom token with direct REST API"""
     try:
-        result = db_rest_select('users', {'confirmation_token': f'eq.{request.token}'})
+        result = db_rest_select('users', {'password_reset_token': f'eq.{request.token}'})
         if not result:
             raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
         user = result[0]
 
-        # Update password and clear token using direct REST API
+        # Check token expiration
+        token_expires = user.get('password_reset_expires_at')
+        if token_expires:
+            expires_dt = datetime.fromisoformat(token_expires.replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) > expires_dt:
+                raise HTTPException(status_code=400, detail="Reset token has expired. Please request a new password reset.")
+
+        # Update password and clear reset token (doesn't affect email confirmation token)
         db_rest_update('users', {
             "password_hash": hash_password(request.new_password),
-            "confirmation_token": None
+            "password_reset_token": None,
+            "password_reset_expires_at": None
         }, 'id', user['id'])
 
         return {"message": "Password reset successfully. You can now log in."}
@@ -1163,7 +1225,7 @@ class BitrixWebhookConnect(BaseModel):
 
 
 class CRMChatRequest(BaseModel):
-    message: str = Field(..., description="User question about CRM data")
+    message: str = Field(..., description="User question about CRM data", min_length=1, max_length=4000)
     conversation_history: List[Dict] = Field(default=[], description="Previous messages in conversation")
 
 
@@ -1483,15 +1545,36 @@ async def crm_chat(
         messages = [
             {
                 "role": "system",
-                "content": f"""You are a helpful CRM assistant for a business using Bitrix24. 
+                "content": f"""You are a helpful CRM assistant for a business using Bitrix24.
 You have access to the following CRM data:
 
 {crm_context}
 
-Answer the user's questions based on this data. Be specific with numbers and facts.
-If asked about trends or comparisons, use the data provided to give insights.
-Keep responses concise but informative. Use formatting (bullet points, numbers) when helpful.
-If the data doesn't contain enough information to answer, say so clearly.
+## Response Guidelines
+
+### Formatting Rules (IMPORTANT):
+- **Always use markdown formatting** for better readability
+- Use **bold** for key metrics, names, and important numbers
+- Use numbered lists (1. 2. 3.) for ordered items like rankings or steps
+- Use bullet points (- or •) for unordered lists
+- Use tables when comparing multiple items with multiple attributes
+- Add line breaks between sections for clarity
+
+### Structure Your Responses:
+- Start with a **direct answer** to the question
+- Follow with **supporting details** using lists or tables
+- End with **insights or recommendations** when relevant
+
+### Examples of Good Formatting:
+- "You have **50 total leads**" (bold key numbers)
+- "**Top 3 Leads by Value:**\\n1. John Smith - $5,000\\n2. Jane Doe - $3,500" (numbered lists)
+- "| Status | Count |\\n|--------|-------|\\n| New | 10 |" (tables for comparisons)
+
+### Content Rules:
+- Be specific with numbers and facts from the data
+- If asked about trends, provide analysis with the data
+- Keep responses concise but comprehensive
+- If data is insufficient, clearly state what's missing
 
 Language: Respond in the same language the user uses (English, Russian, or Uzbek)."""
             }
@@ -2639,7 +2722,10 @@ async def get_tenant_config(current_user: Dict = Depends(get_current_user)):
 @api_router.put("/config")
 async def update_tenant_config(request: TenantConfigUpdate, current_user: Dict = Depends(get_current_user)):
     update_data = {k: v for k, v in request.model_dump().items() if v is not None}
-    
+
+    # Sanitize user input to prevent XSS attacks
+    update_data = sanitize_dict(update_data, SANITIZE_FIELDS)
+
     result = supabase.table('tenant_configs').select('*').eq('tenant_id', current_user["tenant_id"]).execute()
     if result.data:
         supabase.table('tenant_configs').update(update_data).eq('tenant_id', current_user["tenant_id"]).execute()
@@ -3147,22 +3233,97 @@ async def get_agents(current_user: Dict = Depends(get_current_user)):
 
 @api_router.delete("/agents/{agent_id}")
 async def delete_agent(agent_id: str, current_user: Dict = Depends(get_current_user)):
-    """Delete an agent (resets config)"""
+    """Delete an agent and all associated data (comprehensive cleanup)"""
+    tenant_id = current_user["tenant_id"]
+
     try:
-        # Reset the config
-        supabase.table('tenant_configs').update({
-            "business_name": None,
-            "business_description": None,
-            "products_services": None
-        }).eq('tenant_id', current_user["tenant_id"]).execute()
-        
-        # Delete documents
-        supabase.table('documents').delete().eq('tenant_id', current_user["tenant_id"]).execute()
-        
-        # Delete telegram bot
-        supabase.table('telegram_bots').delete().eq('tenant_id', current_user["tenant_id"]).execute()
-        
-        return {"success": True}
+        # 1. Delete messages (via conversation_id since messages has no tenant_id)
+        try:
+            conv_result = supabase.table('conversations').select('id').eq('tenant_id', tenant_id).execute()
+            conversation_ids = [c['id'] for c in conv_result.data] if conv_result.data else []
+            if conversation_ids:
+                for conv_id in conversation_ids:
+                    supabase.table('messages').delete().eq('conversation_id', conv_id).execute()
+            logger.info(f"Deleted messages for agent {agent_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete messages: {e}")
+
+        # 2. Delete conversations
+        try:
+            supabase.table('conversations').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted conversations for agent {agent_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete conversations: {e}")
+
+        # 3. Delete leads
+        try:
+            supabase.table('leads').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted leads for agent {agent_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete leads: {e}")
+
+        # 4. Delete customers
+        try:
+            supabase.table('customers').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted customers for agent {agent_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete customers: {e}")
+
+        # 5. Delete documents and clear embeddings cache
+        try:
+            supabase.table('documents').delete().eq('tenant_id', tenant_id).execute()
+            # Clear embeddings cache for this tenant
+            global document_embeddings_cache, _cache_loaded_tenants
+            keys_to_delete = [k for k in document_embeddings_cache if k.startswith(tenant_id)]
+            for k in keys_to_delete:
+                del document_embeddings_cache[k]
+            _cache_loaded_tenants.discard(tenant_id)
+            logger.info(f"Deleted documents for agent {agent_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete documents: {e}")
+
+        # 6. Delete event logs
+        try:
+            supabase.table('event_logs').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted event logs for agent {agent_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete event logs: {e}")
+
+        # 7. Disconnect and delete telegram bot
+        try:
+            tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
+            if tg_result.data:
+                await delete_telegram_webhook(tg_result.data[0]["bot_token"])
+            supabase.table('telegram_bots').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted telegram bot for agent {agent_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete telegram bot: {e}")
+
+        # 8. Clear Bitrix webhook from cache
+        try:
+            if tenant_id in _bitrix_webhooks_cache:
+                del _bitrix_webhooks_cache[tenant_id]
+            logger.info(f"Cleared Bitrix cache for agent {agent_id}")
+        except Exception as e:
+            logger.warning(f"Could not clear Bitrix cache: {e}")
+
+        # 9. Reset the config (but don't delete tenant)
+        try:
+            supabase.table('tenant_configs').update({
+                "business_name": None,
+                "business_description": None,
+                "products_services": None,
+                "faq_objections": None,
+                "greeting_message": None,
+                "closing_message": None,
+                "bitrix_webhook_url": None,
+                "bitrix_connected_at": None
+            }).eq('tenant_id', tenant_id).execute()
+            logger.info(f"Reset config for agent {agent_id}")
+        except Exception as e:
+            logger.warning(f"Could not reset config: {e}")
+
+        return {"success": True, "message": "Agent and all associated data deleted successfully"}
     except Exception as e:
         logger.error(f"Delete agent error: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete agent")
@@ -3170,7 +3331,7 @@ async def delete_agent(agent_id: str, current_user: Dict = Depends(get_current_u
 
 # ============ Test Chat Endpoint ============
 class TestChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=4000)
     conversation_history: List[Dict] = []
 
 @api_router.post("/chat/test")
