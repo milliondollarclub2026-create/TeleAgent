@@ -18,6 +18,8 @@ from openai import AsyncOpenAI
 import json
 import asyncio
 from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
+import httpx
 import resend
 
 # Import document processor for RAG
@@ -39,10 +41,20 @@ load_dotenv(ROOT_DIR / '.env')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Initialize Supabase client
+# Initialize Supabase client with HTTP/1.1 (avoid HTTP/2 StreamReset issues)
 supabase_url = os.environ.get('SUPABASE_URL')
 supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
-supabase: Client = create_client(supabase_url, supabase_key)
+
+# Create custom httpx client without HTTP/2 to avoid connection issues
+_http_client = httpx.Client(http2=False, timeout=30.0)
+supabase: Client = create_client(
+    supabase_url,
+    supabase_key,
+    options=ClientOptions(
+        postgrest_client_timeout=30,
+        storage_client_timeout=30
+    )
+)
 
 # Initialize Resend for email
 resend.api_key = os.environ.get('RESEND_API_KEY')
@@ -497,6 +509,26 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict:
     return token_data
 
 
+# Helper function to execute Supabase operations with retry
+def db_execute_with_retry(operation, max_retries=3):
+    """Execute a Supabase operation with retry logic for connection issues."""
+    import time
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            return operation()
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+            # Retry on connection errors
+            if 'streamreset' in error_str or 'connection' in error_str or 'timeout' in error_str:
+                if attempt < max_retries - 1:
+                    time.sleep(0.5 * (attempt + 1))  # Exponential backoff
+                    continue
+            raise
+    raise last_error
+
+
 # ============ Auth Endpoints (Custom Auth with Resend) ============
 @api_router.post("/auth/register", response_model=AuthResponse)
 async def register(request: RegisterRequest):
@@ -504,8 +536,10 @@ async def register(request: RegisterRequest):
     Register a new user with custom auth and Resend email verification.
     """
     try:
-        # Check if user already exists
-        existing = supabase.table('users').select('*').eq('email', request.email).execute()
+        # Check if user already exists (with retry)
+        existing = db_execute_with_retry(
+            lambda: supabase.table('users').select('*').eq('email', request.email).execute()
+        )
         if existing.data:
             raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -514,11 +548,13 @@ async def register(request: RegisterRequest):
         tenant_id = str(uuid.uuid4())
         confirmation_token = secrets.token_urlsafe(32)
 
-        # Create tenant
+        # Create tenant (with retry)
         tenant = {"id": tenant_id, "name": request.business_name, "timezone": "Asia/Tashkent", "created_at": now_iso()}
-        supabase.table('tenants').insert(tenant).execute()
+        db_execute_with_retry(
+            lambda: supabase.table('tenants').insert(tenant).execute()
+        )
 
-        # Create user record
+        # Create user record (with retry)
         user = {
             "id": user_id,
             "email": request.email,
@@ -530,7 +566,9 @@ async def register(request: RegisterRequest):
             "confirmation_token": confirmation_token,
             "created_at": now_iso()
         }
-        supabase.table('users').insert(user).execute()
+        db_execute_with_retry(
+            lambda: supabase.table('users').insert(user).execute()
+        )
 
         # Create default config
         config = {
