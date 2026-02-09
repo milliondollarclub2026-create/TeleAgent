@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import {
   Bot,
-  Send,
+  ArrowUp,
   RotateCcw,
   Loader2,
   User,
@@ -224,12 +224,12 @@ const AgentTestChatPage = () => {
                 data-testid="chat-input"
               />
               <Button
-                className="bg-slate-900 hover:bg-slate-800 h-11 w-11 p-0 rounded-xl shadow-sm"
+                className="bg-slate-900 hover:bg-slate-800 h-11 w-11 p-0 rounded-full shadow-sm"
                 onClick={sendMessage}
                 disabled={sending || !input.trim()}
                 data-testid="send-btn"
               >
-                <Send className="w-4 h-4" strokeWidth={2} />
+                <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
               </Button>
             </div>
           </div>

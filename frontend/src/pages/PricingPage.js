@@ -132,9 +132,12 @@ export default function PricingPage() {
           <div className="flex items-center justify-between h-20">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center">
-                <Zap className="w-5 h-5 text-white" strokeWidth={2.5} />
-              </div>
+              <img
+                src="/logo.svg"
+                alt="LeadRelay"
+                className="h-10 w-10"
+                style={{ objectFit: 'contain' }}
+              />
               <span className="text-2xl font-bold tracking-tight font-['Plus_Jakarta_Sans']">
                 <span className="text-emerald-600">Lead</span>
                 <span className="text-slate-900">Relay</span>
@@ -400,7 +403,7 @@ export default function PricingPage() {
             Ready to accelerate your sales?
           </h2>
           <p className="text-slate-500 text-lg mb-10 max-w-2xl mx-auto">
-            Join hundreds of businesses already using LeadRelay to automate their Telegram sales. Start your free trial today.
+            Join hundreds of businesses already using LeadRelay to automate their Telegram sales.
           </p>
           <button
             onClick={handleCTA}
@@ -456,30 +459,20 @@ export default function PricingPage() {
               </ul>
             </div>
 
-            {/* Column 3 - Company */}
+            {/* Column 3 - Support */}
             <div>
               <h4 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-4">
-                Company
+                Support
               </h4>
               <ul className="space-y-3">
                 <li>
-                  <a href="#" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
-                    About
+                  <a href="mailto:support@leadrelay.com" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
+                    Contact Us
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
-                    Blog
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
-                    Careers
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
-                    Contact
+                  <a href="https://t.me/leadrelay" target="_blank" rel="noopener noreferrer" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
+                    Telegram
                   </a>
                 </li>
               </ul>

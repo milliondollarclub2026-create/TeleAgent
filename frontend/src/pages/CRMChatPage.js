@@ -1,11 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Card } from '../components/ui/card';
 import {
-  Send,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import {
+  ArrowUp,
   Loader2,
   Database,
   TrendingUp,
@@ -38,17 +47,29 @@ export default function CRMChatPage() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [crmStatus, setCrmStatus] = useState({ connected: false, loading: true });
-  const messagesRef = useRef(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   useEffect(() => {
     checkCRMStatus();
   }, []);
 
-  useEffect(() => {
-    if (messagesRef.current) {
-      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+  // Smooth scroll to bottom when new messages arrive
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'end'
+      });
     }
-  }, [messages, loading]);
+  }, []);
+
+  useEffect(() => {
+    // Small delay to ensure DOM is updated before scrolling
+    const timer = setTimeout(scrollToBottom, 50);
+    return () => clearTimeout(timer);
+  }, [messages, loading, scrollToBottom]);
 
   const checkCRMStatus = async () => {
     try {
@@ -120,7 +141,7 @@ export default function CRMChatPage() {
 
   if (crmStatus.loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] gap-3">
+      <div className="h-[calc(100vh-8rem)] flex flex-col items-center justify-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center">
           <Loader2 className="w-5 h-5 animate-spin text-white" strokeWidth={2} />
         </div>
@@ -131,107 +152,95 @@ export default function CRMChatPage() {
 
   if (!crmStatus.connected) {
     return (
-      <div className="space-y-5 animate-fade-in" data-testid="crm-chat-page">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900 tracking-tight">CRM Chat</h1>
-            <p className="text-[13px] text-slate-500 mt-0.5">Chat with your CRM data</p>
+      <div className="h-[calc(100vh-8rem)] flex flex-col items-center justify-center" data-testid="crm-chat-page">
+        <div className="max-w-md w-full bg-white border border-slate-200 rounded-2xl shadow-sm p-8 text-center">
+          <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-6 h-6 text-slate-400" strokeWidth={1.75} />
           </div>
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">CRM Not Connected</h2>
+          <p className="text-[13px] text-slate-500 mb-6 leading-relaxed">
+            Connect your Bitrix24 CRM to start chatting with your data.
+            You'll be able to ask questions about leads, deals, products, and analytics.
+          </p>
+          <Button
+            onClick={() => navigate(`/app/agents/${agentId}/connections`)}
+            className="bg-slate-900 hover:bg-slate-800 h-10 px-5 text-[13px] font-medium shadow-sm"
+          >
+            <Database className="w-4 h-4 mr-2" strokeWidth={1.75} />
+            Connect Bitrix24
+          </Button>
         </div>
-
-        {/* Not Connected State */}
-        <Card className="max-w-lg mx-auto bg-white border-slate-200 shadow-sm">
-          <div className="p-8 text-center">
-            <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-6 h-6 text-slate-400" strokeWidth={1.75} />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-2">CRM Not Connected</h2>
-            <p className="text-[13px] text-slate-500 mb-6 leading-relaxed">
-              Connect your Bitrix24 CRM to start chatting with your data.
-              You'll be able to ask questions about leads, deals, products, and analytics.
-            </p>
-            <Button
-              onClick={() => navigate(`/app/agents/${agentId}/connections`)}
-              className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
-            >
-              <Database className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
-              Connect Bitrix24
-            </Button>
-          </div>
-        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 animate-fade-in" data-testid="crm-chat-page">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">CRM Chat</h1>
-          <p className="text-[13px] text-slate-500 mt-0.5">Chat with your CRM data</p>
-        </div>
-        {messages.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={resetChat}
-            className="h-9 border-slate-200 text-slate-600"
-          >
-            <RotateCcw className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
-            Reset
-          </Button>
-        )}
-      </div>
-
-      {/* Chat Interface - Full Width */}
-      <Card className="bg-white border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        {/* Chat Header */}
-        <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
-              <Database className="w-5 h-5 text-white" strokeWidth={1.75} />
-            </div>
-            <div>
-              <p className="font-medium text-slate-900 text-sm">CRM Assistant</p>
-              <p className="text-xs text-slate-500">Powered by Bitrix24</p>
-            </div>
+    <div
+      className="h-[calc(100vh-8rem)] flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden"
+      data-testid="crm-chat-page"
+    >
+      {/* Fixed Header */}
+      <div className="flex-shrink-0 px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-white">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center">
+            <Database className="w-5 h-5 text-white" strokeWidth={1.75} />
           </div>
+          <div>
+            <p className="font-semibold text-slate-900 text-sm">CRM Assistant</p>
+            <p className="text-xs text-slate-500">Powered by Bitrix24</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             Online
           </span>
+          {messages.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setResetDialogOpen(true)}
+              className="h-8 px-2.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+            >
+              <RotateCcw className="w-4 h-4" strokeWidth={1.75} />
+            </Button>
+          )}
         </div>
+      </div>
 
-        {/* Messages Area */}
-        <div ref={messagesRef} className="flex-1 h-[480px] overflow-y-auto p-5 space-y-4 bg-slate-50/50">
+      {/* Scrollable Messages Area */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto scroll-smooth"
+        style={{ scrollBehavior: 'smooth' }}
+      >
+        <div className="p-5 space-y-4 min-h-full">
           {messages.length === 0 ? (
-            /* Empty State */
-            <div className="h-full flex flex-col items-center justify-center text-center">
-              <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center mb-4">
-                <Database className="w-6 h-6 text-slate-400" strokeWidth={1.75} />
+            /* Empty State - Centered */
+            <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-center py-8">
+              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-5">
+                <Database className="w-7 h-7 text-slate-400" strokeWidth={1.5} />
               </div>
-              <h3 className="text-base font-semibold text-slate-900 mb-1.5">
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">
                 Ask me anything about your CRM
               </h3>
-              <p className="text-[13px] text-slate-500 mb-6 max-w-sm leading-relaxed">
+              <p className="text-[13px] text-slate-500 mb-8 max-w-sm leading-relaxed">
                 I can help you understand your leads, deals, products, and sales trends.
               </p>
 
               {/* Suggested Questions Grid */}
-              <div className="grid grid-cols-2 gap-2 max-w-lg w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-xl w-full px-4">
                 {suggestedQuestions.map((q, i) => (
                   <button
                     key={i}
                     onClick={() => sendMessage(q.text)}
-                    className="flex items-center gap-2.5 p-3 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg text-left text-[13px] text-slate-700 transition-all duration-150 group"
+                    className="flex items-center gap-3 p-3.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 rounded-xl text-left text-[13px] text-slate-700 transition-all duration-200 group"
                     data-testid={`suggested-q-${i}`}
                   >
-                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 group-hover:bg-slate-200 transition-colors">
-                      <q.icon className="w-3.5 h-3.5 text-slate-500" strokeWidth={1.75} />
+                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 group-hover:bg-slate-200 transition-colors">
+                      <q.icon className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
                     </div>
-                    <span className="line-clamp-2 leading-snug">{q.text}</span>
+                    <span className="line-clamp-2 leading-snug font-medium">{q.text}</span>
                   </button>
                 ))}
               </div>
@@ -242,27 +251,28 @@ export default function CRMChatPage() {
               {messages.map((msg, idx) => (
                 <div
                   key={idx}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                  style={{ animationDelay: `${idx * 50}ms` }}
                 >
-                  <div className={`flex items-end gap-2 max-w-[80%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`flex items-end gap-2.5 max-w-[85%] lg:max-w-[70%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                     {/* Avatar */}
-                    <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center ${
-                      msg.role === 'user' ? 'bg-slate-900' : 'bg-emerald-500'
+                    <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center shadow-sm ${
+                      msg.role === 'user' ? 'bg-slate-900' : 'bg-slate-900'
                     }`}>
                       {msg.role === 'user' ? (
-                        <User className="w-3.5 h-3.5 text-white" strokeWidth={2} />
+                        <User className="w-4 h-4 text-white" strokeWidth={2} />
                       ) : (
-                        <Database className="w-3.5 h-3.5 text-white" strokeWidth={2} />
+                        <Database className="w-4 h-4 text-white" strokeWidth={2} />
                       )}
                     </div>
 
                     {/* Message Bubble */}
-                    <div className={`px-4 py-2.5 text-[13px] leading-relaxed ${
+                    <div className={`px-4 py-3 text-[13px] leading-relaxed ${
                       msg.role === 'user'
-                        ? 'bg-slate-900 text-white rounded-2xl rounded-br-sm'
+                        ? 'bg-slate-900 text-white rounded-2xl rounded-br-md'
                         : msg.isError
-                        ? 'bg-red-50 border border-red-200 text-red-700 rounded-2xl rounded-bl-sm'
-                        : 'bg-white border border-slate-200 text-slate-700 rounded-2xl rounded-bl-sm shadow-sm'
+                        ? 'bg-red-50 border border-red-200 text-red-700 rounded-2xl rounded-bl-md'
+                        : 'bg-slate-100 text-slate-800 rounded-2xl rounded-bl-md'
                     }`}>
                       <div className="whitespace-pre-wrap">{msg.text}</div>
                     </div>
@@ -272,16 +282,16 @@ export default function CRMChatPage() {
 
               {/* Typing Indicator */}
               {loading && (
-                <div className="flex justify-start">
-                  <div className="flex items-end gap-2 max-w-[80%]">
-                    <div className="w-7 h-7 rounded-full bg-emerald-500 flex-shrink-0 flex items-center justify-center">
-                      <Database className="w-3.5 h-3.5 text-white" strokeWidth={2} />
+                <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2 duration-200">
+                  <div className="flex items-end gap-2.5 max-w-[85%] lg:max-w-[70%]">
+                    <div className="w-8 h-8 rounded-full bg-slate-900 flex-shrink-0 flex items-center justify-center shadow-sm">
+                      <Database className="w-4 h-4 text-white" strokeWidth={2} />
                     </div>
-                    <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm">
-                      <div className="flex gap-1">
-                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <div className="bg-slate-100 px-4 py-3.5 rounded-2xl rounded-bl-md">
+                      <div className="flex gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms', animationDuration: '600ms' }} />
+                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms', animationDuration: '600ms' }} />
+                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms', animationDuration: '600ms' }} />
                       </div>
                     </div>
                   </div>
@@ -289,31 +299,57 @@ export default function CRMChatPage() {
               )}
             </>
           )}
+          {/* Scroll anchor */}
+          <div ref={messagesEndRef} className="h-1" />
         </div>
+      </div>
 
-        {/* Input Area */}
-        <div className="px-5 py-4 border-t border-slate-100 bg-white">
-          <div className="flex items-center gap-3">
-            <Input
-              placeholder="Ask about leads, deals, products, or analytics..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="flex-1 h-11 border-slate-200 bg-slate-50 focus:bg-white text-[13px] rounded-xl"
-              disabled={loading}
-              data-testid="crm-chat-input"
-            />
-            <Button
-              className="bg-slate-900 hover:bg-slate-800 h-11 w-11 p-0 rounded-xl shadow-sm"
-              onClick={() => sendMessage()}
-              disabled={loading || !input.trim()}
-              data-testid="crm-chat-send"
-            >
-              <Send className="w-4 h-4" strokeWidth={2} />
-            </Button>
-          </div>
+      {/* Fixed Input Area */}
+      <div className="flex-shrink-0 px-5 py-4 border-t border-slate-100 bg-white">
+        <div className="flex items-center gap-3">
+          <Input
+            placeholder="Ask about leads, deals, products, or analytics..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="flex-1 h-12 border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-300 text-[13px] rounded-xl px-4 transition-colors"
+            disabled={loading}
+            data-testid="crm-chat-input"
+          />
+          <Button
+            className="bg-slate-900 hover:bg-slate-800 h-12 w-12 p-0 rounded-full shadow-sm transition-transform hover:scale-105 active:scale-95 disabled:hover:scale-100"
+            onClick={() => sendMessage()}
+            disabled={loading || !input.trim()}
+            data-testid="crm-chat-send"
+          >
+            <ArrowUp className="w-5 h-5" strokeWidth={2.5} />
+          </Button>
         </div>
-      </Card>
+      </div>
+
+      {/* Reset Chat Confirmation Dialog */}
+      <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <AlertDialogContent className="sm:max-w-[400px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-900">Reset chat?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-500 text-[13px]">
+              This will clear the current conversation. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-200 text-[13px]">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-slate-900 hover:bg-slate-800 text-white text-[13px]"
+              onClick={() => {
+                resetChat();
+                setResetDialogOpen(false);
+              }}
+            >
+              Reset Chat
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

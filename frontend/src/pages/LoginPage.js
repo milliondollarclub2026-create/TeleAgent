@@ -14,8 +14,7 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  CheckCircle,
-  Zap
+  CheckCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -24,17 +23,20 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 // Reusable Logo component
 const Logo = ({ size = 'default' }) => {
   const sizes = {
-    small: { container: 'w-7 h-7', icon: 'w-3.5 h-3.5', text: 'text-xl' },
-    default: { container: 'w-9 h-9', icon: 'w-4.5 h-4.5', text: 'text-2xl' },
-    large: { container: 'w-10 h-10', icon: 'w-5 h-5', text: 'text-3xl' }
+    small: { img: 'h-7 w-7', text: 'text-xl' },
+    default: { img: 'h-9 w-9', text: 'text-2xl' },
+    large: { img: 'h-10 w-10', text: 'text-3xl' }
   };
   const s = sizes[size];
 
   return (
     <div className="flex items-center gap-2.5">
-      <div className={`${s.container} rounded-xl bg-emerald-600 flex items-center justify-center shadow-sm`}>
-        <Zap className={`${s.icon} text-white`} strokeWidth={2.5} />
-      </div>
+      <img
+        src="/logo.svg"
+        alt="LeadRelay"
+        className={s.img}
+        style={{ objectFit: 'contain' }}
+      />
       <span className={`${s.text} font-bold font-['Plus_Jakarta_Sans'] tracking-tight`}>
         <span className="text-emerald-600">Lead</span>
         <span className="text-slate-900">Relay</span>
@@ -68,9 +70,7 @@ const ChatDemo = ({ mounted }) => (
     <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
       {/* Chat header */}
       <div className="bg-white px-4 py-3 border-b border-slate-100 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-          <Zap className="w-5 h-5 text-emerald-600" strokeWidth={2} />
-        </div>
+        <img src="/logo.svg" alt="LeadRelay" className="h-10 w-10" style={{ objectFit: 'contain' }} />
         <div>
           <div className="font-semibold text-slate-900 text-sm">LeadRelay AI</div>
           <div className="text-xs text-emerald-600 flex items-center gap-1">

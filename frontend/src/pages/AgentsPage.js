@@ -98,15 +98,25 @@ const ChannelIcon = ({ channel, size = 'sm' }) => {
   return <Radio className={`${sizeClasses} text-slate-400`} strokeWidth={2} />;
 };
 
-// Get channel display info
+// Bitrix24 icon component
+const BitrixIcon = ({ size = 'sm' }) => {
+  const sizeClasses = size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4';
+  return (
+    <svg className={sizeClasses} viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+};
+
+// Get channel display info (hover disabled for non-interactive badges)
 const getChannelInfo = (channel) => {
   const channels = {
-    telegram: { name: 'Telegram', color: 'bg-[#0088cc]/10 text-[#0088cc]' },
-    whatsapp: { name: 'WhatsApp', color: 'bg-[#25D366]/10 text-[#25D366]' },
-    instagram: { name: 'Instagram', color: 'bg-[#E4405F]/10 text-[#E4405F]' },
-    messenger: { name: 'Messenger', color: 'bg-[#0084FF]/10 text-[#0084FF]' },
+    telegram: { name: 'Telegram', color: 'bg-[#0088cc]/10 text-[#0088cc] hover:bg-[#0088cc]/10 cursor-default' },
+    whatsapp: { name: 'WhatsApp', color: 'bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/10 cursor-default' },
+    instagram: { name: 'Instagram', color: 'bg-[#E4405F]/10 text-[#E4405F] hover:bg-[#E4405F]/10 cursor-default' },
+    messenger: { name: 'Messenger', color: 'bg-[#0084FF]/10 text-[#0084FF] hover:bg-[#0084FF]/10 cursor-default' },
   };
-  return channels[channel] || { name: channel, color: 'bg-slate-100 text-slate-600' };
+  return channels[channel] || { name: channel, color: 'bg-slate-100 text-slate-600 hover:bg-slate-100 cursor-default' };
 };
 
 const AgentsPage = () => {
@@ -312,12 +322,12 @@ const AgentsPage = () => {
                           {agent.name}
                         </h3>
                         {agent.status === 'active' ? (
-                          <Badge className="bg-emerald-50 text-emerald-600 border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                          <Badge className="bg-emerald-50 text-emerald-600 border-0 text-[10px] font-medium px-1.5 py-0 gap-1 hover:bg-emerald-50 cursor-default">
                             <span className="w-1 h-1 rounded-full bg-emerald-500" />
                             Active
                           </Badge>
                         ) : (
-                          <Badge className="bg-slate-100 text-slate-500 border-0 text-[10px] font-medium px-1.5 py-0">
+                          <Badge className="bg-slate-100 text-slate-500 border-0 text-[10px] font-medium px-1.5 py-0 hover:bg-slate-100 cursor-default">
                             Inactive
                           </Badge>
                         )}
@@ -331,8 +341,18 @@ const AgentsPage = () => {
                               <ChannelIcon channel={agent.channel} size="sm" />
                               {getChannelInfo(agent.channel).name}
                             </Badge>
-                            <span className="text-slate-300">·</span>
                           </>
+                        )}
+                        {agent.bitrix_connected && (
+                          <>
+                            <Badge className="bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                              <BitrixIcon size="sm" />
+                              Bitrix24
+                            </Badge>
+                          </>
+                        )}
+                        {(agent.channel || agent.bitrix_connected) && (
+                          <span className="text-slate-300">·</span>
                         )}
                         <div className="flex items-center gap-1">
                           <MessageSquare className="w-3.5 h-3.5" strokeWidth={2} />
@@ -375,7 +395,7 @@ const AgentsPage = () => {
                           <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">Resp.</span>
                         </div>
                         <p className="text-[14px] font-semibold text-slate-900 tabular-nums">
-                          {agent.avg_response_time || 0}s
+                          {agent.avg_response_time ? `${agent.avg_response_time}s` : '-'}
                         </p>
                       </div>
                     </div>
@@ -431,14 +451,14 @@ const AgentsPage = () => {
                       {agent.name}
                     </h3>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {agent.status === 'active' ? (
-                      <Badge className="bg-emerald-50 text-emerald-600 border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                      <Badge className="bg-emerald-50 text-emerald-600 border-0 text-[10px] font-medium px-1.5 py-0 gap-1 hover:bg-emerald-50 cursor-default">
                         <span className="w-1 h-1 rounded-full bg-emerald-500" />
                         Active
                       </Badge>
                     ) : (
-                      <Badge className="bg-slate-100 text-slate-500 border-0 text-[10px] font-medium px-1.5 py-0">
+                      <Badge className="bg-slate-100 text-slate-500 border-0 text-[10px] font-medium px-1.5 py-0 hover:bg-slate-100 cursor-default">
                         Inactive
                       </Badge>
                     )}
@@ -446,6 +466,12 @@ const AgentsPage = () => {
                       <Badge className={`${getChannelInfo(agent.channel).color} border-0 text-[10px] font-medium px-1.5 py-0 gap-1`}>
                         <ChannelIcon channel={agent.channel} size="sm" />
                         {getChannelInfo(agent.channel).name}
+                      </Badge>
+                    )}
+                    {agent.bitrix_connected && (
+                      <Badge className="bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                        <BitrixIcon size="sm" />
+                        Bitrix24
                       </Badge>
                     )}
                   </div>
@@ -486,7 +512,7 @@ const AgentsPage = () => {
                       <span className="text-[10px] text-slate-400 font-medium uppercase">Resp.</span>
                     </div>
                     <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
-                      {agent.avg_response_time || 0}s
+                      {agent.avg_response_time ? `${agent.avg_response_time}s` : '-'}
                     </p>
                   </div>
                 </div>

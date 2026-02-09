@@ -19,6 +19,7 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   Building2,
   FileText,
   Settings,
@@ -29,7 +30,6 @@ import {
   Loader2,
   Check,
   Bot,
-  Send,
   RefreshCw,
   ChevronDown,
   ChevronUp,
@@ -104,7 +104,7 @@ const AgentOnboarding = () => {
   const [testMessages, setTestMessages] = useState([]);
   const [testInput, setTestInput] = useState('');
   const [testLoading, setTestLoading] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
+  const [showDebug, setShowDebug] = useState(true);
   const [debugInfo, setDebugInfo] = useState(null);
   
   // Step 5: Connect - Telegram
@@ -919,12 +919,12 @@ const AgentOnboarding = () => {
                   />
                   <Button
                     size="sm"
-                    className="bg-slate-900 hover:bg-slate-800 h-9 w-9 p-0 rounded-lg"
+                    className="bg-slate-900 hover:bg-slate-800 h-9 w-9 p-0 rounded-full"
                     onClick={sendTestMessage}
                     disabled={testLoading}
                     data-testid="send-test-btn"
                   >
-                    <Send className="w-4 h-4" strokeWidth={2} />
+                    <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
                   </Button>
                 </div>
               </div>

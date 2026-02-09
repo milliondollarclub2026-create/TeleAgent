@@ -92,7 +92,7 @@ export default function PremiumHero({ heroVisible, handleCTA, scrollToSection, h
                 data-testid="hero-cta-btn"
               >
                 <span className="relative z-10 flex items-center gap-3">
-                  Start Free Trial
+                  Get Started
                   <ArrowRight className="w-5 h-5 transition-transform duration-500 group-hover:translate-x-1" strokeWidth={2} />
                 </span>
                 <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12" />
@@ -178,7 +178,7 @@ export default function PremiumHero({ heroVisible, handleCTA, scrollToSection, h
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                   </span>
-                  <span className="text-xs text-emerald-700 font-medium">Live Demo</span>
+                  <span className="text-xs text-emerald-700 font-medium">AI Agent</span>
                 </div>
               </div>
 
@@ -230,7 +230,7 @@ export default function PremiumHero({ heroVisible, handleCTA, scrollToSection, h
                 <div className="flex justify-end hero-msg hero-msg-4">
                   <div className="relative max-w-[75%]">
                     <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl rounded-br-md px-4 py-3 shadow-lg shadow-emerald-500/25">
-                      <p className="text-white text-sm">Perfect! Sign me up for the trial</p>
+                      <p className="text-white text-sm">Perfect! I'd like to get started</p>
                     </div>
                     <span className="text-[10px] text-slate-400 mt-1 mr-2 block text-right">10:25 AM</span>
                   </div>
@@ -248,69 +248,8 @@ export default function PremiumHero({ heroVisible, handleCTA, scrollToSection, h
               </div>
             </div>
 
-            {/* Floating Card - Conversion Rate */}
-            <div className="hero-float-card absolute -top-4 -right-4 bg-white/90 backdrop-blur-xl border border-white/60 rounded-2xl p-4 shadow-xl shadow-slate-900/10 hover:scale-105 transition-transform duration-300">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                  <TrendingUp className="w-6 h-6 text-white" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">+147%</p>
-                  <p className="text-xs text-slate-500 font-medium">Conversion Rate</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Floating Card - CRM Status */}
-            <div className="hero-float-card hero-float-delayed absolute -bottom-2 -left-4 bg-white/90 backdrop-blur-xl border border-white/60 rounded-2xl p-4 shadow-xl shadow-slate-900/10 hover:scale-105 transition-transform duration-300">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-                  <Database className="w-6 h-6 text-white" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <p className="text-base font-semibold text-slate-900">Bitrix24 CRM</p>
-                  <p className="text-xs font-medium flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-emerald-600">Synced in real-time</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Floating Card - Messages */}
-            <div className="hero-float-card hero-float-slow absolute top-1/3 -right-8 bg-white/90 backdrop-blur-xl border border-white/60 rounded-xl px-4 py-3 shadow-lg shadow-slate-900/10 hover:scale-105 transition-transform duration-300">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <MessageSquare className="w-4 h-4 text-white" strokeWidth={2} />
-                </div>
-                <div>
-                  <span className="text-lg font-bold text-slate-900">2,847</span>
-                  <span className="text-xs text-slate-500 ml-1">today</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Floating Sparkle Accent */}
-            <div className="hero-float-card hero-float-sparkle absolute bottom-1/4 -right-2 w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/30">
-              <Sparkles className="w-5 h-5 text-white" strokeWidth={2} />
-            </div>
           </div>
         </div>
-      </div>
-
-      {/* Premium Scroll Indicator */}
-      <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-        heroVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-      }`} style={{ transitionDelay: '500ms' }}>
-        <button
-          onClick={() => scrollToSection('features')}
-          className="group flex flex-col items-center gap-2 text-slate-400 hover:text-slate-600 transition-colors"
-        >
-          <span className="text-xs font-medium tracking-wider uppercase">Explore</span>
-          <div className="w-6 h-10 border-2 border-current rounded-full flex justify-center group-hover:border-emerald-500 transition-colors">
-            <div className="w-1.5 h-3 bg-current rounded-full mt-2 animate-scroll-indicator group-hover:bg-emerald-500" />
-          </div>
-        </button>
       </div>
 
       {/* Premium Hero Animations */}

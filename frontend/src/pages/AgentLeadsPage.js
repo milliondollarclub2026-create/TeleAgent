@@ -29,9 +29,20 @@ import {
   Info,
   TrendingUp,
   Flame,
-  Target
+  Target,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -123,6 +134,8 @@ const AgentLeadsPage = () => {
   const [hotnessFilter, setHotnessFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [config, setConfig] = useState({ business_name: 'Your Agent' });
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState(null);
 
   useEffect(() => {
     fetchConfig();
@@ -201,6 +214,35 @@ const AgentLeadsPage = () => {
       fetchLeads();
     } catch (error) {
       toast.error('Failed to update lead status');
+    }
+  };
+
+  const handleDeleteClick = (lead) => {
+    setLeadToDelete(lead);
+    setDeleteDialogOpen(true);
+  };
+
+  const deleteLead = async () => {
+    if (!leadToDelete) return;
+
+    // For demo leads, just remove locally
+    if (leadToDelete.id.startsWith('agent-lead-')) {
+      setLeads(prev => prev.filter(l => l.id !== leadToDelete.id));
+      toast.success('Lead deleted');
+      setDeleteDialogOpen(false);
+      setLeadToDelete(null);
+      return;
+    }
+
+    try {
+      await axios.delete(`${API}/leads/${leadToDelete.id}`);
+      toast.success('Lead deleted');
+      fetchLeads();
+    } catch (error) {
+      toast.error('Failed to delete lead');
+    } finally {
+      setDeleteDialogOpen(false);
+      setLeadToDelete(null);
     }
   };
 
@@ -422,15 +464,26 @@ const AgentLeadsPage = () => {
                         </p>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-slate-400 hover:text-slate-600"
-                          onClick={() => toast.info(lead.llm_explanation || 'No AI notes available')}
-                          data-testid={`agent-view-notes-${lead.id}`}
-                        >
-                          <Info className="w-4 h-4" strokeWidth={1.75} />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-slate-400 hover:text-slate-600"
+                            onClick={() => toast.info(lead.llm_explanation || 'No AI notes available')}
+                            data-testid={`agent-view-notes-${lead.id}`}
+                          >
+                            <Info className="w-4 h-4" strokeWidth={1.75} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-slate-400 hover:text-red-600"
+                            onClick={() => handleDeleteClick(lead)}
+                            data-testid={`agent-delete-lead-${lead.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" strokeWidth={1.75} />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -440,6 +493,28 @@ const AgentLeadsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this lead?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the lead
+              {leadToDelete?.customer_name ? ` "${leadToDelete.customer_name}"` : ''} and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={deleteLead}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -83,9 +83,12 @@ const Sidebar = () => {
       {/* Logo Section with Collapse Toggle */}
       <div className={`flex items-center justify-between h-14 border-b border-slate-100 ${collapsed ? 'px-3' : 'px-4'}`}>
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center flex-shrink-0">
-            <Zap className="w-4 h-4 text-white" strokeWidth={2.5} />
-          </div>
+          <img
+            src="/logo.svg"
+            alt="LeadRelay"
+            className="h-8 w-8 flex-shrink-0"
+            style={{ objectFit: 'contain' }}
+          />
           {!collapsed && (
             <span className="font-semibold text-[22px] tracking-tight">
               <span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span>

@@ -547,9 +547,9 @@ async def register(request: RegisterRequest):
         }
         supabase.table('users').insert(user).execute()
         
-        # Create default config
+        # Create default config (business_name is set during agent onboarding, not registration)
         config = {
-            "tenant_id": tenant_id, "business_name": request.business_name, "collect_phone": True,
+            "tenant_id": tenant_id, "business_name": None, "collect_phone": True,
             "agent_tone": "professional", "primary_language": "uz", "vertical": "default"
         }
         try:
@@ -878,6 +878,184 @@ async def send_typing_action(bot_token: str, chat_id: int):
             await client.post(f"{TELEGRAM_API_BASE}{bot_token}/sendChatAction", json={"chat_id": chat_id, "action": "typing"}, timeout=10.0)
     except:
         pass
+
+
+# ============ Account Management Endpoints ============
+@api_router.delete("/account")
+async def delete_account(current_user: Dict = Depends(get_current_user)):
+    """Delete user account and all associated data to prevent orphaned instances"""
+    user_id = current_user["user_id"]
+    tenant_id = current_user["tenant_id"]
+
+    try:
+        # Delete in order to respect foreign key constraints
+        # 1. Delete messages (via conversation_id since messages has no tenant_id)
+        try:
+            conv_result = supabase.table('conversations').select('id').eq('tenant_id', tenant_id).execute()
+            conversation_ids = [c['id'] for c in conv_result.data] if conv_result.data else []
+            if conversation_ids:
+                for conv_id in conversation_ids:
+                    supabase.table('messages').delete().eq('conversation_id', conv_id).execute()
+            logger.info(f"Deleted messages for tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete messages: {e}")
+
+        # 2. Delete conversations
+        try:
+            supabase.table('conversations').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted conversations for tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete conversations: {e}")
+
+        # 3. Delete leads
+        try:
+            supabase.table('leads').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted leads for tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete leads: {e}")
+
+        # 4. Delete customers
+        try:
+            supabase.table('customers').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted customers for tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete customers: {e}")
+
+        # 5. Delete documents
+        try:
+            supabase.table('documents').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted documents for tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete documents: {e}")
+
+        # 6. Delete event logs
+        try:
+            supabase.table('event_logs').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted event logs for tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete event logs: {e}")
+
+        # 7. Disconnect and delete telegram bot
+        try:
+            tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
+            if tg_result.data:
+                await delete_telegram_webhook(tg_result.data[0]["bot_token"])
+            supabase.table('telegram_bots').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted telegram bot for tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete telegram bot: {e}")
+
+        # 8. Delete tenant config
+        try:
+            supabase.table('tenant_configs').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted tenant config for tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete tenant config: {e}")
+
+        # 9. Delete user
+        try:
+            supabase.table('users').delete().eq('id', user_id).execute()
+            logger.info(f"Deleted user {user_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete user: {e}")
+
+        # 10. Delete tenant
+        try:
+            supabase.table('tenants').delete().eq('id', tenant_id).execute()
+            logger.info(f"Deleted tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete tenant: {e}")
+
+        # 11. Clear Bitrix cache if exists
+        if tenant_id in _bitrix_webhooks_cache:
+            del _bitrix_webhooks_cache[tenant_id]
+
+        logger.info(f"Successfully deleted account for user {user_id}, tenant {tenant_id}")
+        return {"success": True, "message": "Account and all data deleted successfully"}
+
+    except Exception as e:
+        logger.error(f"Failed to delete account: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete account. Please contact support.")
+
+
+@api_router.delete("/account/data")
+async def delete_account_data(current_user: Dict = Depends(get_current_user)):
+    """Delete all user data but keep the account"""
+    tenant_id = current_user["tenant_id"]
+
+    try:
+        # Delete user data but keep account structure
+        # 1. Delete messages (via conversation_id since messages has no tenant_id)
+        try:
+            conv_result = supabase.table('conversations').select('id').eq('tenant_id', tenant_id).execute()
+            conversation_ids = [c['id'] for c in conv_result.data] if conv_result.data else []
+            if conversation_ids:
+                for conv_id in conversation_ids:
+                    supabase.table('messages').delete().eq('conversation_id', conv_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not delete messages: {e}")
+
+        # 2. Delete conversations
+        try:
+            supabase.table('conversations').delete().eq('tenant_id', tenant_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not delete conversations: {e}")
+
+        # 3. Delete leads
+        try:
+            supabase.table('leads').delete().eq('tenant_id', tenant_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not delete leads: {e}")
+
+        # 4. Delete customers
+        try:
+            supabase.table('customers').delete().eq('tenant_id', tenant_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not delete customers: {e}")
+
+        # 6. Delete documents
+        try:
+            supabase.table('documents').delete().eq('tenant_id', tenant_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not delete documents: {e}")
+
+        # 7. Delete event logs
+        try:
+            supabase.table('event_logs').delete().eq('tenant_id', tenant_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not delete event logs: {e}")
+
+        # 8. Reset tenant config (but don't delete)
+        try:
+            supabase.table('tenant_configs').update({
+                "business_name": None,
+                "business_description": None,
+                "products_services": None,
+                "bitrix_webhook_url": None,
+                "bitrix_connected_at": None
+            }).eq('tenant_id', tenant_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not reset tenant config: {e}")
+
+        # 9. Disconnect telegram bot but keep record
+        try:
+            tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
+            if tg_result.data:
+                await delete_telegram_webhook(tg_result.data[0]["bot_token"])
+                supabase.table('telegram_bots').update({"is_active": False}).eq('tenant_id', tenant_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not disconnect telegram bot: {e}")
+
+        # 10. Clear Bitrix cache
+        if tenant_id in _bitrix_webhooks_cache:
+            del _bitrix_webhooks_cache[tenant_id]
+
+        logger.info(f"Successfully deleted data for tenant {tenant_id}")
+        return {"success": True, "message": "All data deleted successfully. Your account is preserved."}
+
+    except Exception as e:
+        logger.error(f"Failed to delete data: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete data. Please try again.")
 
 
 # ============ Telegram Bot Endpoints ============
@@ -2390,6 +2568,23 @@ async def update_lead_stage(lead_id: str, stage: str, current_user: Dict = Depen
     return {"success": True}
 
 
+@api_router.delete("/leads/{lead_id}")
+async def delete_lead(lead_id: str, current_user: Dict = Depends(get_current_user)):
+    """Delete a lead"""
+    # Verify lead exists and belongs to this tenant
+    result = supabase.table('leads').select('*').eq('id', lead_id).eq('tenant_id', current_user["tenant_id"]).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    try:
+        # SECURITY: Include tenant_id filter for defense-in-depth against IDOR
+        supabase.table('leads').delete().eq('id', lead_id).eq('tenant_id', current_user["tenant_id"]).execute()
+        logger.info(f"Deleted lead {lead_id} for tenant {current_user['tenant_id']}")
+    except Exception as e:
+        logger.error(f"Failed to delete lead: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete lead")
+    return {"success": True}
+
+
 # ============ Config Endpoints ============
 @api_router.get("/config")
 async def get_tenant_config(current_user: Dict = Depends(get_current_user)):
@@ -2843,24 +3038,75 @@ async def get_agents(current_user: Dict = Depends(get_current_user)):
     # For now, treat each tenant config as an agent
     try:
         config = supabase.table('tenant_configs').select('*').eq('tenant_id', current_user["tenant_id"]).execute()
-        
+
         if not config.data or not config.data[0].get('business_name'):
             return []
-        
+
         # Get stats
-        leads_result = supabase.table('leads').select('id').eq('tenant_id', current_user["tenant_id"]).execute()
+        leads_result = supabase.table('leads').select('id, status').eq('tenant_id', current_user["tenant_id"]).execute()
         convos_result = supabase.table('conversations').select('id').eq('tenant_id', current_user["tenant_id"]).execute()
         telegram_result = supabase.table('telegram_bots').select('*').eq('tenant_id', current_user["tenant_id"]).eq('is_active', True).execute()
-        
+
+        # Check Bitrix connection status
+        bitrix_connected = False
+        tenant_id = current_user["tenant_id"]
+        if tenant_id in _bitrix_webhooks_cache:
+            bitrix_connected = True
+        else:
+            try:
+                bx_result = supabase.table('tenant_configs').select('bitrix_webhook_url').eq('tenant_id', tenant_id).execute()
+                if bx_result.data and bx_result.data[0].get('bitrix_webhook_url'):
+                    bitrix_connected = True
+            except:
+                pass
+
         agent_config = config.data[0]
-        
+
+        # Calculate conversion rate
+        total_leads = len(leads_result.data) if leads_result.data else 0
+        won_leads = len([l for l in (leads_result.data or []) if l.get('status') == 'won'])
+        conversion_rate = round((won_leads / total_leads * 100), 1) if total_leads > 0 else 0
+
+        # Calculate average response time (in seconds)
+        avg_response_time = None
+        try:
+            messages_result = supabase.table('messages').select('conversation_id, sender, created_at').eq('tenant_id', current_user["tenant_id"]).order('created_at').execute()
+            if messages_result.data:
+                response_times = []
+                messages_by_convo = {}
+                for msg in messages_result.data:
+                    cid = msg.get('conversation_id')
+                    if cid not in messages_by_convo:
+                        messages_by_convo[cid] = []
+                    messages_by_convo[cid].append(msg)
+
+                for cid, msgs in messages_by_convo.items():
+                    for i in range(1, len(msgs)):
+                        if msgs[i-1].get('sender') == 'customer' and msgs[i].get('sender') == 'agent':
+                            try:
+                                t1 = datetime.fromisoformat(msgs[i-1]['created_at'].replace('Z', '+00:00'))
+                                t2 = datetime.fromisoformat(msgs[i]['created_at'].replace('Z', '+00:00'))
+                                diff = (t2 - t1).total_seconds()
+                                if diff > 0 and diff < 3600:  # Only count if less than 1 hour
+                                    response_times.append(diff)
+                            except:
+                                pass
+
+                if response_times:
+                    avg_response_time = round(sum(response_times) / len(response_times), 1)
+        except Exception as e:
+            logger.warning(f"Could not calculate avg response time: {e}")
+
         return [{
             "id": current_user["tenant_id"],
             "name": agent_config.get('business_name', 'My Agent'),
             "status": "active" if telegram_result.data else "inactive",
             "channel": "telegram" if telegram_result.data else None,
-            "leads_count": len(leads_result.data) if leads_result.data else 0,
+            "bitrix_connected": bitrix_connected,
+            "leads_count": total_leads,
             "conversations_count": len(convos_result.data) if convos_result.data else 0,
+            "conversion_rate": conversion_rate,
+            "avg_response_time": avg_response_time,
             "created_at": agent_config.get('created_at', now_iso())
         }]
     except Exception as e:

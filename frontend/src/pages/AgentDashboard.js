@@ -445,14 +445,14 @@ const AgentDashboard = () => {
               {Object.entries(analytics.leads_by_stage).map(([stage, count], idx, arr) => {
                 const maxCount = Math.max(...Object.values(analytics.leads_by_stage || {1: 1}));
                 const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
-                // Beautiful gradient progression: cyan → blue → indigo → violet → purple
+                // Emerald gradient progression matching LeadRelay branding
                 const funnelColors = [
-                  { bg: 'bg-cyan-400', hover: 'hover:bg-cyan-500', text: 'text-cyan-600' },
-                  { bg: 'bg-sky-500', hover: 'hover:bg-sky-600', text: 'text-sky-600' },
-                  { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', text: 'text-blue-600' },
-                  { bg: 'bg-indigo-500', hover: 'hover:bg-indigo-600', text: 'text-indigo-600' },
-                  { bg: 'bg-violet-500', hover: 'hover:bg-violet-600', text: 'text-violet-600' },
-                  { bg: 'bg-purple-600', hover: 'hover:bg-purple-700', text: 'text-purple-600' }
+                  { bg: 'bg-emerald-300', hover: 'hover:bg-emerald-400', text: 'text-emerald-500' },
+                  { bg: 'bg-emerald-400', hover: 'hover:bg-emerald-500', text: 'text-emerald-600' },
+                  { bg: 'bg-emerald-500', hover: 'hover:bg-emerald-600', text: 'text-emerald-600' },
+                  { bg: 'bg-emerald-600', hover: 'hover:bg-emerald-700', text: 'text-emerald-700' },
+                  { bg: 'bg-emerald-700', hover: 'hover:bg-emerald-800', text: 'text-emerald-700' },
+                  { bg: 'bg-emerald-800', hover: 'hover:bg-emerald-900', text: 'text-emerald-800' }
                 ];
                 const colorConfig = funnelColors[idx] || funnelColors[funnelColors.length - 1];
 
@@ -477,7 +477,7 @@ const AgentDashboard = () => {
           )}
         </AnalyticsCard>
 
-        {/* Daily Trend - Vibrant Gradient Bars */}
+        {/* Daily Trend - Matching Sales Funnel Colors */}
         <AnalyticsCard icon={TrendingUp} title="Daily Trend">
           {analytics?.daily_trend?.length > 0 ? (
             <div className="flex items-end justify-between gap-1.5 h-44 pt-2">
@@ -485,26 +485,33 @@ const AgentDashboard = () => {
                 const maxLeads = Math.max(...(analytics.daily_trend?.map(d => d.leads) || [1]));
                 const height = maxLeads > 0 ? (day.leads / maxLeads) * 100 : 0;
                 const isToday = idx === analytics.daily_trend.length - 1;
+                // Match Sales Funnel emerald color scheme
+                const trendColors = [
+                  { bg: 'bg-emerald-300', hover: 'hover:bg-emerald-400', text: 'text-emerald-500' },
+                  { bg: 'bg-emerald-400', hover: 'hover:bg-emerald-500', text: 'text-emerald-600' },
+                  { bg: 'bg-emerald-500', hover: 'hover:bg-emerald-600', text: 'text-emerald-600' },
+                  { bg: 'bg-emerald-600', hover: 'hover:bg-emerald-700', text: 'text-emerald-700' },
+                  { bg: 'bg-emerald-700', hover: 'hover:bg-emerald-800', text: 'text-emerald-700' },
+                  { bg: 'bg-emerald-800', hover: 'hover:bg-emerald-900', text: 'text-emerald-800' },
+                  { bg: 'bg-emerald-900', hover: 'hover:bg-emerald-950', text: 'text-emerald-900' }
+                ];
+                const colorConfig = trendColors[idx] || trendColors[trendColors.length - 1];
 
                 return (
                   <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 group/bar">
                     <div className="w-full flex flex-col items-center justify-end h-36">
                       {day.leads > 0 && (
-                        <span className="text-[11px] font-semibold text-emerald-600 tabular-nums mb-1.5">{day.leads}</span>
+                        <span className={`text-[11px] font-semibold ${colorConfig.text} tabular-nums mb-1.5`}>{day.leads}</span>
                       )}
                       <div
-                        className={`w-full rounded-lg transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md ${
-                          isToday
-                            ? 'bg-gradient-to-t from-emerald-600 to-emerald-400 hover:from-emerald-700 hover:to-emerald-500'
-                            : 'bg-gradient-to-t from-emerald-500 to-teal-400 hover:from-emerald-600 hover:to-teal-500'
-                        }`}
+                        className={`w-full rounded-lg ${colorConfig.bg} ${colorConfig.hover} transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md`}
                         style={{
                           height: `${Math.max(height, day.leads > 0 ? 12 : 4)}%`,
                           opacity: day.leads > 0 ? 1 : 0.4
                         }}
                       />
                     </div>
-                    <span className={`text-[10px] font-medium ${isToday ? 'text-emerald-600' : 'text-slate-600'}`}>
+                    <span className={`text-[10px] font-medium ${isToday ? colorConfig.text : 'text-slate-600'}`}>
                       {new Date(day.date).toLocaleDateString('en', { weekday: 'short' })}
                     </span>
                   </div>

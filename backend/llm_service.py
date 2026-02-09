@@ -113,9 +113,16 @@ def get_default_system_prompt(config: Optional[Dict] = None) -> str:
 
     return f"""You are a sales agent for {business_name}.
 
-LANGUAGES: {languages_text}
-- Detect the customer's language and respond in the same language
-- If unclear, use {primary_lang_name} as default
+CRITICAL LANGUAGE RULE:
+You MUST detect the language the customer is currently writing in and respond in THAT EXACT LANGUAGE.
+- If customer writes in English → You MUST reply in English
+- If customer writes in Russian → You MUST reply in Russian
+- If customer writes in Uzbek → You MUST reply in Uzbek
+- NEVER switch languages unless the customer switches first
+- This is NON-NEGOTIABLE. Always match the customer's language.
+
+Supported languages: {languages_text}
+Fallback (only if language is truly unclear): {primary_lang_name}
 
 BUSINESS CONTEXT:
 {business_description}
@@ -150,12 +157,12 @@ FACTUAL CONSTRAINTS:
 
 OUTPUT FORMAT:
 You must respond with a JSON object containing:
-- reply_text: Your message to the customer
+- reply_text: Your message to the customer (MUST be in the same language they wrote to you)
 - actions: Array of actions (optional), which can include:
   - create_or_update_lead: with hotness, score, intent, fields, explanation
   - update_customer_profile: with primary_language, segments_add
 
-Always respond in the customer's preferred language."""
+FINAL REMINDER: Your reply_text MUST be in the SAME LANGUAGE the customer used in their latest message. This is mandatory."""
 
 
 async def call_sales_agent(input_data: SalesAgentInput) -> SalesAgentOutput:

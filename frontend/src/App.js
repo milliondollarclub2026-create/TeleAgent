@@ -20,6 +20,7 @@ import AgentLeadsPage from "./pages/AgentLeadsPage";
 import ConnectionsPage from "./pages/ConnectionsPage";
 import SalesAgentPage from "./pages/SalesAgentPage";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
+import SettingsPage from "./pages/SettingsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import PricingPage from "./pages/PricingPage";
@@ -67,6 +68,8 @@ function AppRoutes() {
         <Route path="agents/:agentId/crm-chat" element={<CRMChatPage />} />
         <Route path="agents/:agentId/leads" element={<AgentLeadsPage />} />
         <Route path="leads" element={<LeadsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="account" element={<SettingsPage />} />
         {/* Legacy routes kept for backward compatibility */}
         <Route path="connections" element={<ConnectionsPage />} />
         <Route path="sales-agent" element={<SalesAgentPage />} />

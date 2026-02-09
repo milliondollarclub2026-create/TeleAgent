@@ -7,13 +7,13 @@ import {
   Globe,
   BarChart3,
   ArrowRight,
+  ArrowUp,
   Check,
   Sparkles,
   Database,
   TrendingUp,
   Menu,
-  X,
-  Send
+  X
 } from 'lucide-react';
 import PremiumHero from '../components/PremiumHero';
 
@@ -392,12 +392,12 @@ function CRMChatSection() {
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => setInputFocused(false)}
                   />
-                  <button className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 ${
+                  <button className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${
                     inputFocused
                       ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-md shadow-emerald-500/25 scale-105'
                       : 'bg-emerald-600 hover:bg-emerald-700'
                   }`}>
-                    <Send className="w-4 h-4 text-white" strokeWidth={2} />
+                    <ArrowUp className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </button>
                 </div>
                 <p className="text-[10px] text-slate-400 text-center mt-2">
@@ -406,30 +406,6 @@ function CRMChatSection() {
               </div>
             </div>
 
-            {/* Floating Stats Cards */}
-            <div className="absolute -bottom-6 -right-4 bg-white/90 backdrop-blur-sm border border-slate-200/60 rounded-2xl p-4 shadow-xl shadow-slate-200/50 crm-stats-float-1 hover:scale-105 transition-transform cursor-default">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25">
-                  <TrendingUp className="w-6 h-6 text-white" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-slate-900 tabular-nums">{formatCurrency(countedValue || 24500)}</p>
-                  <p className="text-xs text-slate-500">Weekly Revenue</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="absolute -top-4 -left-4 bg-white/90 backdrop-blur-sm border border-slate-200/60 rounded-2xl p-3 shadow-xl shadow-slate-200/50 crm-stats-float-2 hover:scale-105 transition-transform cursor-default">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center shadow-md shadow-amber-500/25">
-                  <Sparkles className="w-4 h-4 text-white" strokeWidth={2} />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">105</p>
-                  <p className="text-[10px] text-slate-500">Total Orders</p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -585,9 +561,12 @@ export default function LandingPage() {
           <div className="flex items-center justify-between h-20">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
-                <Zap className="w-5 h-5 text-white" strokeWidth={2.5} />
-              </div>
+              <img
+                src="/logo.svg"
+                alt="LeadRelay"
+                className="h-10 w-10 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3"
+                style={{ objectFit: 'contain' }}
+              />
               <span className="text-2xl font-bold tracking-tight font-['Plus_Jakarta_Sans']">
                 <span className="text-emerald-600">Lead</span>
                 <span className="text-slate-900">Relay</span>
@@ -1092,7 +1071,7 @@ export default function LandingPage() {
               data-testid="final-cta-btn"
             >
               <span className="relative z-10 inline-flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all duration-300 group-hover:shadow-2xl group-hover:shadow-emerald-500/30">
-                Get Started Free
+                Get Started
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform duration-300" strokeWidth={2.5} />
               </span>
               {/* Glow effect layers */}
@@ -1200,63 +1179,61 @@ export default function LandingPage() {
                   Product
                 </h4>
                 <ul className="space-y-4">
-                  {['Features', 'Pricing', 'Integrations', 'API'].map((item, i) => (
-                    <li key={i}>
-                      <a
-                        href={item === 'Features' ? '#features' : item === 'Pricing' ? '/pricing' : '#'}
-                        className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2"
-                      >
-                        <span className="relative">
-                          {item}
-                          <span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" />
-                        </span>
-                      </a>
-                    </li>
-                  ))}
+                  <li>
+                    <a
+                      href="#features"
+                      className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2"
+                    >
+                      <span className="relative">
+                        Features
+                        <span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" />
+                      </span>
+                    </a>
+                  </li>
+                  <li>
+                    <Link
+                      to="/pricing"
+                      className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2"
+                    >
+                      <span className="relative">
+                        Pricing
+                        <span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" />
+                      </span>
+                    </Link>
+                  </li>
                 </ul>
               </div>
 
-              {/* Company Column */}
+              {/* Support Column */}
               <div className="md:col-span-2">
                 <h4 className="text-xs font-semibold text-slate-200 uppercase tracking-widest mb-6">
-                  Company
+                  Support
                 </h4>
                 <ul className="space-y-4">
-                  {['About', 'Blog', 'Careers', 'Contact'].map((item, i) => (
-                    <li key={i}>
-                      <a
-                        href={item === 'Contact' ? 'mailto:support@leadrelay.com' : '#'}
-                        className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2"
-                      >
-                        <span className="relative">
-                          {item}
-                          <span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" />
-                        </span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Resources Column */}
-              <div className="md:col-span-2">
-                <h4 className="text-xs font-semibold text-slate-200 uppercase tracking-widest mb-6">
-                  Resources
-                </h4>
-                <ul className="space-y-4">
-                  {['Documentation', 'Help Center', 'Status', 'Changelog'].map((item, i) => (
-                    <li key={i}>
-                      <a
-                        href="#"
-                        className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2"
-                      >
-                        <span className="relative">
-                          {item}
-                          <span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" />
-                        </span>
-                      </a>
-                    </li>
-                  ))}
+                  <li>
+                    <a
+                      href="mailto:support@leadrelay.com"
+                      className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2"
+                    >
+                      <span className="relative">
+                        Contact Us
+                        <span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" />
+                      </span>
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://t.me/leadrelay"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2"
+                    >
+                      <span className="relative">
+                        Telegram
+                        <span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" />
+                      </span>
+                    </a>
+                  </li>
                 </ul>
               </div>
 
@@ -1266,24 +1243,28 @@ export default function LandingPage() {
                   Legal
                 </h4>
                 <ul className="space-y-4">
-                  {[
-                    { name: 'Privacy Policy', to: '/privacy' },
-                    { name: 'Terms of Service', to: '/terms' },
-                    { name: 'Cookie Policy', to: '#' },
-                    { name: 'GDPR', to: '#' }
-                  ].map((item, i) => (
-                    <li key={i}>
-                      <Link
-                        to={item.to}
-                        className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2"
-                      >
-                        <span className="relative">
-                          {item.name}
-                          <span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" />
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
+                  <li>
+                    <Link
+                      to="/privacy"
+                      className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2"
+                    >
+                      <span className="relative">
+                        Privacy Policy
+                        <span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" />
+                      </span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      to="/terms"
+                      className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2"
+                    >
+                      <span className="relative">
+                        Terms of Service
+                        <span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" />
+                      </span>
+                    </Link>
+                  </li>
                 </ul>
               </div>
             </div>
@@ -1295,16 +1276,10 @@ export default function LandingPage() {
               &copy; 2026 LeadRelay. All rights reserved.
             </p>
 
-            <div className="flex items-center gap-8">
-              <span className="text-xs text-slate-500 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                All systems operational
-              </span>
-              <div className="h-4 w-px bg-white/10" />
-              <a href="#" className="text-xs text-slate-500 hover:text-slate-300 transition-colors duration-300">
-                System Status
-              </a>
-            </div>
+            <span className="text-xs text-slate-500 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              All systems operational
+            </span>
           </div>
         </div>
       </footer>
