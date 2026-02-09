@@ -1,28 +1,50 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { 
-  Mail, 
-  Lock, 
-  User, 
-  Building2, 
-  ArrowRight, 
+import {
+  Mail,
+  Lock,
+  User,
+  Building2,
+  ArrowRight,
   Loader2,
   Eye,
   EyeOff,
-  Zap,
   TrendingUp,
   Users,
   MessageSquare,
-  CheckCircle
+  CheckCircle,
+  Zap
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Reusable Logo component
+const Logo = ({ size = 'default' }) => {
+  const sizes = {
+    small: { container: 'w-7 h-7', icon: 'w-3.5 h-3.5', text: 'text-xl' },
+    default: { container: 'w-9 h-9', icon: 'w-4.5 h-4.5', text: 'text-2xl' },
+    large: { container: 'w-10 h-10', icon: 'w-5 h-5', text: 'text-3xl' }
+  };
+  const s = sizes[size];
+
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className={`${s.container} rounded-xl bg-emerald-600 flex items-center justify-center shadow-sm`}>
+        <Zap className={`${s.icon} text-white`} strokeWidth={2.5} />
+      </div>
+      <span className={`${s.text} font-bold font-['Plus_Jakarta_Sans'] tracking-tight`}>
+        <span className="text-emerald-600">Lead</span>
+        <span className="text-slate-900">Relay</span>
+      </span>
+    </div>
+  );
+};
 
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -36,7 +58,7 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmationMessage, setShowConfirmationMessage] = useState(false);
   const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
-  
+
   const { login, register } = useAuth();
   const navigate = useNavigate();
 
@@ -52,15 +74,13 @@ const LoginPage = () => {
         navigate('/app/agents');
       } else {
         await register(email, password, name, businessName);
-        // Show confirmation message instead of navigating
         setShowConfirmationMessage(true);
         toast.success('Account created! Please check your email to confirm.');
       }
     } catch (err) {
       const errorMsg = err.response?.data?.detail || 'An error occurred. Please try again.';
       setError(errorMsg);
-      
-      // Check if it's an email confirmation error
+
       if (errorMsg.includes('confirm your email')) {
         toast.error('Please confirm your email first. Check your inbox.');
       } else {
@@ -77,15 +97,15 @@ const LoginPage = () => {
       setError('Please enter your email address');
       return;
     }
-    
+
     setLoading(true);
     setError('');
-    
+
     try {
       const response = await fetch(`${API_URL}/api/auth/forgot-password?email=${encodeURIComponent(email)}`, {
         method: 'POST'
       });
-      
+
       if (response.ok) {
         setForgotPasswordSent(true);
         toast.success('Password reset link sent! Check your email.');
@@ -125,37 +145,44 @@ const LoginPage = () => {
   // Show confirmation message after registration
   if (showConfirmationMessage) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F7F6] p-4">
-        <Card className="w-full max-w-md bg-white border-slate-200 shadow-sm">
-          <CardContent className="pt-8 pb-8 text-center">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Mail className="w-8 h-8 text-emerald-600" />
-            </div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Check Your Email</h2>
-            <p className="text-slate-600 mb-6">
-              We've sent a confirmation link to <strong>{email}</strong>. 
-              Please click the link to verify your account.
-            </p>
-            <div className="space-y-3">
-              <Button
-                onClick={() => {
-                  setShowConfirmationMessage(false);
-                  setIsLogin(true);
-                }}
-                className="w-full bg-emerald-600 hover:bg-emerald-700"
-              >
-                Back to Login
-              </Button>
-              <button
-                onClick={handleResendConfirmation}
-                disabled={loading}
-                className="text-sm text-emerald-600 hover:text-emerald-700"
-              >
-                {loading ? 'Sending...' : "Didn't receive it? Resend email"}
-              </button>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-slate-50">
+        {/* Fixed Logo */}
+        <div className="fixed top-0 left-0 right-0 z-10 px-6 py-5 bg-slate-50/80 backdrop-blur-sm">
+          <Logo />
+        </div>
+
+        <div className="min-h-screen flex items-center justify-center p-6 pt-20">
+          <Card className="w-full max-w-md bg-white border-slate-200 shadow-sm">
+            <CardContent className="pt-10 pb-10 px-8 text-center">
+              <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                <Mail className="w-7 h-7 text-emerald-600" strokeWidth={1.75} />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-2">Check Your Email</h2>
+              <p className="text-slate-500 mb-8 leading-relaxed">
+                We've sent a confirmation link to<br />
+                <span className="text-slate-900 font-medium">{email}</span>
+              </p>
+              <div className="space-y-3">
+                <Button
+                  onClick={() => {
+                    setShowConfirmationMessage(false);
+                    setIsLogin(true);
+                  }}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 h-11 text-sm font-medium shadow-sm"
+                >
+                  Back to Sign In
+                </Button>
+                <button
+                  onClick={handleResendConfirmation}
+                  disabled={loading}
+                  className="text-sm text-slate-500 hover:text-emerald-600 transition-colors"
+                >
+                  {loading ? 'Sending...' : "Didn't receive it? Resend email"}
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -163,114 +190,116 @@ const LoginPage = () => {
   // Show forgot password form
   if (showForgotPassword) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F7F6] p-4">
-        <Card className="w-full max-w-sm bg-white border-slate-200 shadow-sm">
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-xl font-['Plus_Jakarta_Sans'] text-slate-900">
-              Reset Password
-            </CardTitle>
-            <CardDescription className="text-slate-500 text-sm">
-              {forgotPasswordSent 
-                ? "Check your email for a reset link"
-                : "Enter your email to receive a reset link"
-              }
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {forgotPasswordSent ? (
-              <div className="text-center">
-                <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle className="w-6 h-6 text-emerald-600" />
-                </div>
-                <p className="text-sm text-slate-600 mb-4">
-                  If <strong>{email}</strong> is registered, you'll receive a password reset link shortly.
-                </p>
-                <Button
-                  onClick={() => {
-                    setShowForgotPassword(false);
-                    setForgotPasswordSent(false);
-                  }}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
-                >
-                  Back to Login
-                </Button>
-              </div>
-            ) : (
-              <form onSubmit={handleForgotPassword} className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="reset-email" className="text-slate-700 text-sm">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input
-                      id="reset-email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-9 h-9 border-slate-200"
-                      required
-                    />
+      <div className="min-h-screen bg-slate-50">
+        {/* Fixed Logo */}
+        <div className="fixed top-0 left-0 right-0 z-10 px-6 py-5 bg-slate-50/80 backdrop-blur-sm">
+          <Logo />
+        </div>
+
+        <div className="min-h-screen flex items-center justify-center p-6 pt-20">
+          <Card className="w-full max-w-sm bg-white border-slate-200 shadow-sm">
+            <CardContent className="pt-8 pb-8 px-6">
+              {forgotPasswordSent ? (
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-6 h-6 text-emerald-600" strokeWidth={1.75} />
                   </div>
+                  <h2 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-2">Check Your Email</h2>
+                  <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                    If <span className="text-slate-700 font-medium">{email}</span> is registered, you'll receive a password reset link.
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setShowForgotPassword(false);
+                      setForgotPasswordSent(false);
+                    }}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 h-10 text-sm font-medium shadow-sm"
+                  >
+                    Back to Sign In
+                  </Button>
                 </div>
-                
-                {error && (
-                  <div className="p-2.5 rounded-md bg-red-50 border border-red-200 text-red-700 text-xs">
-                    {error}
+              ) : (
+                <>
+                  <div className="mb-6">
+                    <h2 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">Reset Password</h2>
+                    <p className="text-sm text-slate-500">Enter your email to receive a reset link</p>
                   </div>
-                )}
-                
-                <Button
-                  type="submit"
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 h-9 text-sm"
-                  disabled={loading}
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Send Reset Link
-                </Button>
-                
-                <button
-                  type="button"
-                  onClick={() => setShowForgotPassword(false)}
-                  className="w-full text-sm text-slate-500 hover:text-slate-700"
-                >
-                  Back to Login
-                </button>
-              </form>
-            )}
-          </CardContent>
-        </Card>
+
+                  <form onSubmit={handleForgotPassword} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="reset-email" className="text-slate-700 text-sm font-medium">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" strokeWidth={1.75} />
+                        <Input
+                          id="reset-email"
+                          type="email"
+                          placeholder="you@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {error && (
+                      <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm">
+                        {error}
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 h-10 text-sm font-medium shadow-sm"
+                      disabled={loading}
+                    >
+                      {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" strokeWidth={2} />}
+                      Send Reset Link
+                    </Button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(false)}
+                      className="w-full text-sm text-slate-500 hover:text-slate-700 transition-colors"
+                    >
+                      Back to Sign In
+                    </button>
+                  </form>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex bg-[#F5F7F6]">
-      {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-white border-r border-slate-200 flex-col justify-center p-12">
-        <div className="max-w-md">
-          <div className="flex items-center gap-2 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" strokeWidth={2} />
-            </div>
-            <span className="text-3xl font-bold font-['Plus_Jakarta_Sans']"><span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span></span>
-          </div>
-          
-          <h1 className="text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-3 leading-tight">
-            Convert Telegram chats<br />
+    <div className="min-h-screen flex bg-slate-50">
+      {/* Fixed Logo - visible on all screen sizes */}
+      <div className="fixed top-0 left-0 right-0 z-10 px-6 py-5 bg-slate-50/80 backdrop-blur-sm lg:bg-transparent lg:backdrop-blur-none">
+        <Logo />
+      </div>
+
+      {/* Left side - Branding (desktop only) */}
+      <div className="hidden lg:flex lg:w-1/2 bg-white border-r border-slate-200 flex-col justify-center px-16 xl:px-24">
+        <div className="max-w-lg">
+          <h1 className="text-4xl xl:text-5xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-4 leading-[1.15] tracking-tight">
+            Convert Telegram chats{' '}
             <span className="text-emerald-600">into paying customers</span>
           </h1>
-          
-          <p className="text-slate-600 mb-8 leading-relaxed">
+
+          <p className="text-lg text-slate-500 mb-10 leading-relaxed">
             AI sales agent that speaks Uzbek, Russian & English. Qualifies leads, handles objections, and closes deals automatically.
           </p>
-          
-          <div className="space-y-3">
+
+          <div className="space-y-4">
             {features.map(({ icon: Icon, text }, index) => (
-              <div key={index} className="flex items-center gap-3 text-slate-700">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
-                  <Icon className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
+              <div key={index} className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+                  <Icon className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
                 </div>
-                <span className="text-sm">{text}</span>
+                <span className="text-slate-700">{text}</span>
               </div>
             ))}
           </div>
@@ -278,28 +307,28 @@ const LoginPage = () => {
       </div>
 
       {/* Right side - Form */}
-      <div className="flex-1 flex items-center justify-center p-6">
+      <div className="flex-1 flex items-center justify-center p-6 pt-24 lg:pt-6">
         <Card className="w-full max-w-sm bg-white border-slate-200 shadow-sm">
-          <CardHeader className="space-y-1 pb-4">
-            <div className="lg:hidden flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-white" strokeWidth={2} />
-              </div>
-              <span className="text-2xl font-bold"><span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span></span>
+          <CardContent className="pt-8 pb-8 px-6">
+            {/* Mobile tagline */}
+            <p className="lg:hidden text-sm text-slate-500 mb-6 text-center">
+              AI-powered sales agent for Telegram
+            </p>
+
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">
+                {isLogin ? 'Welcome back' : 'Create account'}
+              </h2>
+              <p className="text-sm text-slate-500">
+                {isLogin ? 'Sign in to your dashboard' : 'Start converting leads today'}
+              </p>
             </div>
-            <CardTitle className="text-xl font-['Plus_Jakarta_Sans'] text-slate-900">
-              {isLogin ? 'Welcome back' : 'Create account'}
-            </CardTitle>
-            <CardDescription className="text-slate-500 text-sm">
-              {isLogin ? 'Sign in to your dashboard' : 'Start converting leads today'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-3">
+
+            <form onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
                 <>
                   <div className="space-y-1.5">
-                    <Label htmlFor="name" className="text-slate-700 text-sm">Your Name</Label>
+                    <Label htmlFor="name" className="text-slate-700 text-sm font-medium">Your Name</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" strokeWidth={1.75} />
                       <Input
@@ -308,13 +337,13 @@ const LoginPage = () => {
                         placeholder="John Doe"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="pl-9 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+                        className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                         required={!isLogin}
                       />
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="business" className="text-slate-700 text-sm">Business Name</Label>
+                    <Label htmlFor="business" className="text-slate-700 text-sm font-medium">Business Name</Label>
                     <div className="relative">
                       <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" strokeWidth={1.75} />
                       <Input
@@ -323,16 +352,16 @@ const LoginPage = () => {
                         placeholder="My Company LLC"
                         value={businessName}
                         onChange={(e) => setBusinessName(e.target.value)}
-                        className="pl-9 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+                        className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                         required={!isLogin}
                       />
                     </div>
                   </div>
                 </>
               )}
-              
+
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-slate-700 text-sm">Email</Label>
+                <Label htmlFor="email" className="text-slate-700 text-sm font-medium">Email</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" strokeWidth={1.75} />
                   <Input
@@ -342,20 +371,20 @@ const LoginPage = () => {
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-9 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+                    className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                     required
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <Label htmlFor="password" className="text-slate-700 text-sm">Password</Label>
+                  <Label htmlFor="password" className="text-slate-700 text-sm font-medium">Password</Label>
                   {isLogin && (
                     <button
                       type="button"
                       onClick={() => setShowForgotPassword(true)}
-                      className="text-xs text-emerald-600 hover:text-emerald-700"
+                      className="text-xs text-slate-500 hover:text-emerald-600 transition-colors"
                       data-testid="forgot-password-btn"
                     >
                       Forgot password?
@@ -371,13 +400,13 @@ const LoginPage = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-9 pr-9 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+                    className="pl-10 pr-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     data-testid="toggle-password-visibility"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" strokeWidth={1.75} /> : <Eye className="w-4 h-4" strokeWidth={1.75} />}
@@ -386,13 +415,13 @@ const LoginPage = () => {
               </div>
 
               {error && (
-                <div className="p-2.5 rounded-md bg-red-50 border border-red-200 text-red-700 text-xs">
+                <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm">
                   {error}
                   {error.includes('confirm your email') && (
                     <button
                       type="button"
                       onClick={handleResendConfirmation}
-                      className="block mt-1 text-emerald-600 hover:underline"
+                      className="block mt-1.5 text-emerald-600 hover:text-emerald-700 font-medium"
                     >
                       Resend confirmation email
                     </button>
@@ -400,9 +429,9 @@ const LoginPage = () => {
                 </div>
               )}
 
-              <Button 
-                type="submit" 
-                className="w-full bg-emerald-600 hover:bg-emerald-700 h-9 text-sm"
+              <Button
+                type="submit"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 h-11 text-sm font-medium shadow-sm"
                 data-testid="login-submit-btn"
                 disabled={loading}
               >
@@ -415,14 +444,14 @@ const LoginPage = () => {
               </Button>
             </form>
 
-            <div className="mt-4 text-center text-sm">
-              <span className="text-slate-500">
+            <div className="mt-6 text-center">
+              <span className="text-sm text-slate-500">
                 {isLogin ? "Don't have an account? " : "Already have an account? "}
               </span>
               <button
                 type="button"
                 onClick={() => { setIsLogin(!isLogin); setError(''); }}
-                className="text-emerald-600 hover:text-emerald-700 font-medium"
+                className="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
                 data-testid="toggle-auth-mode-btn"
               >
                 {isLogin ? 'Sign up' : 'Sign in'}

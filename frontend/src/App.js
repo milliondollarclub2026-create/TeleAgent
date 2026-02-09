@@ -20,6 +20,9 @@ import AgentLeadsPage from "./pages/AgentLeadsPage";
 import ConnectionsPage from "./pages/ConnectionsPage";
 import SalesAgentPage from "./pages/SalesAgentPage";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
+import PricingPage from "./pages/PricingPage";
 
 // Protected route wrapper - redirects to landing if not authenticated
 function ProtectedRoute({ children }) {
@@ -47,6 +50,9 @@ function AppRoutes() {
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/confirm-email" element={<ConfirmEmail />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
       
       {/* Protected routes */}
       <Route path="/app" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
