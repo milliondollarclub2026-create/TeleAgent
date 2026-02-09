@@ -69,6 +69,11 @@ function AppRoutes() {
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
         <Toaster position="bottom-right" richColors />
       </BrowserRouter>
     </AuthProvider>
