@@ -497,57 +497,42 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict:
     return token_data
 
 
-# ============ Auth Endpoints (Supabase Auth) ============
+# ============ Auth Endpoints (Custom Auth with Resend) ============
 @api_router.post("/auth/register", response_model=AuthResponse)
 async def register(request: RegisterRequest):
     """
-    Register a new user using Supabase Auth.
-    Supabase handles email confirmation automatically.
+    Register a new user with custom auth and Resend email verification.
     """
     try:
-        # Use Supabase Auth for registration - it handles email confirmation
-        auth_response = supabase.auth.sign_up({
-            "email": request.email,
-            "password": request.password,
-            "options": {
-                "data": {
-                    "name": request.name,
-                    "business_name": request.business_name
-                }
-            }
-        })
-        
-        if not auth_response.user:
-            raise HTTPException(status_code=400, detail="Registration failed")
-        
-        supabase_user = auth_response.user
-        user_id = str(supabase_user.id)
-        
-        # Check if user already exists in our users table
+        # Check if user already exists
         existing = supabase.table('users').select('*').eq('email', request.email).execute()
         if existing.data:
             raise HTTPException(status_code=400, detail="Email already registered")
-        
-        # Create tenant
+
+        # Generate IDs and confirmation token
+        user_id = str(uuid.uuid4())
         tenant_id = str(uuid.uuid4())
+        confirmation_token = secrets.token_urlsafe(32)
+
+        # Create tenant
         tenant = {"id": tenant_id, "name": request.business_name, "timezone": "Asia/Tashkent", "created_at": now_iso()}
         supabase.table('tenants').insert(tenant).execute()
-        
-        # Create user record in our users table (linked to Supabase Auth user)
+
+        # Create user record
         user = {
             "id": user_id,
             "email": request.email,
-            "password_hash": hash_password(request.password),  # Keep for backward compat
+            "password_hash": hash_password(request.password),
             "name": request.name,
             "tenant_id": tenant_id,
             "role": "admin",
-            "email_confirmed": False,  # Will be updated when Supabase confirms
-            "confirmation_token": None,
+            "email_confirmed": False,
+            "confirmation_token": confirmation_token,
             "created_at": now_iso()
         }
         supabase.table('users').insert(user).execute()
-        
-        # Create default config (business_name is set during agent onboarding, not registration)
+
+        # Create default config
         config = {
             "tenant_id": tenant_id, "business_name": None, "collect_phone": True,
             "agent_tone": "professional", "primary_language": "uz", "vertical": "default"
@@ -556,49 +541,54 @@ async def register(request: RegisterRequest):
             supabase.table('tenant_configs').insert(config).execute()
         except Exception as e:
             logger.warning(f"Could not create tenant config: {e}")
-        
-        # Check if email confirmation is required
-        email_confirmed = supabase_user.email_confirmed_at is not None
 
-        # Don't return a token until email is confirmed
-        # User must verify email first, then login
-        if not email_confirmed:
-            return AuthResponse(
-                token=None,
-                user={
-                    "id": user_id,
-                    "email": request.email,
-                    "name": request.name,
-                    "tenant_id": tenant_id,
-                    "business_name": request.business_name,
-                    "email_confirmed": False
-                },
-                message="Account created! Please check your email to confirm your account before logging in."
-            )
+        # Send confirmation email via Resend
+        try:
+            frontend_url = os.environ.get('FRONTEND_URL', 'https://leadrelay-frontend.onrender.com')
+            confirm_url = f"{frontend_url}/confirm-email?token={confirmation_token}"
 
-        # Only return token if email is already confirmed (shouldn't happen normally)
-        token = create_access_token(user_id, tenant_id, request.email)
+            resend.emails.send({
+                "from": SENDER_EMAIL,
+                "to": request.email,
+                "subject": "Confirm your LeadRelay account",
+                "html": f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #059669;">Welcome to LeadRelay!</h2>
+                    <p>Hi {request.name},</p>
+                    <p>Thank you for registering. Please confirm your email address by clicking the button below:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{confirm_url}" style="background-color: #059669; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">Confirm Email</a>
+                    </div>
+                    <p>Or copy and paste this link into your browser:</p>
+                    <p style="color: #666; word-break: break-all;">{confirm_url}</p>
+                    <p>This link will expire in 24 hours.</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="color: #999; font-size: 12px;">If you didn't create an account, you can ignore this email.</p>
+                </div>
+                """
+            })
+            logger.info(f"Confirmation email sent to {request.email}")
+        except Exception as e:
+            logger.error(f"Failed to send confirmation email: {e}")
+            # Don't fail registration if email fails - user can request resend
 
         return AuthResponse(
-            token=token,
+            token=None,
             user={
                 "id": user_id,
                 "email": request.email,
                 "name": request.name,
                 "tenant_id": tenant_id,
                 "business_name": request.business_name,
-                "email_confirmed": True
+                "email_confirmed": False
             },
-            message="Account created successfully!"
+            message="Account created! Please check your email to confirm your account before logging in."
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Registration error: {e}")
-        # Check if it's a duplicate email error from Supabase
-        if "already registered" in str(e).lower() or "already been registered" in str(e).lower():
-            raise HTTPException(status_code=400, detail="Email already registered")
         raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 
@@ -649,13 +639,39 @@ async def confirm_email(token: str = None, type: str = None, access_token: str =
 
 @api_router.post("/auth/resend-confirmation")
 async def resend_confirmation(email: EmailStr):
-    """Resend confirmation email via Supabase Auth"""
+    """Resend confirmation email via Resend"""
     try:
-        # Use Supabase to resend confirmation
-        supabase.auth.resend({
-            "type": "signup",
-            "email": email
-        })
+        # Find user and generate new token
+        result = supabase.table('users').select('*').eq('email', email).execute()
+        if result.data and not result.data[0].get('email_confirmed'):
+            user = result.data[0]
+            confirmation_token = secrets.token_urlsafe(32)
+
+            # Update token
+            supabase.table('users').update({
+                "confirmation_token": confirmation_token
+            }).eq('id', user['id']).execute()
+
+            # Send email via Resend
+            frontend_url = os.environ.get('FRONTEND_URL', 'https://leadrelay-frontend.onrender.com')
+            confirm_url = f"{frontend_url}/confirm-email?token={confirmation_token}"
+
+            resend.emails.send({
+                "from": SENDER_EMAIL,
+                "to": email,
+                "subject": "Confirm your LeadRelay account",
+                "html": f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #059669;">Confirm Your Email</h2>
+                    <p>Hi {user.get('name', 'there')},</p>
+                    <p>Please confirm your email address by clicking the button below:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{confirm_url}" style="background-color: #059669; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">Confirm Email</a>
+                    </div>
+                    <p>Or copy and paste this link: {confirm_url}</p>
+                </div>
+                """
+            })
         return {"message": "If this email is registered, a confirmation link will be sent."}
     except Exception as e:
         logger.warning(f"Resend confirmation error: {e}")
@@ -664,10 +680,39 @@ async def resend_confirmation(email: EmailStr):
 
 @api_router.post("/auth/forgot-password")
 async def forgot_password(email: EmailStr):
-    """Request password reset via Supabase Auth"""
+    """Request password reset via Resend"""
     try:
-        # Use Supabase Auth for password reset
-        supabase.auth.reset_password_email(email)
+        result = supabase.table('users').select('*').eq('email', email).execute()
+        if result.data:
+            user = result.data[0]
+            reset_token = secrets.token_urlsafe(32)
+
+            # Store reset token (reusing confirmation_token field)
+            supabase.table('users').update({
+                "confirmation_token": reset_token
+            }).eq('id', user['id']).execute()
+
+            # Send email via Resend
+            frontend_url = os.environ.get('FRONTEND_URL', 'https://leadrelay-frontend.onrender.com')
+            reset_url = f"{frontend_url}/reset-password?token={reset_token}"
+
+            resend.emails.send({
+                "from": SENDER_EMAIL,
+                "to": email,
+                "subject": "Reset your LeadRelay password",
+                "html": f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #059669;">Reset Your Password</h2>
+                    <p>Hi {user.get('name', 'there')},</p>
+                    <p>We received a request to reset your password. Click the button below to create a new password:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{reset_url}" style="background-color: #059669; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">Reset Password</a>
+                    </div>
+                    <p>Or copy and paste this link: {reset_url}</p>
+                    <p>If you didn't request this, you can ignore this email.</p>
+                </div>
+                """
+            })
         return {"message": "If this email is registered, a password reset link will be sent."}
     except Exception as e:
         logger.warning(f"Password reset error: {e}")
@@ -681,27 +726,20 @@ class ResetPasswordRequest(BaseModel):
 
 @api_router.post("/auth/reset-password")
 async def reset_password(request: ResetPasswordRequest):
-    """Reset password - uses Supabase Auth if available"""
-    # Try Supabase Auth update first
+    """Reset password using custom token"""
     try:
-        supabase.auth.update_user({"password": request.new_password})
-        return {"message": "Password reset successfully. You can now log in."}
-    except Exception as e:
-        logger.warning(f"Supabase auth update failed: {e}")
-    
-    # Fallback to custom token
-    try:
-        result = supabase.table('users').select('*').eq('reset_token', request.token).execute()
+        result = supabase.table('users').select('*').eq('confirmation_token', request.token).execute()
         if not result.data:
             raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-        
+
         user = result.data[0]
-        
-        # Update password in our table
+
+        # Update password and clear token
         supabase.table('users').update({
-            "password_hash": hash_password(request.new_password)
+            "password_hash": hash_password(request.new_password),
+            "confirmation_token": None
         }).eq('id', user['id']).execute()
-        
+
         return {"message": "Password reset successfully. You can now log in."}
     except HTTPException:
         raise
@@ -713,60 +751,9 @@ async def reset_password(request: ResetPasswordRequest):
 @api_router.post("/auth/login", response_model=AuthResponse)
 async def login(request: LoginRequest):
     """
-    Login using Supabase Auth with fallback to custom users table.
-    Syncs email confirmation status from Supabase.
+    Login using custom auth (no Supabase Auth to avoid connection issues).
     """
-    # Try Supabase Auth first
-    try:
-        auth_response = supabase.auth.sign_in_with_password({
-            "email": request.email,
-            "password": request.password
-        })
-        
-        if auth_response.user:
-            supabase_user = auth_response.user
-            email_confirmed = supabase_user.email_confirmed_at is not None
-
-            # IMPORTANT: Block login if email not confirmed
-            if not email_confirmed:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Please confirm your email before logging in. Check your inbox or request a new confirmation link."
-                )
-
-            # Get user from our table
-            result = supabase.table('users').select('*').eq('email', request.email).execute()
-
-            if result.data:
-                user = result.data[0]
-
-                # Sync email confirmation status
-                if email_confirmed and not user.get('email_confirmed'):
-                    supabase.table('users').update({
-                        "email_confirmed": True,
-                        "email_confirmed_at": now_iso()
-                    }).eq('id', user['id']).execute()
-                    user['email_confirmed'] = True
-
-                tenant_result = supabase.table('tenants').select('*').eq('id', user['tenant_id']).execute()
-                tenant = tenant_result.data[0] if tenant_result.data else None
-
-                token = create_access_token(user["id"], user["tenant_id"], user["email"])
-                return AuthResponse(
-                    token=token,
-                    user={
-                        "id": user["id"],
-                        "email": user["email"],
-                        "name": user.get("name"),
-                        "tenant_id": user["tenant_id"],
-                        "business_name": tenant["name"] if tenant else None,
-                        "email_confirmed": user.get("email_confirmed", email_confirmed)
-                    }
-                )
-    except Exception as e:
-        logger.info(f"Supabase auth login failed, trying fallback: {e}")
-    
-    # Fallback to custom users table
+    # Use custom users table directly
     result = supabase.table('users').select('*').eq('email', request.email).execute()
     if not result.data:
         raise HTTPException(status_code=401, detail="Invalid email or password")
