@@ -194,7 +194,7 @@ const AgentDashboard = () => {
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => navigate(`/agents/${agentId}/settings`)}
+            onClick={() => navigate(`/app/agents/${agentId}/settings`)}
           >
             <Settings className="w-4 h-4 mr-2" strokeWidth={1.75} />
             Settings
