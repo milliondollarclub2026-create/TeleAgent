@@ -139,7 +139,7 @@ const AgentDashboard = () => {
             variant="ghost" 
             size="sm" 
             className="text-slate-500"
-            onClick={() => navigate('/agents')}
+            onClick={() => navigate('/app/agents')}
           >
             <ChevronLeft className="w-4 h-4 mr-1" strokeWidth={2} />
             Agents
