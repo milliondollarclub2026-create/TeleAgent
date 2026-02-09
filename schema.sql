@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS leads (
     customer_id UUID REFERENCES customers(id) ON DELETE CASCADE NOT NULL,
     crm_lead_id VARCHAR(100),
     status VARCHAR(20) DEFAULT 'new',
+    sales_stage VARCHAR(50) DEFAULT 'awareness',
     llm_hotness_suggestion VARCHAR(20),
     final_hotness VARCHAR(20) DEFAULT 'warm',
     score INTEGER DEFAULT 50,
@@ -99,6 +100,9 @@ CREATE TABLE IF NOT EXISTS leads (
     budget VARCHAR(100),
     timeline VARCHAR(100),
     additional_notes TEXT,
+    fields_collected JSONB DEFAULT '{}',
+    customer_name VARCHAR(255),
+    customer_phone VARCHAR(50),
     last_interaction_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -106,6 +110,8 @@ CREATE INDEX IF NOT EXISTS idx_leads_tenant_id ON leads(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_leads_customer_id ON leads(customer_id);
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_final_hotness ON leads(final_hotness);
+CREATE INDEX IF NOT EXISTS idx_leads_sales_stage ON leads(sales_stage);
+CREATE INDEX IF NOT EXISTS idx_leads_tenant_customer ON leads(tenant_id, customer_id);
 
 -- Documents table
 CREATE TABLE IF NOT EXISTS documents (

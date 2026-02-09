@@ -47,7 +47,7 @@ supabase: Client = create_client(supabase_url, supabase_key)
 # Initialize Resend for email
 resend.api_key = os.environ.get('RESEND_API_KEY')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
-FRONTEND_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://aiagent-hub-17.preview.emergentagent.com')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 
 app = FastAPI(title="TeleAgent - AI Sales Agent")
 api_router = APIRouter(prefix="/api")
@@ -303,8 +303,14 @@ class TenantConfigUpdate(BaseModel):
     faq_objections: Optional[str] = None
     collect_phone: Optional[bool] = None
     greeting_message: Optional[str] = None
+    closing_message: Optional[str] = None
     agent_tone: Optional[str] = None
     primary_language: Optional[str] = None
+    secondary_languages: Optional[List[str]] = None
+    emoji_usage: Optional[str] = None
+    response_length: Optional[str] = None
+    min_response_delay: Optional[int] = None
+    max_messages_per_minute: Optional[int] = None
     objection_playbook: Optional[List[Dict]] = None
     closing_scripts: Optional[Dict] = None
     required_fields: Optional[Dict] = None
@@ -584,13 +590,20 @@ async def login(request: LoginRequest):
         if auth_response.user:
             supabase_user = auth_response.user
             email_confirmed = supabase_user.email_confirmed_at is not None
-            
+
+            # IMPORTANT: Block login if email not confirmed
+            if not email_confirmed:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Please confirm your email before logging in. Check your inbox or request a new confirmation link."
+                )
+
             # Get user from our table
             result = supabase.table('users').select('*').eq('email', request.email).execute()
-            
+
             if result.data:
                 user = result.data[0]
-                
+
                 # Sync email confirmation status
                 if email_confirmed and not user.get('email_confirmed'):
                     supabase.table('users').update({
@@ -598,10 +611,10 @@ async def login(request: LoginRequest):
                         "email_confirmed_at": now_iso()
                     }).eq('id', user['id']).execute()
                     user['email_confirmed'] = True
-                
+
                 tenant_result = supabase.table('tenants').select('*').eq('id', user['tenant_id']).execute()
                 tenant = tenant_result.data[0] if tenant_result.data else None
-                
+
                 token = create_access_token(user["id"], user["tenant_id"], user["email"])
                 return AuthResponse(
                     token=token,
@@ -1178,31 +1191,67 @@ Language: Respond in the same language the user uses (English, Russian, or Uzbek
 # ============ Enhanced LLM Service ============
 def get_enhanced_system_prompt(config: Dict, lead_context: Dict = None) -> str:
     """Generate comprehensive system prompt with sales pipeline awareness"""
-    
+
     business_name = config.get('business_name', 'our company')
     business_description = config.get('business_description', '')
     products_services = config.get('products_services', '')
-    agent_tone = config.get('agent_tone', 'professional')
+    agent_tone = config.get('agent_tone', 'friendly_professional')
     collect_phone = config.get('collect_phone', True)
-    
+    primary_language = config.get('primary_language', 'uz')
+    secondary_languages = config.get('secondary_languages', ['ru', 'en'])
+    emoji_usage = config.get('emoji_usage', 'moderate')
+    response_length = config.get('response_length', 'balanced')
+
+    # Map language codes to names
+    lang_map = {'uz': 'Uzbek', 'ru': 'Russian', 'en': 'English'}
+    primary_lang_name = lang_map.get(primary_language, primary_language)
+    secondary_lang_names = [lang_map.get(l, l) for l in (secondary_languages or [])]
+    all_languages = [primary_lang_name] + secondary_lang_names
+
+    # Map tone to description
+    tone_map = {
+        'professional': 'formal and business-like',
+        'friendly_professional': 'warm but professional',
+        'casual': 'relaxed and conversational',
+        'luxury': 'elegant and sophisticated'
+    }
+    tone_description = tone_map.get(agent_tone, agent_tone)
+
+    # Emoji instructions
+    emoji_map = {
+        'never': 'Do NOT use any emojis.',
+        'minimal': 'Use emojis sparingly (max 1 per 3-4 messages).',
+        'moderate': 'Use emojis occasionally (1-2 per message).',
+        'frequent': 'Use emojis freely (2-3 per message).'
+    }
+    emoji_instruction = emoji_map.get(emoji_usage, emoji_map['moderate'])
+
+    # Response length instructions
+    length_map = {
+        'concise': 'Keep responses SHORT (1-2 sentences max).',
+        'balanced': 'Use moderate length (2-4 sentences).',
+        'detailed': 'Provide thorough responses with details.'
+    }
+    length_instruction = length_map.get(response_length, length_map['balanced'])
+
     # Get objection playbook
     objection_playbook = config.get('objection_playbook', DEFAULT_OBJECTION_PLAYBOOK)
     objection_text = "\n".join([f"- If customer says '{obj['objection']}': {obj['response_strategy']}" for obj in objection_playbook])
-    
+
     # Get closing scripts
     closing_scripts = config.get('closing_scripts', DEFAULT_CLOSING_SCRIPTS)
     closing_text = "\n".join([f"- {script['name']}: \"{script['script']}\" (Use when: {script['use_when']})" for script in closing_scripts.values()])
-    
+
     # Get required fields
     required_fields = config.get('required_fields', DEFAULT_REQUIRED_FIELDS)
     required_text = "\n".join([f"- {field['label']}: {'REQUIRED' if field['required'] else 'Optional'}" for field in required_fields.values()])
-    
+
     # Current lead context
     current_stage = lead_context.get('sales_stage', 'awareness') if lead_context else 'awareness'
     fields_collected = lead_context.get('fields_collected', {}) if lead_context else {}
-    
+
     missing_required = [k for k, v in required_fields.items() if v['required'] and not fields_collected.get(k)]
-    
+
     return f"""You are an expert AI sales agent for {business_name}. Your mission is to convert leads into customers through professional, consultative selling.
 
 ## BUSINESS CONTEXT
@@ -1212,9 +1261,10 @@ def get_enhanced_system_prompt(config: Dict, lead_context: Dict = None) -> str:
 {products_services}
 
 ## COMMUNICATION STYLE
-- Tone: {agent_tone}
-- Languages: Respond in the customer's language (Uzbek/Russian/English)
-- Be concise, professional, and value-focused
+- Tone: {tone_description}
+- Languages: {'/'.join(all_languages)} - respond in the customer's language (default: {primary_lang_name})
+- {emoji_instruction}
+- {length_instruction}
 - Never be pushy, but be persistent and helpful
 
 ## SALES PIPELINE STAGES
@@ -1350,19 +1400,78 @@ def get_business_context(tenant_id: str, query: str) -> List[str]:
     return []
 
 
+# Valid values for sales pipeline - used for validation
+VALID_SALES_STAGES = {'awareness', 'interest', 'consideration', 'intent', 'evaluation', 'purchase'}
+VALID_HOTNESS_VALUES = {'hot', 'warm', 'cold'}
+
+
+def validate_llm_output(result: Dict, current_stage: str = 'awareness') -> Dict:
+    """Validate and sanitize LLM output to ensure data integrity"""
+    validated = {}
+
+    # Validate reply_text
+    validated['reply_text'] = result.get('reply_text', 'I apologize, let me help you.')
+    if not isinstance(validated['reply_text'], str) or not validated['reply_text'].strip():
+        validated['reply_text'] = 'I apologize, let me help you.'
+
+    # Validate sales_stage - must be a valid stage
+    raw_stage = result.get('sales_stage', current_stage)
+    if isinstance(raw_stage, str) and raw_stage.lower() in VALID_SALES_STAGES:
+        validated['sales_stage'] = raw_stage.lower()
+    else:
+        logger.warning(f"Invalid sales_stage '{raw_stage}', defaulting to '{current_stage}'")
+        validated['sales_stage'] = current_stage
+
+    # Validate hotness - must be hot, warm, or cold
+    raw_hotness = result.get('hotness', 'warm')
+    if isinstance(raw_hotness, str) and raw_hotness.lower() in VALID_HOTNESS_VALUES:
+        validated['hotness'] = raw_hotness.lower()
+    else:
+        logger.warning(f"Invalid hotness '{raw_hotness}', defaulting to 'warm'")
+        validated['hotness'] = 'warm'
+
+    # Validate score - must be 0-100
+    raw_score = result.get('score', 50)
+    try:
+        score = int(raw_score)
+        validated['score'] = max(0, min(100, score))  # Clamp to 0-100
+    except (TypeError, ValueError):
+        logger.warning(f"Invalid score '{raw_score}', defaulting to 50")
+        validated['score'] = 50
+
+    # Pass through other fields with defaults
+    validated['stage_change_reason'] = result.get('stage_change_reason')
+    validated['intent'] = result.get('intent', '')
+    validated['objection_detected'] = result.get('objection_detected')
+    validated['closing_technique_used'] = result.get('closing_technique_used')
+    validated['next_action'] = result.get('next_action')
+
+    # Validate fields_collected - must be a dict
+    raw_fields = result.get('fields_collected', {})
+    if isinstance(raw_fields, dict):
+        validated['fields_collected'] = raw_fields
+    else:
+        logger.warning(f"Invalid fields_collected type, defaulting to empty dict")
+        validated['fields_collected'] = {}
+
+    return validated
+
+
 async def call_sales_agent(messages: List[Dict], config: Dict, lead_context: Dict = None, business_context: List[str] = None, tenant_id: str = None, user_query: str = None) -> Dict:
     """Call LLM with enhanced sales pipeline awareness"""
+    current_stage = lead_context.get('sales_stage', 'awareness') if lead_context else 'awareness'
+
     try:
         system_prompt = get_enhanced_system_prompt(config, lead_context)
-        
+
         if business_context:
             system_prompt += "\n\n## RELEVANT BUSINESS INFORMATION\n" + "\n".join(business_context)
-        
+
         api_messages = [{"role": "system", "content": system_prompt}]
         for msg in messages:
             role = "assistant" if msg.get("role") == "assistant" else "user"
             api_messages.append({"role": role, "content": msg.get("text", "")})
-        
+
         response = await openai_client.chat.completions.create(
             model="gpt-4o",
             messages=api_messages,
@@ -1370,30 +1479,34 @@ async def call_sales_agent(messages: List[Dict], config: Dict, lead_context: Dic
             max_tokens=1500,
             response_format={"type": "json_object"}
         )
-        
+
         content = response.choices[0].message.content
-        logger.info(f"LLM Response: {content}")
-        
+        logger.info(f"LLM Response: {content[:500]}...")
+
         result = json.loads(content)
-        return {
-            "reply_text": result.get("reply_text", "I apologize, let me help you."),
-            "sales_stage": result.get("sales_stage", "awareness"),
-            "stage_change_reason": result.get("stage_change_reason"),
-            "hotness": result.get("hotness", "warm"),
-            "score": result.get("score", 50),
-            "intent": result.get("intent", ""),
-            "objection_detected": result.get("objection_detected"),
-            "closing_technique_used": result.get("closing_technique_used"),
-            "fields_collected": result.get("fields_collected", {}),
-            "next_action": result.get("next_action")
-        }
-            
+        # Validate and sanitize LLM output
+        return validate_llm_output(result, current_stage)
+
     except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error: {e}, content: {content}")
-        return {"reply_text": content if 'content' in dir() else "I apologize, please try again.", "sales_stage": "awareness", "hotness": "warm", "score": 50}
+        logger.error(f"JSON parse error: {e}")
+        return {
+            "reply_text": "I apologize, please try again.",
+            "sales_stage": current_stage,
+            "hotness": "warm",
+            "score": 50,
+            "fields_collected": {}
+        }
     except Exception as e:
         logger.error(f"LLM call failed: {e}")
-        return {"reply_text": "I apologize, a technical error occurred. Please try again.", "sales_stage": "awareness", "hotness": "warm", "score": 50}
+        import traceback
+        traceback.print_exc()
+        return {
+            "reply_text": "I apologize, a technical error occurred. Please try again.",
+            "sales_stage": current_stage,
+            "hotness": "warm",
+            "score": 50,
+            "fields_collected": {}
+        }
 
 
 # ============ Telegram Webhook Handler ============
@@ -1571,10 +1684,9 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
             }).execute()
         except Exception as e:
             logger.warning(f"Could not log event: {e}")
-        
-        # Sync to Bitrix if connected
-        await sync_lead_to_bitrix(tenant_id, customer, llm_result)
-        
+
+        # Note: Bitrix sync is handled inside update_lead_from_llm() with correct lead_data
+
     except Exception as e:
         logger.error(f"Error processing Telegram message: {e}")
         import traceback
@@ -1592,61 +1704,155 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
 async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Optional[Dict], llm_result: Dict):
     """Update lead with LLM analysis results"""
     now = now_iso()
-    
-    # Merge fields collected
-    existing_fields = existing_lead.get("fields_collected", {}) if existing_lead else {}
-    new_fields = llm_result.get("fields_collected", {})
-    
-    # Only update non-null values
-    merged_fields = {**existing_fields}
-    for k, v in new_fields.items():
-        if v:
-            merged_fields[k] = v
-    
-    lead_data = {
-        "tenant_id": tenant_id,
-        "customer_id": customer['id'],
-        "status": "new" if not existing_lead else existing_lead.get("status", "new"),
-        "sales_stage": llm_result.get("sales_stage", "awareness"),
-        "llm_hotness_suggestion": llm_result.get("hotness", "warm"),
-        "final_hotness": llm_result.get("hotness", "warm"),
-        "score": llm_result.get("score", 50),
-        "intent": llm_result.get("intent"),
-        "llm_explanation": llm_result.get("next_action"),
-        "product": merged_fields.get("product"),
-        "budget": merged_fields.get("budget"),
-        "timeline": merged_fields.get("timeline"),
-        "fields_collected": merged_fields,
-        "source_channel": "telegram",
-        "last_interaction_at": now
-    }
-    
-    # Update customer with collected info
-    customer_updates = {}
-    if merged_fields.get("name"):
-        customer_updates["name"] = merged_fields["name"]
-    if merged_fields.get("phone"):
-        customer_updates["phone"] = merged_fields["phone"]
-    
-    if customer_updates:
-        supabase.table('customers').update(customer_updates).eq('id', customer['id']).execute()
-    
-    # Update or create lead
-    if existing_lead:
-        supabase.table('leads').update(lead_data).eq('id', existing_lead['id']).execute()
-    else:
-        lead_data["id"] = str(uuid.uuid4())
-        lead_data["created_at"] = now
-        supabase.table('leads').insert(lead_data).execute()
+
+    try:
+        # Merge fields collected
+        existing_fields = existing_lead.get("fields_collected", {}) if existing_lead else {}
+        if not isinstance(existing_fields, dict):
+            existing_fields = {}
+        new_fields = llm_result.get("fields_collected", {})
+        if not isinstance(new_fields, dict):
+            new_fields = {}
+
+        # Only update non-null values
+        merged_fields = {**existing_fields}
+        for k, v in new_fields.items():
+            if v:
+                merged_fields[k] = v
+
+        # Validate sales_stage before saving
+        sales_stage = llm_result.get("sales_stage", "awareness")
+        if sales_stage not in VALID_SALES_STAGES:
+            sales_stage = existing_lead.get("sales_stage", "awareness") if existing_lead else "awareness"
+
+        # Validate hotness before saving
+        hotness = llm_result.get("hotness", "warm")
+        if hotness not in VALID_HOTNESS_VALUES:
+            hotness = "warm"
+
+        # Validate score before saving
+        score = llm_result.get("score", 50)
+        try:
+            score = max(0, min(100, int(score)))
+        except (TypeError, ValueError):
+            score = 50
+
+        lead_data = {
+            "tenant_id": tenant_id,
+            "customer_id": customer['id'],
+            "status": "new" if not existing_lead else existing_lead.get("status", "new"),
+            "sales_stage": sales_stage,
+            "llm_hotness_suggestion": hotness,
+            "final_hotness": hotness,
+            "score": score,
+            "intent": llm_result.get("intent"),
+            "llm_explanation": llm_result.get("next_action"),
+            "product": merged_fields.get("product"),
+            "budget": merged_fields.get("budget"),
+            "timeline": merged_fields.get("timeline"),
+            "customer_name": merged_fields.get("name"),
+            "customer_phone": merged_fields.get("phone"),
+            "fields_collected": merged_fields,
+            "source_channel": "telegram",
+            "last_interaction_at": now
+        }
+
+        # Update customer with collected info
+        customer_updates = {}
+        if merged_fields.get("name"):
+            customer_updates["name"] = merged_fields["name"]
+        if merged_fields.get("phone"):
+            customer_updates["phone"] = merged_fields["phone"]
+
+        if customer_updates:
+            try:
+                supabase.table('customers').update(customer_updates).eq('id', customer['id']).execute()
+            except Exception as e:
+                logger.warning(f"Failed to update customer: {e}")
+
+        # Update or create lead
+        lead_id = None
+        if existing_lead:
+            supabase.table('leads').update(lead_data).eq('id', existing_lead['id']).execute()
+            lead_id = existing_lead['id']
+            logger.info(f"Updated lead {existing_lead['id']} - stage: {sales_stage}, hotness: {hotness}, score: {score}")
+        else:
+            lead_data["id"] = str(uuid.uuid4())
+            lead_data["created_at"] = now
+            supabase.table('leads').insert(lead_data).execute()
+            lead_id = lead_data["id"]
+            logger.info(f"Created new lead {lead_data['id']} - stage: {sales_stage}, hotness: {hotness}, score: {score}")
+
+        # Sync to Bitrix24 if connected (async, non-blocking)
+        try:
+            await sync_lead_to_bitrix(tenant_id, customer, lead_data, existing_lead)
+        except Exception as bitrix_error:
+            logger.warning(f"Bitrix sync error (non-blocking): {bitrix_error}")
+
+    except Exception as e:
+        logger.error(f"Failed to update/create lead: {e}")
+        import traceback
+        traceback.print_exc()
+        # Don't re-raise - we don't want to break message flow for DB errors
 
 
-async def sync_lead_to_bitrix(tenant_id: str, customer: Dict, llm_result: Dict):
-    """Sync lead to Bitrix24 if connected - currently in demo mode"""
-    # Bitrix integration is in demo mode until integrations_bitrix table is created
-    # Log the lead data that would be synced
-    if llm_result.get("sales_stage") in ["intent", "evaluation", "purchase"]:
-        logger.info(f"Bitrix sync (demo mode): Lead at {llm_result.get('sales_stage')} stage would be synced")
-    return
+async def sync_lead_to_bitrix(tenant_id: str, customer: Dict, lead_data: Dict, existing_lead: Optional[Dict] = None):
+    """Sync lead to Bitrix24 CRM if connected"""
+    try:
+        client = await get_bitrix_client(tenant_id)
+        if not client:
+            # Bitrix not connected, skip silently
+            return
+
+        # Prepare lead data for Bitrix24
+        fields_collected = lead_data.get("fields_collected", {}) or {}
+        bitrix_lead_data = {
+            "title": f"Telegram Lead: {fields_collected.get('name') or customer.get('name') or customer.get('telegram_username') or 'Unknown'}",
+            "name": fields_collected.get("name") or customer.get("name"),
+            "phone": fields_collected.get("phone") or customer.get("phone"),
+            "product": fields_collected.get("product") or lead_data.get("product"),
+            "budget": fields_collected.get("budget") or lead_data.get("budget"),
+            "timeline": fields_collected.get("timeline") or lead_data.get("timeline"),
+            "intent": lead_data.get("intent"),
+            "hotness": lead_data.get("final_hotness") or lead_data.get("llm_hotness_suggestion") or "warm",
+            "score": lead_data.get("score", 50),
+            "notes": f"Sales Stage: {lead_data.get('sales_stage', 'awareness')}\nIntent: {lead_data.get('intent', 'N/A')}\nSource: Telegram"
+        }
+
+        # Check if we have a Bitrix lead ID to update
+        crm_lead_id = existing_lead.get("crm_lead_id") if existing_lead else None
+
+        if crm_lead_id:
+            # Update existing lead in Bitrix
+            await client.update_lead(crm_lead_id, bitrix_lead_data)
+            logger.info(f"Updated Bitrix24 lead {crm_lead_id} for tenant {tenant_id}")
+        else:
+            # Create new lead in Bitrix
+            # Only create if lead has meaningful data (phone or high-stage)
+            sales_stage = lead_data.get("sales_stage", "awareness")
+            has_phone = bool(bitrix_lead_data.get("phone"))
+            is_high_intent = sales_stage in ["intent", "evaluation", "purchase"]
+            score = lead_data.get("score", 0)
+            is_hot = lead_data.get("final_hotness") == "hot" or score >= 70
+
+            if has_phone or is_high_intent or is_hot:
+                new_lead_id = await client.create_lead(bitrix_lead_data)
+                logger.info(f"Created Bitrix24 lead {new_lead_id} for tenant {tenant_id}")
+
+                # Store the Bitrix lead ID in our database for future updates
+                if existing_lead:
+                    try:
+                        supabase.table('leads').update({
+                            "crm_lead_id": new_lead_id
+                        }).eq('id', existing_lead['id']).execute()
+                    except Exception as e:
+                        logger.warning(f"Failed to save Bitrix lead ID: {e}")
+            else:
+                logger.debug(f"Skipping Bitrix sync - lead not qualified enough (stage: {sales_stage}, score: {score})")
+
+    except Exception as e:
+        logger.warning(f"Bitrix24 sync failed (non-blocking): {e}")
+        # Don't re-raise - Bitrix sync failure shouldn't break message flow
 
 
 # ============ Dashboard Endpoints ============
@@ -1763,8 +1969,8 @@ async def get_agent_analytics(days: int = 7, current_user: Dict = Depends(get_cu
     qualified_leads = sum(1 for l in current_leads if l.get('status') in ['qualified', 'won'])
     conversion_rate = (qualified_leads / total_leads * 100) if total_leads > 0 else 0
     
-    # Average response time (mock for now - would need message timestamps)
-    avg_response_time = 2.3  # seconds - placeholder
+    # Average response time - only show real data, 0 if no conversations yet
+    avg_response_time = 0  # Will be calculated when we have real message data
     
     # Calculate changes
     convos_change = ((current_convos - prev_convos) / prev_convos * 100) if prev_convos > 0 else 0
@@ -1837,31 +2043,46 @@ async def get_agent_analytics(days: int = 7, current_user: Dict = Depends(get_cu
 # ============ Leads Endpoints ============
 @api_router.get("/leads")
 async def get_leads(status: Optional[str] = None, hotness: Optional[str] = None, stage: Optional[str] = None, limit: int = 50, current_user: Dict = Depends(get_current_user)):
+    """Get leads with customer data - optimized to avoid N+1 queries"""
     query = supabase.table('leads').select('*').eq('tenant_id', current_user["tenant_id"])
     if status:
         query = query.eq('status', status)
     if hotness:
         query = query.eq('final_hotness', hotness)
-    # Note: sales_stage filter requires the column to exist in Supabase schema
-    # Skipping stage filter if column doesn't exist
-    
+    if stage:
+        query = query.eq('sales_stage', stage)
+
     try:
         result = query.order('created_at', desc=True).limit(limit).execute()
     except Exception as e:
         logger.warning(f"Leads query error: {e}")
         result = supabase.table('leads').select('*').eq('tenant_id', current_user["tenant_id"]).order('created_at', desc=True).limit(limit).execute()
-    
-    response = []
-    for lead in (result.data or []):
+
+    leads = result.data or []
+    if not leads:
+        return []
+
+    # Fetch all customers in ONE query instead of N queries (fixes N+1 problem)
+    customer_ids = list(set(lead['customer_id'] for lead in leads if lead.get('customer_id')))
+    customers_map = {}
+    if customer_ids:
         try:
-            cust_result = supabase.table('customers').select('*').eq('id', lead['customer_id']).execute()
-            customer = cust_result.data[0] if cust_result.data else None
-        except Exception:
-            customer = None
+            cust_result = supabase.table('customers').select('id, name, phone').in_('id', customer_ids).execute()
+            customers_map = {c['id']: c for c in (cust_result.data or [])}
+        except Exception as e:
+            logger.warning(f"Failed to fetch customers: {e}")
+
+    response = []
+    for lead in leads:
+        customer = customers_map.get(lead.get('customer_id'))
+        # Prefer lead's collected data, fallback to customer record
+        customer_name = lead.get("customer_name") or (customer.get("name") if customer else None)
+        customer_phone = lead.get("customer_phone") or (customer.get("phone") if customer else None)
+
         response.append({
             "id": lead["id"],
-            "customer_name": customer.get("name") if customer else None,
-            "customer_phone": customer.get("phone") if customer else None,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
             "status": lead.get("status", "new"),
             "sales_stage": lead.get("sales_stage", "awareness"),
             "final_hotness": lead.get("final_hotness", "warm"),
@@ -1874,16 +2095,28 @@ async def get_leads(status: Optional[str] = None, hotness: Optional[str] = None,
             "created_at": lead.get("created_at", ""),
             "last_interaction_at": lead.get("last_interaction_at", "")
         })
-    
+
     return response
 
 
+VALID_LEAD_STATUSES = {"new", "qualified", "won", "lost"}
+
 @api_router.put("/leads/{lead_id}/status")
 async def update_lead_status(lead_id: str, status: str, current_user: Dict = Depends(get_current_user)):
+    if status not in VALID_LEAD_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(VALID_LEAD_STATUSES)}")
     result = supabase.table('leads').select('*').eq('id', lead_id).eq('tenant_id', current_user["tenant_id"]).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Lead not found")
-    supabase.table('leads').update({"status": status}).eq('id', lead_id).execute()
+    try:
+        supabase.table('leads').update({
+            "status": status,
+            "last_interaction_at": now_iso()
+        }).eq('id', lead_id).execute()
+        logger.info(f"Updated lead {lead_id} status to {status}")
+    except Exception as e:
+        logger.error(f"Failed to update lead status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update lead status")
     return {"success": True}
 
 
@@ -1895,11 +2128,14 @@ async def update_lead_stage(lead_id: str, stage: str, current_user: Dict = Depen
     if not result.data:
         raise HTTPException(status_code=404, detail="Lead not found")
     try:
-        supabase.table('leads').update({"sales_stage": stage}).eq('id', lead_id).execute()
+        supabase.table('leads').update({
+            "sales_stage": stage,
+            "last_interaction_at": now_iso()
+        }).eq('id', lead_id).execute()
+        logger.info(f"Updated lead {lead_id} stage to {stage}")
     except Exception as e:
-        # Column may not exist in schema
-        logger.warning(f"Could not update sales_stage: {e}")
-        return {"success": True, "note": "Stage tracking requires database schema update"}
+        logger.error(f"Failed to update lead stage: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update lead stage")
     return {"success": True}
 
 
