@@ -69,8 +69,8 @@ export default function ConfirmEmail() {
       <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-8 text-center">
         {/* Logo */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-emerald-600 font-['Plus_Jakarta_Sans']">
-            TeleAgent
+          <h1 className="text-4xl font-bold font-['Plus_Jakarta_Sans']">
+            <span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span>
           </h1>
           <p className="text-sm text-slate-500 mt-1">AI Sales Agent Platform</p>
         </div>

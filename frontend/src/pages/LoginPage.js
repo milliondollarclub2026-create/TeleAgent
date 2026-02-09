@@ -252,7 +252,7 @@ const LoginPage = () => {
             <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center">
               <Zap className="w-5 h-5 text-white" strokeWidth={2} />
             </div>
-            <span className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">TeleAgent</span>
+            <span className="text-3xl font-bold font-['Plus_Jakarta_Sans']"><span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span></span>
           </div>
           
           <h1 className="text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-3 leading-tight">
@@ -285,7 +285,7 @@ const LoginPage = () => {
               <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
                 <Zap className="w-4 h-4 text-white" strokeWidth={2} />
               </div>
-              <span className="text-lg font-bold text-slate-900">TeleAgent</span>
+              <span className="text-2xl font-bold"><span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span></span>
             </div>
             <CardTitle className="text-xl font-['Plus_Jakarta_Sans'] text-slate-900">
               {isLogin ? 'Welcome back' : 'Create account'}

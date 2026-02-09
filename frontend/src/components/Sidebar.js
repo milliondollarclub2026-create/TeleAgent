@@ -83,8 +83,8 @@ const Sidebar = () => {
             <Zap className="w-4 h-4 text-white" strokeWidth={2.5} />
           </div>
           {!collapsed && (
-            <span className="font-semibold text-slate-900 text-[15px] tracking-tight">
-              TeleAgent
+            <span className="font-semibold text-[22px] tracking-tight">
+              <span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span>
             </span>
           )}
         </div>

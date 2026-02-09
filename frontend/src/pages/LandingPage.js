@@ -49,7 +49,7 @@ export default function LandingPage() {
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.3)]">
                 <Zap className="w-5 h-5 text-white" strokeWidth={2.5} />
               </div>
-              <span className="text-xl font-bold tracking-tight font-['Plus_Jakarta_Sans']">TeleAgent</span>
+              <span className="text-3xl font-bold tracking-tight font-['Plus_Jakarta_Sans']"><span className="text-emerald-400">Lead</span><span className="text-white">Relay</span></span>
             </div>
 
             {/* Desktop Nav */}
@@ -170,7 +170,7 @@ export default function LandingPage() {
                     <Bot className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <p className="font-semibold text-white">TeleAgent AI</p>
+                    <p className="font-semibold text-white">LeadRelay AI</p>
                     <p className="text-xs text-emerald-400 flex items-center gap-1">
                       <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
                       Active now
@@ -529,7 +529,7 @@ export default function LandingPage() {
             Ready to multiply your sales team?
           </h2>
           <p className="text-slate-400 text-xl mb-10 max-w-2xl mx-auto">
-            Join 500+ businesses already using TeleAgent to automate their Telegram sales.
+            Join 500+ businesses already using LeadRelay to automate their Telegram sales.
           </p>
           <button 
             onClick={handleCTA}
@@ -550,10 +550,10 @@ export default function LandingPage() {
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center">
                 <Zap className="w-5 h-5 text-white" strokeWidth={2.5} />
               </div>
-              <span className="text-xl font-bold tracking-tight font-['Plus_Jakarta_Sans']">TeleAgent</span>
+              <span className="text-3xl font-bold tracking-tight font-['Plus_Jakarta_Sans']"><span className="text-emerald-400">Lead</span><span className="text-white">Relay</span></span>
             </div>
             <p className="text-slate-500 text-sm">
-              © 2026 TeleAgent. AI-powered sales for modern businesses.
+              © 2026 LeadRelay. AI-powered sales for modern businesses.
             </p>
           </div>
         </div>

@@ -1,7 +1,11 @@
-# TeleAgent Development Guidelines
+# LeadRelay Development Guidelines
 
 ## Project Overview
-TeleAgent is an AI-powered Sales Agent platform with Telegram + Bitrix24 CRM integration. This is a **premium SaaS product** and must look and feel like one.
+LeadRelay is an AI-powered Sales Agent platform with Telegram + Bitrix24 CRM integration. This is a **premium SaaS product** and must look and feel like one.
+
+## Branding
+- **Product Name**: LeadRelay
+- **Logo Style**: "Lead" in emerald-600 (#059669), "Relay" in slate-900 (#0f172a)
 
 ## Tech Stack
 - **Frontend**: React 18, Tailwind CSS, Radix UI (shadcn/ui components)

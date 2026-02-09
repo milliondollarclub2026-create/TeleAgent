@@ -109,8 +109,8 @@ export default function ResetPassword() {
       <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-8">
         {/* Header */}
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-emerald-600 font-['Plus_Jakarta_Sans']">
-            TeleAgent
+          <h1 className="text-4xl font-bold font-['Plus_Jakarta_Sans']">
+            <span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span>
           </h1>
           <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mt-4 mb-4">
             <KeyRound className="w-6 h-6 text-emerald-600" />
