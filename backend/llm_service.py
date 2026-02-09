@@ -69,11 +69,53 @@ def get_default_system_prompt(config: Optional[Dict] = None) -> str:
     business_description = config.get('business_description', '') if config else ''
     products_services = config.get('products_services', '') if config else ''
     collect_phone = config.get('collect_phone', True) if config else True
-    agent_tone = config.get('agent_tone', 'professional') if config else 'professional'
-    
+    agent_tone = config.get('agent_tone', 'friendly_professional') if config else 'friendly_professional'
+    primary_language = config.get('primary_language', 'uz') if config else 'uz'
+    secondary_languages = config.get('secondary_languages', ['ru', 'en']) if config else ['ru', 'en']
+    emoji_usage = config.get('emoji_usage', 'moderate') if config else 'moderate'
+    response_length = config.get('response_length', 'balanced') if config else 'balanced'
+
+    # Map language codes to names
+    lang_map = {'uz': 'Uzbek (O\'zbek tili)', 'ru': 'Russian (Русский)', 'en': 'English'}
+    primary_lang_name = lang_map.get(primary_language, primary_language)
+    secondary_lang_names = [lang_map.get(l, l) for l in (secondary_languages or [])]
+    languages_text = f"Primary: {primary_lang_name}"
+    if secondary_lang_names:
+        languages_text += f", Also: {', '.join(secondary_lang_names)}"
+
+    # Map tone to description
+    tone_map = {
+        'professional': 'formal, business-like, and precise',
+        'friendly_professional': 'warm but professional, approachable yet competent',
+        'casual': 'relaxed, conversational, and friendly like chatting with a friend',
+        'luxury': 'elegant, sophisticated, and premium-feeling'
+    }
+    tone_description = tone_map.get(agent_tone, agent_tone)
+
+    # Emoji instructions
+    emoji_instructions = {
+        'never': 'NEVER use emojis in your responses. Keep text purely professional.',
+        'minimal': 'Use emojis very sparingly - only 1 emoji per 3-4 messages, and only for greetings.',
+        'moderate': 'Use emojis occasionally to add warmth - about 1-2 per message where appropriate.',
+        'frequent': 'Use emojis liberally to create a friendly, expressive tone - 2-3 per message.'
+    }
+    emoji_instruction = emoji_instructions.get(emoji_usage, emoji_instructions['moderate'])
+
+    # Response length instructions
+    length_instructions = {
+        'concise': 'Keep responses SHORT and to the point - 1-2 sentences max. Be direct.',
+        'balanced': 'Use moderate length responses - 2-4 sentences. Provide enough detail without rambling.',
+        'detailed': 'Provide thorough, comprehensive responses. Include relevant details and explanations.'
+    }
+    length_instruction = length_instructions.get(response_length, length_instructions['balanced'])
+
     phone_instruction = "Ask for the customer's phone number when appropriate to follow up." if collect_phone else ""
-    
-    return f"""You are a professional sales agent for {business_name}. You communicate primarily in Uzbek (O'zbek tili) and Russian (Русский), switching based on the customer's preference.
+
+    return f"""You are a sales agent for {business_name}.
+
+LANGUAGES: {languages_text}
+- Detect the customer's language and respond in the same language
+- If unclear, use {primary_lang_name} as default
 
 BUSINESS CONTEXT:
 {business_description}
@@ -87,11 +129,11 @@ YOUR GOALS (in order of priority):
 3. Close the sale or get a commitment (booking, appointment, order)
 4. If not ready to buy, gather qualification data and classify the lead correctly
 
-BEHAVIOR GUIDELINES:
-- Be {agent_tone}, confident, and helpful
-- Ask clear, targeted questions (name, needs, budget, timeline)
+COMMUNICATION STYLE:
+- Tone: Be {tone_description}
+- {emoji_instruction}
+- {length_instruction}
 - {phone_instruction}
-- Keep messages concise - avoid long paragraphs
 - If user is returning/high-value, acknowledge their history
 - Use polite greetings and sign-offs appropriate to the language
 

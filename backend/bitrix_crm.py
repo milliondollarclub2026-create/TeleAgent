@@ -10,14 +10,55 @@ Provides full CRM access via webhook URL for:
 
 import httpx
 import logging
+import asyncio
+import time
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
+from collections import defaultdict
 import json
 
 logger = logging.getLogger(__name__)
 
 # Bitrix24 REST API timeout
 BITRIX_TIMEOUT = 30.0
+
+# Bitrix24 rate limiting: max 2 requests per second per webhook
+BITRIX_MAX_REQUESTS_PER_SECOND = 2
+BITRIX_RATE_LIMIT_WINDOW = 1.0  # seconds
+
+
+class BitrixRateLimiter:
+    """Rate limiter for Bitrix24 API calls to prevent hitting rate limits"""
+
+    def __init__(self, max_requests: int = BITRIX_MAX_REQUESTS_PER_SECOND, window: float = BITRIX_RATE_LIMIT_WINDOW):
+        self.max_requests = max_requests
+        self.window = window
+        self._requests = defaultdict(list)
+        self._lock = asyncio.Lock()
+
+    async def acquire(self, webhook_url: str):
+        """Wait until we can make a request without hitting rate limit"""
+        async with self._lock:
+            now = time.time()
+            # Clean old entries
+            self._requests[webhook_url] = [t for t in self._requests[webhook_url] if now - t < self.window]
+
+            if len(self._requests[webhook_url]) >= self.max_requests:
+                # Calculate wait time
+                oldest = min(self._requests[webhook_url])
+                wait_time = self.window - (now - oldest)
+                if wait_time > 0:
+                    logger.debug(f"Bitrix rate limit: waiting {wait_time:.2f}s")
+                    await asyncio.sleep(wait_time)
+                    now = time.time()
+                    # Clean again after waiting
+                    self._requests[webhook_url] = [t for t in self._requests[webhook_url] if now - t < self.window]
+
+            self._requests[webhook_url].append(now)
+
+
+# Global rate limiter instance
+_bitrix_rate_limiter = BitrixRateLimiter()
 
 
 class BitrixCRMClient:
@@ -37,10 +78,13 @@ class BitrixCRMClient:
         self._http_client = None
     
     async def _call(self, method: str, params: dict = None) -> dict:
-        """Make REST API call to Bitrix24"""
+        """Make REST API call to Bitrix24 with rate limiting"""
+        # Apply rate limiting before making request
+        await _bitrix_rate_limiter.acquire(self.webhook_url)
+
         # Bitrix24 REST API expects method.json or method endpoint
         url = f"{self.webhook_url}/{method}.json"
-        
+
         try:
             async with httpx.AsyncClient(timeout=BITRIX_TIMEOUT) as client:
                 if params:

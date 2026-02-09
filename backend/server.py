@@ -177,6 +177,9 @@ VALID_HOTNESS_VALUES = {"hot", "warm", "cold"}
 # Stage order for transition validation
 STAGE_ORDER = ["awareness", "interest", "consideration", "intent", "evaluation", "purchase"]
 
+# Startup validation: ensure constants are synchronized
+assert set(VALID_SALES_STAGES) == set(STAGE_ORDER), "VALID_SALES_STAGES and STAGE_ORDER must contain same stages"
+
 
 def validate_stage_transition(current_stage: str, new_stage: str) -> str:
     """
@@ -212,12 +215,11 @@ def apply_hotness_rules(llm_hotness: str, score: int, stage: str, fields: Dict) 
     HIGH: Apply business rules to override LLM hotness suggestions.
     Ensures consistency between score, stage, and hotness.
     """
-    # Rule 1: High score should be hot
+    # Rule 1: High score should always be hot
     if score >= 85:
-        if llm_hotness == "cold":
-            logger.info(f"Hotness override: score {score} too high for 'cold', setting 'hot'")
-            return "hot"
-        return "hot" if llm_hotness != "hot" else llm_hotness
+        if llm_hotness != "hot":
+            logger.info(f"Hotness override: score {score} requires 'hot', was '{llm_hotness}'")
+        return "hot"
 
     # Rule 2: Score 70-84 should be at least warm
     if score >= 70:
@@ -1352,16 +1354,16 @@ def get_enhanced_system_prompt(config: Dict, lead_context: Dict = None) -> str:
     }
     length_instruction = length_map.get(response_length, length_map['balanced'])
 
-    # Get objection playbook
-    objection_playbook = config.get('objection_playbook', DEFAULT_OBJECTION_PLAYBOOK)
+    # Get objection playbook (use 'or' to handle explicit None values from DB)
+    objection_playbook = config.get('objection_playbook') or DEFAULT_OBJECTION_PLAYBOOK
     objection_text = "\n".join([f"- If customer says '{obj['objection']}': {obj['response_strategy']}" for obj in objection_playbook])
 
-    # Get closing scripts
-    closing_scripts = config.get('closing_scripts', DEFAULT_CLOSING_SCRIPTS)
+    # Get closing scripts (use 'or' to handle explicit None values from DB)
+    closing_scripts = config.get('closing_scripts') or DEFAULT_CLOSING_SCRIPTS
     closing_text = "\n".join([f"- {script['name']}: \"{script['script']}\" (Use when: {script['use_when']})" for script in closing_scripts.values()])
 
-    # Get required fields
-    required_fields = config.get('required_fields', DEFAULT_REQUIRED_FIELDS)
+    # Get required fields (use 'or' to handle explicit None values from DB)
+    required_fields = config.get('required_fields') or DEFAULT_REQUIRED_FIELDS
     required_text = "\n".join([f"- {field['label']}: {'REQUIRED' if field['required'] else 'Optional'}" for field in required_fields.values()])
 
     # Current lead context
@@ -1592,17 +1594,30 @@ def validate_llm_output(result: Dict, current_stage: str = 'awareness') -> Dict:
         logger.warning(f"Invalid score '{raw_score}', defaulting to 50")
         validated['score'] = 50
 
-    # Pass through other fields with defaults
-    validated['stage_change_reason'] = result.get('stage_change_reason')
-    validated['intent'] = result.get('intent', '')
-    validated['objection_detected'] = result.get('objection_detected')
-    validated['closing_technique_used'] = result.get('closing_technique_used')
-    validated['next_action'] = result.get('next_action')
+    # Pass through other fields with type validation (LLM can return wrong types)
+    stage_reason = result.get('stage_change_reason')
+    validated['stage_change_reason'] = str(stage_reason) if stage_reason is not None and stage_reason != "" else None
 
-    # Validate fields_collected - must be a dict
+    intent = result.get('intent', '')
+    validated['intent'] = str(intent) if intent is not None else ''
+
+    objection = result.get('objection_detected')
+    validated['objection_detected'] = str(objection) if objection is not None and objection != "" else None
+
+    closing = result.get('closing_technique_used')
+    validated['closing_technique_used'] = str(closing) if closing is not None and closing != "" else None
+
+    next_action = result.get('next_action')
+    validated['next_action'] = str(next_action) if next_action is not None else None
+
+    # Validate fields_collected - must be a dict with string/null values
     raw_fields = result.get('fields_collected', {})
     if isinstance(raw_fields, dict):
-        validated['fields_collected'] = raw_fields
+        # Ensure all values are strings or None
+        validated['fields_collected'] = {
+            k: str(v) if v is not None and v != "" else None
+            for k, v in raw_fields.items()
+        }
     else:
         logger.warning(f"Invalid fields_collected type, defaulting to empty dict")
         validated['fields_collected'] = {}
@@ -1942,7 +1957,7 @@ async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Op
         lead_data = {
             "tenant_id": tenant_id,
             "customer_id": customer['id'],
-            "status": "new" if not existing_lead else existing_lead.get("status", "new"),
+            "status": existing_lead.get("status") or "new" if existing_lead else "new",
             "sales_stage": new_stage,
             "llm_hotness_suggestion": hotness,
             "final_hotness": final_hotness,
@@ -1973,18 +1988,33 @@ async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Op
             except Exception as e:
                 logger.warning(f"Failed to update customer: {e}")
 
-        # Update or create lead
+        # Update or create lead with race condition handling
+        # Uses upsert to handle unique constraint (tenant_id, customer_id)
         lead_id = None
         if existing_lead:
             supabase.table('leads').update(lead_data).eq('id', existing_lead['id']).execute()
             lead_id = existing_lead['id']
-            logger.info(f"Updated lead {existing_lead['id']} - stage: {sales_stage}, hotness: {hotness}, score: {score}")
+            logger.info(f"Updated lead {existing_lead['id']} - stage: {new_stage}, hotness: {final_hotness}, score: {score}")
         else:
             lead_data["id"] = str(uuid.uuid4())
             lead_data["created_at"] = now
-            supabase.table('leads').insert(lead_data).execute()
-            lead_id = lead_data["id"]
-            logger.info(f"Created new lead {lead_data['id']} - stage: {sales_stage}, hotness: {hotness}, score: {score}")
+            try:
+                supabase.table('leads').insert(lead_data).execute()
+                lead_id = lead_data["id"]
+                logger.info(f"Created new lead {lead_data['id']} - stage: {new_stage}, hotness: {final_hotness}, score: {score}")
+            except Exception as insert_error:
+                # Handle race condition: if unique constraint fails, fetch and update the existing lead
+                if "duplicate key" in str(insert_error).lower() or "unique constraint" in str(insert_error).lower():
+                    logger.info(f"Race condition detected, fetching existing lead for customer {customer['id']}")
+                    existing = supabase.table('leads').select('id').eq('tenant_id', tenant_id).eq('customer_id', customer['id']).execute()
+                    if existing.data:
+                        lead_id = existing.data[0]['id']
+                        supabase.table('leads').update(lead_data).eq('id', lead_id).execute()
+                        logger.info(f"Updated existing lead {lead_id} after race condition")
+                    else:
+                        raise insert_error
+                else:
+                    raise insert_error
 
         # Sync to Bitrix24 if connected (async, non-blocking)
         try:
@@ -2312,10 +2342,11 @@ async def update_lead_status(lead_id: str, status: str, current_user: Dict = Dep
     if not result.data:
         raise HTTPException(status_code=404, detail="Lead not found")
     try:
+        # SECURITY: Include tenant_id filter for defense-in-depth against IDOR
         supabase.table('leads').update({
             "status": status,
             "last_interaction_at": now_iso()
-        }).eq('id', lead_id).execute()
+        }).eq('id', lead_id).eq('tenant_id', current_user["tenant_id"]).execute()
         logger.info(f"Updated lead {lead_id} status to {status}")
     except Exception as e:
         logger.error(f"Failed to update lead status: {e}")
@@ -2331,10 +2362,11 @@ async def update_lead_stage(lead_id: str, stage: str, current_user: Dict = Depen
     if not result.data:
         raise HTTPException(status_code=404, detail="Lead not found")
     try:
+        # SECURITY: Include tenant_id filter for defense-in-depth against IDOR
         supabase.table('leads').update({
             "sales_stage": stage,
             "last_interaction_at": now_iso()
-        }).eq('id', lead_id).execute()
+        }).eq('id', lead_id).eq('tenant_id', current_user["tenant_id"]).execute()
         logger.info(f"Updated lead {lead_id} stage to {stage}")
     except Exception as e:
         logger.error(f"Failed to update lead stage: {e}")

@@ -153,7 +153,8 @@ const AgentLeadsPage = () => {
       if (statusFilter !== 'all') {
         url += `&status=${statusFilter}`;
       }
-      // In future: url += `&agent_id=${agentId}`;
+      // Note: Leads are filtered by tenant_id from authenticated user on backend
+      // agentId in URL is for navigation context only (each tenant = one agent in current architecture)
       const response = await axios.get(url);
 
       // Use demo data if no real leads exist
@@ -396,7 +397,7 @@ const AgentLeadsPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-sm text-slate-600">{lead.score}</span>
+                        <span className="font-mono text-sm text-slate-600">{lead.score ?? 0}</span>
                       </TableCell>
                       <TableCell>
                         <Select

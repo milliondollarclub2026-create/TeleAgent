@@ -112,6 +112,8 @@ CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_final_hotness ON leads(final_hotness);
 CREATE INDEX IF NOT EXISTS idx_leads_sales_stage ON leads(sales_stage);
 CREATE INDEX IF NOT EXISTS idx_leads_tenant_customer ON leads(tenant_id, customer_id);
+-- Unique constraint to prevent duplicate leads per customer (race condition fix)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_tenant_customer_unique ON leads(tenant_id, customer_id);
 
 -- Documents table
 CREATE TABLE IF NOT EXISTS documents (
@@ -139,7 +141,17 @@ CREATE TABLE IF NOT EXISTS tenant_configs (
     qualification_rules_json JSONB DEFAULT '{}',
     greeting_message TEXT,
     agent_tone VARCHAR(50) DEFAULT 'professional',
-    primary_language VARCHAR(10) DEFAULT 'uz'
+    primary_language VARCHAR(10) DEFAULT 'uz',
+    -- Advanced customization columns
+    emoji_usage VARCHAR(20) DEFAULT 'moderate',
+    response_length VARCHAR(20) DEFAULT 'medium',
+    secondary_languages JSONB DEFAULT '[]',
+    closing_message TEXT,
+    min_response_delay INTEGER DEFAULT 0,
+    max_messages_per_minute INTEGER DEFAULT 20,
+    -- Bitrix24 CRM integration columns
+    bitrix_webhook_url VARCHAR(500),
+    bitrix_connected_at TIMESTAMPTZ
 );
 
 -- Event logs table

@@ -265,7 +265,7 @@ const DashboardPage = () => {
                     <Badge variant="outline" className={`text-[10px] ${hotnessColors[lead.final_hotness]}`}>
                       {lead.final_hotness}
                     </Badge>
-                    <span className="text-xs font-mono text-slate-500">{lead.score}</span>
+                    <span className="text-xs font-mono text-slate-500">{lead.score ?? 0}</span>
                   </div>
                 </div>
               ))}

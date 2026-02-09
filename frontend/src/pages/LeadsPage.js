@@ -208,6 +208,12 @@ const LeadsPage = () => {
   };
 
   const updateLeadStatus = async (leadId, newStatus) => {
+    // Handle demo leads locally (they have IDs like 'demo-1')
+    if (leadId.startsWith('demo-')) {
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
+      toast.success('Lead status updated');
+      return;
+    }
     try {
       await axios.put(`${API}/leads/${leadId}/status?status=${newStatus}`);
       toast.success('Lead status updated');
@@ -350,7 +356,7 @@ const LeadsPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-sm text-slate-600">{lead.score}</span>
+                        <span className="font-mono text-sm text-slate-600">{lead.score ?? 0}</span>
                       </TableCell>
                       <TableCell>
                         <Select 
