@@ -162,16 +162,6 @@ function CRMChatSection() {
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Left Side - Content */}
           <div className={`crm-content transition-all duration-1000 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'}`}>
-            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/60 rounded-full px-4 py-2 mb-6 shadow-sm">
-              <div className="relative">
-                <Sparkles className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
-                <div className="absolute inset-0 animate-ping">
-                  <Sparkles className="w-4 h-4 text-emerald-400 opacity-75" strokeWidth={1.75} />
-                </div>
-              </div>
-              <span className="text-emerald-700 text-sm font-medium">AI-Powered Insights</span>
-            </div>
-
             <h2 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight font-['Plus_Jakarta_Sans'] mb-6">
               Chat with your
               <br />
@@ -716,13 +706,6 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
           {/* Section Header */}
           <div className="text-center mb-20 scroll-reveal">
-            <div className="inline-flex items-center gap-2.5 bg-white/80 backdrop-blur-md border border-slate-200/80 rounded-full px-5 py-2.5 mb-8 shadow-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-slate-600 text-sm font-medium tracking-wide">Powerful Features</span>
-            </div>
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-6">
               Everything you need to
               <br />
@@ -961,13 +944,6 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 md:px-12 relative">
           {/* Section Header */}
           <div className="text-center mb-20 scroll-reveal">
-            <div className="inline-flex items-center gap-2.5 bg-white/80 backdrop-blur-sm border border-emerald-100 rounded-full px-5 py-2.5 mb-8 shadow-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-emerald-700 text-sm font-medium tracking-wide">Simple Setup</span>
-            </div>
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-6">
               Get started in
               <br className="hidden sm:block" />
@@ -1095,17 +1071,6 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:80px_80px]" />
 
         <div className="max-w-5xl mx-auto px-6 md:px-12 text-center relative z-10 scroll-reveal">
-          {/* Animated badge */}
-          <div className="inline-flex items-center gap-2.5 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 backdrop-blur-xl border border-emerald-400/20 rounded-full px-5 py-2.5 mb-10 cta-badge-glow">
-            <div className="relative">
-              <Sparkles className="w-4 h-4 text-emerald-400" strokeWidth={2} />
-              <div className="absolute inset-0 animate-ping">
-                <Sparkles className="w-4 h-4 text-emerald-400 opacity-50" strokeWidth={2} />
-              </div>
-            </div>
-            <span className="text-emerald-300 text-sm font-medium tracking-wide">Start Converting Leads Today</span>
-          </div>
-
           {/* Bold headline with gradient text */}
           <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] mb-8 leading-[1.1]">
             <span className="text-white">Stop Losing Sales</span>
