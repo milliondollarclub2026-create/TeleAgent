@@ -190,7 +190,7 @@ const AgentsPage = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/agents/${agent.id}`); }}>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/app/agents/${agent.id}`); }}>
                       <ExternalLink className="w-4 h-4 mr-2" strokeWidth={1.75} />
                       View Dashboard
                     </DropdownMenuItem>
