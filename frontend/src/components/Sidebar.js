@@ -52,7 +52,7 @@ const Sidebar = () => {
   const { collapsed, toggleSidebar } = useSidebar();
 
   // Check if we're viewing a specific agent
-  const agentMatch = location.pathname.match(/\/agents\/([^/]+)/);
+  const agentMatch = location.pathname.match(/\/app\/agents\/([^/]+)/);
   const currentAgentId = agentMatch ? agentMatch[1] : null;
   const isInAgentContext = currentAgentId && currentAgentId !== 'new';
 
