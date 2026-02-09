@@ -858,6 +858,10 @@ async def connect_bitrix_webhook(
     # Ensure webhook URL has proper format
     webhook_url = request.webhook_url.rstrip('/')
     
+    # Validate URL format
+    if not webhook_url.startswith('https://') and not webhook_url.startswith('http://'):
+        raise HTTPException(status_code=400, detail="Webhook URL must start with https:// or http://")
+    
     # Test the connection
     client = create_bitrix_client(webhook_url)
     if not client:
@@ -868,36 +872,54 @@ async def connect_bitrix_webhook(
     if not test_result.get("ok"):
         raise HTTPException(status_code=400, detail=f"Connection failed: {test_result.get('message')}")
     
+    connected_at = now_iso()
+    
     # Store in memory cache (always works)
     _bitrix_webhooks_cache[tenant_id] = {
         'webhook_url': webhook_url,
-        'connected_at': now_iso(),
+        'connected_at': connected_at,
         'portal_user': test_result.get('portal_user')
     }
     logger.info(f"Stored Bitrix webhook in cache for tenant {tenant_id}")
     
-    # Try to save to database (may fail if columns don't exist)
+    # Try to save to database - attempt tenant_configs first, then tenants
     saved_to_db = False
+    db_error_message = ""
+    
+    # Try tenant_configs table first
     try:
-        supabase.table('tenant_configs').update({
-            "bitrix_webhook_url": webhook_url
+        result = supabase.table('tenant_configs').update({
+            "bitrix_webhook_url": webhook_url,
+            "bitrix_connected_at": connected_at
         }).eq('tenant_id', tenant_id).execute()
-        saved_to_db = True
+        if result.data:
+            saved_to_db = True
+            logger.info(f"Saved Bitrix webhook to tenant_configs for tenant {tenant_id}")
     except Exception as e:
+        db_error_message = str(e)
         logger.debug(f"Could not save to tenant_configs: {e}")
     
+    # Fallback to tenants table if tenant_configs didn't work
     if not saved_to_db:
         try:
-            supabase.table('tenants').update({
-                "bitrix_webhook_url": webhook_url
+            result = supabase.table('tenants').update({
+                "bitrix_webhook_url": webhook_url,
+                "bitrix_connected_at": connected_at
             }).eq('id', tenant_id).execute()
-            saved_to_db = True
+            if result.data:
+                saved_to_db = True
+                logger.info(f"Saved Bitrix webhook to tenants for tenant {tenant_id}")
         except Exception as e:
+            db_error_message = str(e)
             logger.debug(f"Could not save to tenants: {e}")
+    
+    persistence_note = ""
+    if not saved_to_db:
+        persistence_note = " ⚠️ Note: Connection saved in memory only. Add 'bitrix_webhook_url' and 'bitrix_connected_at' columns to tenant_configs table in Supabase for persistence across restarts."
     
     return {
         "success": True,
-        "message": "Bitrix24 CRM connected successfully!" + ("" if saved_to_db else " (Note: Add 'bitrix_webhook_url' column to tenant_configs in Supabase for persistence)"),
+        "message": f"Bitrix24 CRM connected successfully!{persistence_note}",
         "portal_user": test_result.get("portal_user"),
         "crm_mode": test_result.get("crm_mode"),
         "persisted": saved_to_db
