@@ -21,6 +21,9 @@ export default function PricingPage() {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    // Scroll to top when page loads
+    window.scrollTo(0, 0);
+
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
 
@@ -54,6 +57,9 @@ export default function PricingPage() {
   }, []);
 
   const handleCTA = () => navigate('/login');
+
+  const goToFeatures = () => navigate('/#features');
+  const goToHowItWorks = () => navigate('/#how-it-works');
 
   const pricingTiers = [
     {
@@ -137,7 +143,7 @@ export default function PricingPage() {
 
             {/* Desktop Nav */}
             <div className="hidden md:flex items-center gap-8">
-              <Link to="/#features" className="text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium">Features</Link>
+              <button onClick={goToFeatures} className="text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium">Features</button>
               <span className="text-emerald-600 text-sm font-medium">Pricing</span>
               <Link to="/login" className="text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium">Login</Link>
             </div>
@@ -167,7 +173,7 @@ export default function PricingPage() {
           mobileMenuOpen ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
         }`}>
           <div className="bg-white border-t border-slate-200 px-6 py-6 space-y-4 shadow-lg">
-            <Link to="/#features" className="block text-slate-600 hover:text-slate-900 py-2 font-medium">Features</Link>
+            <button onClick={goToFeatures} className="block w-full text-left text-slate-600 hover:text-slate-900 py-2 font-medium">Features</button>
             <span className="block text-emerald-600 py-2 font-medium">Pricing</span>
             <Link to="/login" className="block text-slate-600 hover:text-slate-900 py-2 font-medium">Login</Link>
             <div className="pt-4 border-t border-slate-200">
@@ -433,9 +439,9 @@ export default function PricingPage() {
               </h4>
               <ul className="space-y-3">
                 <li>
-                  <Link to="/#features" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
+                  <button onClick={goToFeatures} className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
                     Features
-                  </Link>
+                  </button>
                 </li>
                 <li>
                   <Link to="/pricing" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
@@ -443,9 +449,9 @@ export default function PricingPage() {
                   </Link>
                 </li>
                 <li>
-                  <Link to="/#how-it-works" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
+                  <button onClick={goToHowItWorks} className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
                     How It Works
-                  </Link>
+                  </button>
                 </li>
               </ul>
             </div>
