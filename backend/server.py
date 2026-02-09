@@ -61,6 +61,41 @@ TELEGRAM_API_BASE = "https://api.telegram.org/bot"
 # OpenAI client
 openai_client = AsyncOpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
 
+# ============ Rate Limiting ============
+# Simple in-memory rate limiter (for production, use Redis)
+from collections import defaultdict
+import time
+
+class RateLimiter:
+    """Simple rate limiter to prevent message flooding"""
+    def __init__(self, max_requests: int = 10, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.requests = defaultdict(list)
+
+    def is_allowed(self, user_id: str) -> bool:
+        """Check if user is within rate limit"""
+        now = time.time()
+        # Clean old entries
+        self.requests[user_id] = [t for t in self.requests[user_id] if now - t < self.window_seconds]
+
+        if len(self.requests[user_id]) >= self.max_requests:
+            return False
+
+        self.requests[user_id].append(now)
+        return True
+
+    def get_wait_time(self, user_id: str) -> int:
+        """Get seconds until next request is allowed"""
+        if not self.requests[user_id]:
+            return 0
+        oldest = min(self.requests[user_id])
+        wait = self.window_seconds - (time.time() - oldest)
+        return max(0, int(wait))
+
+# Rate limiter: max 10 messages per minute per user
+message_rate_limiter = RateLimiter(max_requests=10, window_seconds=60)
+
 # ============ Sales Pipeline Constants ============
 SALES_STAGES = {
     "awareness": {"order": 1, "name": "Awareness", "goal": "Educate about products/services"},
@@ -134,6 +169,89 @@ DEFAULT_REQUIRED_FIELDS = {
     "budget": {"required": False, "label": "Budget", "ask_prompt": "What budget range are you working with?"},
     "timeline": {"required": False, "label": "Timeline", "ask_prompt": "When are you looking to make this purchase?"}
 }
+
+# Valid values for validation
+VALID_SALES_STAGES = {"awareness", "interest", "consideration", "intent", "evaluation", "purchase"}
+VALID_HOTNESS_VALUES = {"hot", "warm", "cold"}
+
+# Stage order for transition validation
+STAGE_ORDER = ["awareness", "interest", "consideration", "intent", "evaluation", "purchase"]
+
+
+def validate_stage_transition(current_stage: str, new_stage: str) -> str:
+    """
+    HIGH: Validate stage transitions to prevent invalid jumps.
+    - Allow forward progression (any amount)
+    - Allow backward by max 1 stage (customer uncertainty)
+    - Prevent suspicious multi-stage regression
+    """
+    try:
+        current_idx = STAGE_ORDER.index(current_stage)
+        new_idx = STAGE_ORDER.index(new_stage)
+
+        # Forward progression is always allowed
+        if new_idx >= current_idx:
+            return new_stage
+
+        # Allow backward by 1 stage (customer changed mind / uncertainty)
+        if current_idx - new_idx <= 1:
+            logger.info(f"Stage regression allowed: {current_stage} → {new_stage}")
+            return new_stage
+
+        # Prevent multi-stage regression (suspicious, likely LLM error)
+        logger.warning(f"Prevented suspicious stage regression: {current_stage} → {new_stage}, keeping {current_stage}")
+        return current_stage
+
+    except ValueError:
+        # Invalid stage, keep current
+        return current_stage
+
+
+def apply_hotness_rules(llm_hotness: str, score: int, stage: str, fields: Dict) -> str:
+    """
+    HIGH: Apply business rules to override LLM hotness suggestions.
+    Ensures consistency between score, stage, and hotness.
+    """
+    # Rule 1: High score should be hot
+    if score >= 85:
+        if llm_hotness == "cold":
+            logger.info(f"Hotness override: score {score} too high for 'cold', setting 'hot'")
+            return "hot"
+        return "hot" if llm_hotness != "hot" else llm_hotness
+
+    # Rule 2: Score 70-84 should be at least warm
+    if score >= 70:
+        if llm_hotness == "cold":
+            logger.info(f"Hotness override: score {score} too high for 'cold', setting 'warm'")
+            return "warm"
+
+    # Rule 3: Low score should not be hot
+    if score < 40 and llm_hotness == "hot":
+        logger.info(f"Hotness override: score {score} too low for 'hot', setting 'warm'")
+        return "warm"
+
+    # Rule 4: Advanced stages should be warmer
+    if stage in ["intent", "evaluation", "purchase"]:
+        if llm_hotness == "cold":
+            return "warm"
+        if stage == "purchase" and llm_hotness != "hot":
+            return "hot"
+
+    # Rule 5: Immediate timeline + budget = hot
+    timeline = fields.get("timeline", "").lower() if fields.get("timeline") else ""
+    has_budget = bool(fields.get("budget"))
+    urgent_keywords = ["today", "now", "asap", "urgent", "immediately", "hozir", "bugun", "tez"]
+
+    if any(word in timeline for word in urgent_keywords) and has_budget:
+        logger.info(f"Hotness override: urgent timeline + budget = 'hot'")
+        return "hot"
+
+    # Rule 6: Has phone and budget at consideration+ stage = warm minimum
+    if fields.get("phone") and has_budget and stage in ["consideration", "intent", "evaluation", "purchase"]:
+        if llm_hotness == "cold":
+            return "warm"
+
+    return llm_hotness
 
 
 # ============ Auth Helpers ============
@@ -1338,7 +1456,47 @@ You MUST respond with valid JSON in this exact format:
 4. ALWAYS respond in the customer's language
 5. If you don't have information, ask clarifying questions
 6. Track ALL information customer shares in fields_collected
-7. When all required fields are collected AND customer shows intent, attempt a close"""
+7. When all required fields are collected AND customer shows intent, attempt a close
+
+## FIELD EXTRACTION RULES (ANTI-HALLUCINATION)
+CRITICAL: Only extract information the customer EXPLICITLY stated:
+- If customer says "I'm Sardor" → set name: "Sardor"
+- If customer says "call me at 901234567" → set phone: "901234567"
+- If customer mentions a specific product → set product: that product name
+- If customer mentions budget like "5 million" → set budget: "5 million"
+- If customer mentions timing like "next week" → set timeline: "next week"
+
+NEVER INVENT OR GUESS:
+- If customer just says "I'm interested" → DO NOT set name/phone/budget
+- If customer says "I'm a business owner" → DO NOT assume company name or budget
+- If information is ambiguous → set field to null and ask clarifying question
+
+## SCORING GUIDELINES
+- 0-30: Cold lead, just browsing, no clear interest
+- 31-50: Early interest, asking general questions
+- 51-70: Engaged, considering options, some buying signals
+- 71-85: High intent, discussing specifics, ready to decide
+- 86-100: Ready to buy, just needs final confirmation
+
+## STAGE TRANSITION RULES
+- AWARENESS → INTEREST: Customer asks specific questions about products
+- INTEREST → CONSIDERATION: Customer shares budget/timeline OR compares options
+- CONSIDERATION → INTENT: Customer says "I want to buy" or shows clear purchase intent
+- INTENT → EVALUATION: Customer raises objections or says "let me think"
+- EVALUATION → PURCHASE: Customer explicitly commits or asks "how do I pay/order"
+- NEVER skip more than 1 stage forward in a single turn
+- Stages can go backward by 1 if customer shows reduced interest
+
+## OUTPUT EXAMPLES
+
+Example 1 - New customer asking about products:
+{{"reply_text": "Assalomu alaykum! Sizga qanday yordam bera olaman?", "sales_stage": "awareness", "stage_change_reason": null, "hotness": "warm", "score": 30, "intent": "initial_inquiry", "objection_detected": null, "closing_technique_used": null, "fields_collected": {{"name": null, "phone": null, "product": null, "budget": null, "timeline": null}}, "next_action": "Ask about specific needs"}}
+
+Example 2 - Customer shares name and interest:
+{{"reply_text": "Rahmat, Sardor! Qaysi mahsulot sizni qiziqtiradi?", "sales_stage": "interest", "stage_change_reason": "Customer engaged with specific question", "hotness": "warm", "score": 45, "intent": "product_inquiry", "objection_detected": null, "closing_technique_used": null, "fields_collected": {{"name": "Sardor", "phone": null, "product": null, "budget": null, "timeline": null}}, "next_action": "Identify product interest"}}
+
+Example 3 - Customer ready to buy:
+{{"reply_text": "Ajoyib! Buyurtmangizni rasmiylashtiraman. Telefon raqamingizni aytasizmi?", "sales_stage": "purchase", "stage_change_reason": "Customer said they want to order", "hotness": "hot", "score": 92, "intent": "ready_to_purchase", "objection_detected": null, "closing_technique_used": "assumptive_close", "fields_collected": {{"name": "Sardor", "phone": null, "product": "Premium Package", "budget": "5 million", "timeline": "today"}}, "next_action": "Collect phone number to confirm order"}}"""
 
 
 async def get_business_context_semantic(tenant_id: str, query: str, top_k: int = 5) -> List[str]:
@@ -1398,11 +1556,6 @@ async def get_business_context_semantic(tenant_id: str, query: str, top_k: int =
 def get_business_context(tenant_id: str, query: str) -> List[str]:
     """Sync wrapper - returns empty list, use async version instead"""
     return []
-
-
-# Valid values for sales pipeline - used for validation
-VALID_SALES_STAGES = {'awareness', 'interest', 'consideration', 'intent', 'evaluation', 'purchase'}
-VALID_HOTNESS_VALUES = {'hot', 'warm', 'cold'}
 
 
 def validate_llm_output(result: Dict, current_stage: str = 'awareness') -> Dict:
@@ -1472,12 +1625,16 @@ async def call_sales_agent(messages: List[Dict], config: Dict, lead_context: Dic
             role = "assistant" if msg.get("role") == "assistant" else "user"
             api_messages.append({"role": role, "content": msg.get("text", "")})
 
-        response = await openai_client.chat.completions.create(
-            model="gpt-4o",
-            messages=api_messages,
-            temperature=0.7,
-            max_tokens=1500,
-            response_format={"type": "json_object"}
+        # CRITICAL: Add timeout to prevent indefinite hangs
+        response = await asyncio.wait_for(
+            openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=api_messages,
+                temperature=0.7,
+                max_tokens=1500,
+                response_format={"type": "json_object"}
+            ),
+            timeout=45.0  # 45 second timeout for LLM calls
         )
 
         content = response.choices[0].message.content
@@ -1487,6 +1644,15 @@ async def call_sales_agent(messages: List[Dict], config: Dict, lead_context: Dic
         # Validate and sanitize LLM output
         return validate_llm_output(result, current_stage)
 
+    except asyncio.TimeoutError:
+        logger.error("LLM call timed out after 45 seconds")
+        return {
+            "reply_text": "I apologize, I'm experiencing delays. Please try again in a moment.",
+            "sales_stage": current_stage,
+            "hotness": "warm",
+            "score": 50,
+            "fields_collected": {}
+        }
     except json.JSONDecodeError as e:
         logger.error(f"JSON parse error: {e}")
         return {
@@ -1526,7 +1692,23 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
         if not text:
             logger.debug("No text in message, ignoring")
             return {"ok": True}
-        
+
+        # CRITICAL: Message length validation to prevent DoS and cost explosion
+        MAX_MESSAGE_LENGTH = 4000
+        if len(text) > MAX_MESSAGE_LENGTH:
+            logger.warning(f"Message too long ({len(text)} chars), truncating to {MAX_MESSAGE_LENGTH}")
+            text = text[:MAX_MESSAGE_LENGTH] + "..."
+            # Update message with truncated text
+            message["text"] = text
+
+        # CRITICAL: Rate limiting to prevent flooding
+        user_id = str(message.get("from", {}).get("id", "unknown"))
+        if not message_rate_limiter.is_allowed(user_id):
+            wait_time = message_rate_limiter.get_wait_time(user_id)
+            logger.warning(f"Rate limit exceeded for user {user_id}, wait {wait_time}s")
+            # Don't process, but return OK to Telegram
+            return {"ok": True}
+
         # Get the bot that received this message
         # We need to identify which bot this came from - Telegram sends bot_id in the update
         # But since we don't have that, we check all active bots
@@ -1715,15 +1897,21 @@ async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Op
             new_fields = {}
 
         # Only update non-null values
+        # HIGH: Fix merge logic - distinguish between None (not provided) and empty string/zero (explicit value)
         merged_fields = {**existing_fields}
         for k, v in new_fields.items():
-            if v:
+            if v is not None:  # Allow empty strings and zeros, but not None
                 merged_fields[k] = v
 
-        # Validate sales_stage before saving
-        sales_stage = llm_result.get("sales_stage", "awareness")
-        if sales_stage not in VALID_SALES_STAGES:
-            sales_stage = existing_lead.get("sales_stage", "awareness") if existing_lead else "awareness"
+        # Validate sales_stage with transition rules
+        current_stage = existing_lead.get("sales_stage", "awareness") if existing_lead else "awareness"
+        new_stage = llm_result.get("sales_stage", "awareness")
+
+        if new_stage not in VALID_SALES_STAGES:
+            new_stage = current_stage
+        else:
+            # HIGH: Stage transition validation - prevent invalid jumps
+            new_stage = validate_stage_transition(current_stage, new_stage)
 
         # Validate hotness before saving
         hotness = llm_result.get("hotness", "warm")
@@ -1737,13 +1925,27 @@ async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Op
         except (TypeError, ValueError):
             score = 50
 
+        # HIGH: Apply business rules to override LLM hotness when appropriate
+        final_hotness = apply_hotness_rules(hotness, score, new_stage, merged_fields)
+
+        # HIGH: Build additional_notes to preserve sales intelligence
+        sales_intelligence = {}
+        if llm_result.get("stage_change_reason"):
+            sales_intelligence["stage_change_reason"] = llm_result["stage_change_reason"]
+        if llm_result.get("objection_detected"):
+            sales_intelligence["objection_detected"] = llm_result["objection_detected"]
+        if llm_result.get("closing_technique_used"):
+            sales_intelligence["closing_technique_used"] = llm_result["closing_technique_used"]
+
+        additional_notes = json.dumps(sales_intelligence) if sales_intelligence else None
+
         lead_data = {
             "tenant_id": tenant_id,
             "customer_id": customer['id'],
             "status": "new" if not existing_lead else existing_lead.get("status", "new"),
-            "sales_stage": sales_stage,
+            "sales_stage": new_stage,
             "llm_hotness_suggestion": hotness,
-            "final_hotness": hotness,
+            "final_hotness": final_hotness,
             "score": score,
             "intent": llm_result.get("intent"),
             "llm_explanation": llm_result.get("next_action"),
@@ -1753,6 +1955,7 @@ async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Op
             "customer_name": merged_fields.get("name"),
             "customer_phone": merged_fields.get("phone"),
             "fields_collected": merged_fields,
+            "additional_notes": additional_notes,
             "source_channel": "telegram",
             "last_interaction_at": now
         }

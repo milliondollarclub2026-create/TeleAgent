@@ -92,12 +92,13 @@ class Message(Base):
 # Leads table
 class Lead(Base):
     __tablename__ = 'leads'
-    
+
     id = Column(String(36), primary_key=True, default=generate_uuid)
     tenant_id = Column(String(36), ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False, index=True)
     customer_id = Column(String(36), ForeignKey('customers.id', ondelete='CASCADE'), nullable=False, index=True)
     crm_lead_id = Column(String(100))
     status = Column(String(20), default='new', index=True)
+    sales_stage = Column(String(50), default='awareness', index=True)  # Added: Track sales pipeline stage
     llm_hotness_suggestion = Column(String(20))
     final_hotness = Column(String(20), default='warm', index=True)
     score = Column(Integer, default=50)
@@ -109,8 +110,15 @@ class Lead(Base):
     budget = Column(String(100))
     timeline = Column(String(100))
     additional_notes = Column(Text)
+    fields_collected = Column(JSON, default=dict)  # Added: Store all collected customer fields
+    customer_name = Column(String(255))  # Added: Denormalized for quick access
+    customer_phone = Column(String(50))  # Added: Denormalized for quick access
     last_interaction_at = Column(DateTime(timezone=True), default=utc_now)
     created_at = Column(DateTime(timezone=True), default=utc_now)
+
+    __table_args__ = (
+        Index('ix_leads_tenant_customer', 'tenant_id', 'customer_id'),
+    )
 
 # Documents for RAG
 class Document(Base):
