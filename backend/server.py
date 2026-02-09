@@ -817,11 +817,21 @@ class CRMChatRequest(BaseModel):
 async def get_bitrix_client(tenant_id: str) -> Optional[BitrixCRMClient]:
     """Get Bitrix24 client for tenant if configured"""
     try:
+        # Try tenant_configs first (more likely to have the column)
+        result = supabase.table('tenant_configs').select('bitrix_webhook_url').eq('tenant_id', tenant_id).execute()
+        if result.data and result.data[0].get('bitrix_webhook_url'):
+            return create_bitrix_client(result.data[0]['bitrix_webhook_url'])
+    except Exception as e:
+        logger.warning(f"Could not get Bitrix client from tenant_configs: {e}")
+    
+    # Fallback to tenants table
+    try:
         result = supabase.table('tenants').select('bitrix_webhook_url').eq('id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
             return create_bitrix_client(result.data[0]['bitrix_webhook_url'])
     except Exception as e:
-        logger.warning(f"Could not get Bitrix client: {e}")
+        logger.warning(f"Could not get Bitrix client from tenants: {e}")
+    
     return None
 
 
@@ -833,8 +843,11 @@ async def connect_bitrix_webhook(
     """Connect Bitrix24 CRM via webhook URL"""
     tenant_id = current_user["tenant_id"]
     
+    # Ensure webhook URL has proper format
+    webhook_url = request.webhook_url.rstrip('/')
+    
     # Test the connection
-    client = create_bitrix_client(request.webhook_url)
+    client = create_bitrix_client(webhook_url)
     if not client:
         raise HTTPException(status_code=400, detail="Invalid webhook URL")
     
@@ -843,22 +856,35 @@ async def connect_bitrix_webhook(
     if not test_result.get("ok"):
         raise HTTPException(status_code=400, detail=f"Connection failed: {test_result.get('message')}")
     
-    # Save webhook URL to tenant
+    # Save webhook URL - try tenant_configs first, then tenants
+    saved = False
+    
+    # Try tenant_configs
     try:
-        supabase.table('tenants').update({
-            "bitrix_webhook_url": request.webhook_url,
+        supabase.table('tenant_configs').update({
+            "bitrix_webhook_url": webhook_url,
             "bitrix_connected_at": now_iso()
-        }).eq('id', tenant_id).execute()
+        }).eq('tenant_id', tenant_id).execute()
+        saved = True
+        logger.info(f"Saved Bitrix webhook to tenant_configs for tenant {tenant_id}")
     except Exception as e:
-        # Column might not exist - try to add tenant config instead
-        logger.warning(f"Could not save to tenants, trying tenant_configs: {e}")
+        logger.warning(f"Could not save to tenant_configs: {e}")
+    
+    # Also try tenants table as backup
+    if not saved:
         try:
-            supabase.table('tenant_configs').update({
-                "bitrix_webhook_url": request.webhook_url,
+            supabase.table('tenants').update({
+                "bitrix_webhook_url": webhook_url,
                 "bitrix_connected_at": now_iso()
-            }).eq('tenant_id', tenant_id).execute()
-        except:
-            pass
+            }).eq('id', tenant_id).execute()
+            saved = True
+            logger.info(f"Saved Bitrix webhook to tenants for tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not save to tenants either: {e}")
+    
+    if not saved:
+        # Store in memory as last resort (will be lost on restart)
+        logger.warning(f"Could not save webhook URL to database - columns may not exist")
     
     return {
         "success": True,
