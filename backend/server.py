@@ -985,24 +985,47 @@ async def get_bitrix_webhook_status(current_user: Dict = Depends(get_current_use
         return {
             "connected": True,
             "connected_at": _bitrix_webhooks_cache[tenant_id].get('connected_at'),
-            "portal_user": _bitrix_webhooks_cache[tenant_id].get('portal_user')
+            "portal_user": _bitrix_webhooks_cache[tenant_id].get('portal_user'),
+            "source": "cache"
         }
     
-    # Try tenant_configs
+    # Try tenant_configs table
     try:
-        result = supabase.table('tenant_configs').select('bitrix_webhook_url').eq('tenant_id', tenant_id).execute()
+        result = supabase.table('tenant_configs').select('bitrix_webhook_url, bitrix_connected_at').eq('tenant_id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
-            return {"connected": True, "connected_at": None}
-    except:
-        pass
+            webhook_url = result.data[0]['bitrix_webhook_url']
+            connected_at = result.data[0].get('bitrix_connected_at')
+            # Populate cache for future requests
+            _bitrix_webhooks_cache[tenant_id] = {
+                'webhook_url': webhook_url,
+                'connected_at': connected_at
+            }
+            return {
+                "connected": True,
+                "connected_at": connected_at,
+                "source": "database"
+            }
+    except Exception as e:
+        logger.debug(f"Could not check tenant_configs: {e}")
     
-    # Fallback to tenants
+    # Fallback to tenants table
     try:
-        result = supabase.table('tenants').select('bitrix_webhook_url').eq('id', tenant_id).execute()
+        result = supabase.table('tenants').select('bitrix_webhook_url, bitrix_connected_at').eq('id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
-            return {"connected": True, "connected_at": None}
-    except:
-        pass
+            webhook_url = result.data[0]['bitrix_webhook_url']
+            connected_at = result.data[0].get('bitrix_connected_at')
+            # Populate cache for future requests
+            _bitrix_webhooks_cache[tenant_id] = {
+                'webhook_url': webhook_url,
+                'connected_at': connected_at
+            }
+            return {
+                "connected": True,
+                "connected_at": connected_at,
+                "source": "database"
+            }
+    except Exception as e:
+        logger.debug(f"Could not check tenants: {e}")
     
     return {"connected": False, "connected_at": None}
 
