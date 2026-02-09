@@ -151,7 +151,7 @@ export default function CRMChatPage() {
               You'll be able to ask questions about leads, deals, products, and analytics.
             </p>
             <Button
-              onClick={() => navigate('/connections')}
+              onClick={() => navigate('/app/connections')}
               className="bg-emerald-600 hover:bg-emerald-700"
             >
               <Database className="w-4 h-4 mr-2" />
