@@ -119,7 +119,7 @@ const Sidebar = () => {
             </div>
             <div className="space-y-0.5">
               {agentNavItems.map(({ path, icon: Icon, label, relative }) => {
-                const fullPath = relative ? `/agents/${currentAgentId}${path === 'dashboard' ? '' : `/${path}`}` : path;
+                const fullPath = relative ? `/app/agents/${currentAgentId}${path === 'dashboard' ? '' : `/${path}`}` : path;
                 
                 return (
                   <NavLink
