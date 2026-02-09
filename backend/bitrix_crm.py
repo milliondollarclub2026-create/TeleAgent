@@ -38,11 +38,15 @@ class BitrixCRMClient:
     
     async def _call(self, method: str, params: dict = None) -> dict:
         """Make REST API call to Bitrix24"""
-        url = f"{self.webhook_url}/{method}"
+        # Bitrix24 REST API expects method.json or method endpoint
+        url = f"{self.webhook_url}/{method}.json"
         
         try:
             async with httpx.AsyncClient(timeout=BITRIX_TIMEOUT) as client:
-                response = await client.post(url, json=params or {})
+                if params:
+                    response = await client.post(url, json=params)
+                else:
+                    response = await client.get(url)
                 
                 if response.status_code != 200:
                     logger.error(f"Bitrix24 API error: {response.status_code} - {response.text}")
