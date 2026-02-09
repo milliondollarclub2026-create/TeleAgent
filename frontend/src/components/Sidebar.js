@@ -40,9 +40,12 @@ const mainNavItems = [
 const agentNavItems = [
   { path: '', icon: LayoutDashboard, label: 'Dashboard', relative: true },
   { path: '/settings', icon: Settings, label: 'Settings', relative: true },
-  { path: '/test-chat', icon: MessageSquare, label: 'Test Chat', relative: true },
-  { path: '/knowledge', icon: FileText, label: 'Knowledge', relative: true },
+  { path: '/knowledge', icon: FileText, label: 'Knowledge Base', relative: true },
   { path: '/connections', icon: Plug, label: 'Connections', relative: true },
+];
+
+const chatNavItems = [
+  { path: '/test-chat', icon: MessageSquare, label: 'Test Bot', relative: true },
   { path: '/crm-chat', icon: MessageCircle, label: 'CRM Chat', relative: true },
 ];
 
@@ -139,45 +142,87 @@ const Sidebar = () => {
 
         {/* Agent Context Nav */}
         {isInAgentContext && (
-          <div className="mt-4 pt-4 border-t border-slate-100">
-            {!collapsed && (
-              <p className="px-2.5 mb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                Agent
-              </p>
-            )}
+          <>
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              {!collapsed && (
+                <p className="px-2.5 mb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Agent
+                </p>
+              )}
 
-            <div className="space-y-0.5">
-              {agentNavItems.map(({ path, icon: Icon, label, relative }) => {
-                const fullPath = relative ? `/app/agents/${currentAgentId}${path}` : path;
+              <div className="space-y-0.5">
+                {agentNavItems.map(({ path, icon: Icon, label, relative }) => {
+                  const fullPath = relative ? `/app/agents/${currentAgentId}${path}` : path;
 
-                return (
-                  <NavLink
-                    key={path || 'dashboard'}
-                    to={fullPath}
-                    end={path === ''}
-                    onClick={() => setMobileOpen(false)}
-                    title={collapsed ? label : undefined}
-                    className={({ isActive }) =>
-                      `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition-all duration-150 group relative ${
-                        isActive
-                          ? 'bg-slate-100 text-slate-900'
-                          : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
-                      } ${collapsed ? 'justify-center' : ''}`
-                    }
-                    data-testid={`nav-agent-${label.toLowerCase().replace(' ', '-')}`}
-                  >
-                    <Icon className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.75} />
-                    {!collapsed && <span>{label}</span>}
-                    {collapsed && (
-                      <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg pointer-events-none">
-                        {label}
-                      </div>
-                    )}
-                  </NavLink>
-                );
-              })}
+                  return (
+                    <NavLink
+                      key={path || 'dashboard'}
+                      to={fullPath}
+                      end={path === ''}
+                      onClick={() => setMobileOpen(false)}
+                      title={collapsed ? label : undefined}
+                      className={({ isActive }) =>
+                        `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition-all duration-150 group relative ${
+                          isActive
+                            ? 'bg-slate-100 text-slate-900'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                        } ${collapsed ? 'justify-center' : ''}`
+                      }
+                      data-testid={`nav-agent-${label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Icon className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.75} />
+                      {!collapsed && <span>{label}</span>}
+                      {collapsed && (
+                        <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg pointer-events-none">
+                          {label}
+                        </div>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+
+            {/* Chats Category */}
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              {!collapsed && (
+                <p className="px-2.5 mb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Chats
+                </p>
+              )}
+
+              <div className="space-y-0.5">
+                {chatNavItems.map(({ path, icon: Icon, label, relative }) => {
+                  const fullPath = relative ? `/app/agents/${currentAgentId}${path}` : path;
+
+                  return (
+                    <NavLink
+                      key={path}
+                      to={fullPath}
+                      onClick={() => setMobileOpen(false)}
+                      title={collapsed ? label : undefined}
+                      className={({ isActive }) =>
+                        `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition-all duration-150 group relative ${
+                          isActive
+                            ? 'bg-slate-100 text-slate-900'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                        } ${collapsed ? 'justify-center' : ''}`
+                      }
+                      data-testid={`nav-chat-${label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Icon className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.75} />
+                      {!collapsed && <span>{label}</span>}
+                      {collapsed && (
+                        <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg pointer-events-none">
+                          {label}
+                        </div>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          </>
         )}
       </nav>
 

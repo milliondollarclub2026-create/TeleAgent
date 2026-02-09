@@ -1,75 +1,72 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Badge } from '../components/ui/badge';
-import { 
-  Bot, 
-  Link2, 
-  FileSpreadsheet, 
-  Check, 
-  X, 
+import {
+  Bot,
+  Link2,
+  Check,
   Loader2,
-  ExternalLink,
-  AlertTriangle,
-  Zap,
   Eye,
-  EyeOff
+  EyeOff,
+  ChevronDown,
+  ChevronUp,
+  CircleDot,
+  Info
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '../components/ui/alert-dialog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const ConnectionCard = ({ 
-  title, 
-  description, 
-  icon: Icon, 
-  connected, 
-  status,
-  iconBg,
-  children,
-  testId
-}) => (
-  <Card className="bg-white border-slate-200 shadow-sm" data-testid={testId}>
-    <CardHeader className="pb-4">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-            connected 
-              ? 'bg-emerald-100' 
-              : iconBg || 'bg-slate-100'
-          }`}>
-            <Icon className={`w-5 h-5 ${connected ? 'text-emerald-600' : 'text-slate-500'}`} strokeWidth={1.75} />
-          </div>
-          <div>
-            <CardTitle className="text-base font-semibold font-['Plus_Jakarta_Sans'] text-slate-900">{title}</CardTitle>
-            <CardDescription className="text-sm text-slate-500 mt-0.5">{description}</CardDescription>
-          </div>
-        </div>
-        <Badge 
-          variant="outline" 
-          className={connected 
-            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-            : 'bg-slate-50 text-slate-500 border-slate-200'
-          }
-        >
-          {connected ? (
-            <><Check className="w-3 h-3 mr-1" strokeWidth={2} /> Connected</>
-          ) : (
-            <><X className="w-3 h-3 mr-1" strokeWidth={2} /> Not Connected</>
-          )}
-        </Badge>
-      </div>
-      {status && (
-        <p className="text-sm text-emerald-600 font-medium mt-2">{status}</p>
-      )}
-    </CardHeader>
-    <CardContent>{children}</CardContent>
-  </Card>
+// Status indicator component
+const StatusDot = ({ connected }) => (
+  <div className="flex items-center gap-2">
+    <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+    <span className={`text-xs font-medium ${connected ? 'text-emerald-600' : 'text-slate-500'}`}>
+      {connected ? 'Connected' : 'Not connected'}
+    </span>
+  </div>
 );
+
+// Help section component (controlled by parent)
+const HelpSection = ({ children, isOpen, onToggle, title = "How to get this" }) => {
+  return (
+    <div className="border-t border-slate-100 mt-4 pt-4">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700 transition-colors w-full"
+      >
+        <Info className="w-3.5 h-3.5" strokeWidth={1.75} />
+        <span>{title}</span>
+        {isOpen ? (
+          <ChevronUp className="w-3.5 h-3.5 ml-auto" strokeWidth={1.75} />
+        ) : (
+          <ChevronDown className="w-3.5 h-3.5 ml-auto" strokeWidth={1.75} />
+        )}
+      </button>
+      {isOpen && (
+        <div className="mt-3 text-xs text-slate-500 leading-relaxed">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const ConnectionsPage = () => {
   const [integrations, setIntegrations] = useState(null);
@@ -77,14 +74,16 @@ const ConnectionsPage = () => {
   const [botToken, setBotToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [connectingBot, setConnectingBot] = useState(false);
-  const [sheetId, setSheetId] = useState('');
-  
+
   // Bitrix24 state
   const [bitrixWebhookUrl, setBitrixWebhookUrl] = useState('');
   const [showBitrixUrl, setShowBitrixUrl] = useState(false);
   const [connectingBitrix, setConnectingBitrix] = useState(false);
   const [testingBitrix, setTestingBitrix] = useState(false);
   const [bitrixStatus, setBitrixStatus] = useState({ connected: false });
+
+  // Shared help section state
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     fetchIntegrations();
@@ -102,7 +101,7 @@ const ConnectionsPage = () => {
       setLoading(false);
     }
   };
-  
+
   const fetchBitrixStatus = async () => {
     try {
       const response = await axios.get(`${API}/bitrix-crm/status`);
@@ -142,7 +141,7 @@ const ConnectionsPage = () => {
       toast.error('Failed to disconnect bot');
     }
   };
-  
+
   const connectBitrix = async () => {
     if (!bitrixWebhookUrl.trim()) {
       toast.error('Please enter your Bitrix24 webhook URL');
@@ -163,7 +162,7 @@ const ConnectionsPage = () => {
       setConnectingBitrix(false);
     }
   };
-  
+
   const testBitrixConnection = async () => {
     setTestingBitrix(true);
     try {
@@ -179,7 +178,7 @@ const ConnectionsPage = () => {
       setTestingBitrix(false);
     }
   };
-  
+
   const disconnectBitrix = async () => {
     try {
       await axios.post(`${API}/bitrix-crm/disconnect`);
@@ -192,259 +191,299 @@ const ConnectionsPage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" strokeWidth={2} />
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-3">
+        <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-white" strokeWidth={2} />
+        </div>
+        <p className="text-[13px] text-slate-400">Loading connections...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 animate-fade-in" data-testid="connections-page">
+    <div className="space-y-6 animate-fade-in" data-testid="connections-page">
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900">Connections</h1>
-        <p className="text-slate-500 text-sm mt-0.5">Manage your integrations with external services</p>
+        <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Connections</h1>
+        <p className="text-[13px] text-slate-500 mt-0.5">Manage your integrations with external services</p>
       </div>
 
-      <div className="grid gap-4">
-        {/* Telegram Bot */}
-        <ConnectionCard
-          title="Telegram Bot"
-          description="Connect your Telegram bot to receive and respond to messages"
-          icon={Bot}
-          iconBg="bg-blue-100"
-          connected={integrations?.telegram?.connected}
-          status={integrations?.telegram?.bot_username 
-            ? `@${integrations.telegram.bot_username}` 
-            : null}
-          testId="telegram-connection"
-        >
-          {integrations?.telegram?.connected ? (
-            <div className="space-y-3">
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-                <div className="flex items-center gap-2 text-emerald-700">
-                  <Zap className="w-4 h-4" strokeWidth={2} />
-                  <span className="font-medium text-sm">Bot @{integrations.telegram.bot_username} connected</span>
-                </div>
-                {integrations.telegram.last_webhook_at && (
-                  <p className="text-xs text-slate-500 mt-1.5">
-                    Last webhook: {new Date(integrations.telegram.last_webhook_at).toLocaleString()}
-                  </p>
-                )}
-              </div>
+      {/* Connection Cards Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-              {/* Local development warning */}
-              {window.location.hostname === 'localhost' && (
-                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
-                  <div className="flex items-start gap-2 text-amber-800">
-                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" strokeWidth={2} />
-                    <div className="text-sm">
-                      <p className="font-medium">Local Development Mode</p>
-                      <p className="text-amber-700 text-xs mt-1">
-                        Telegram webhooks require a public URL. For local testing:
+        {/* Telegram Bot Card */}
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="telegram-connection">
+          <div className="p-5">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 text-sm">Telegram Bot</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Receive and respond to messages</p>
+                </div>
+              </div>
+              <StatusDot connected={integrations?.telegram?.connected} />
+            </div>
+
+            {/* Content */}
+            {integrations?.telegram?.connected ? (
+              <div className="space-y-4">
+                {/* Connected State */}
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-emerald-600" strokeWidth={2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">
+                      @{integrations.telegram.bot_username}
+                    </p>
+                    {integrations.telegram.last_webhook_at && (
+                      <p className="text-xs text-slate-500">
+                        Last activity: {new Date(integrations.telegram.last_webhook_at).toLocaleDateString()}
                       </p>
-                      <ul className="text-amber-700 text-xs mt-1 space-y-0.5 list-disc list-inside">
-                        <li>Use the <strong>Test Chat</strong> feature in the sidebar</li>
-                        <li>Or use <a href="https://ngrok.com" target="_blank" rel="noopener noreferrer" className="underline">ngrok</a> to expose your local server</li>
-                      </ul>
-                    </div>
+                    )}
                   </div>
                 </div>
-              )}
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                onClick={disconnectTelegramBot}
-                data-testid="disconnect-bot-btn"
-              >
-                Disconnect Bot
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="botToken" className="text-slate-700 text-sm">Bot Token</Label>
-                <div className="relative">
-                  <Input
-                    id="botToken"
-                    type={showToken ? "text" : "password"}
-                    placeholder="Enter your bot token from @BotFather"
-                    value={botToken}
-                    onChange={(e) => setBotToken(e.target.value)}
-                    className="pr-10 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
-                    data-testid="bot-token-input"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowToken(!showToken)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showToken ? (
-                      <EyeOff className="w-4 h-4" strokeWidth={1.75} />
-                    ) : (
-                      <Eye className="w-4 h-4" strokeWidth={1.75} />
-                    )}
-                  </button>
-                </div>
-                <p className="text-xs text-slate-500">
-                  Get your token from{' '}
-                  <a 
-                    href="https://t.me/BotFather" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-emerald-600 hover:underline"
-                  >
-                    @BotFather <ExternalLink className="w-3 h-3 inline" strokeWidth={1.75} />
-                  </a>
-                </p>
-              </div>
-              <Button 
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700"
-                onClick={connectTelegramBot}
-                disabled={connectingBot}
-                data-testid="connect-bot-btn"
-              >
-                {connectingBot && <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={2} />}
-                Connect Bot
-              </Button>
-            </div>
-          )}
-        </ConnectionCard>
-
-        {/* Bitrix24 CRM */}
-        <ConnectionCard
-          title="Bitrix24 CRM"
-          description="Sync leads and contacts with your Bitrix24 account"
-          icon={Link2}
-          iconBg="bg-indigo-100"
-          connected={bitrixStatus?.connected}
-          status={bitrixStatus?.connected ? 'CRM Connected' : null}
-          testId="bitrix-connection"
-        >
-          {bitrixStatus?.connected ? (
-            <div className="space-y-3">
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-                <div className="flex items-center gap-2 text-emerald-700">
-                  <Zap className="w-4 h-4" strokeWidth={2} />
-                  <span className="font-medium text-sm">Bitrix24 CRM is connected</span>
-                </div>
-                {bitrixStatus.connected_at && (
-                  <p className="text-xs text-slate-500 mt-1.5">
-                    Connected: {new Date(bitrixStatus.connected_at).toLocaleString()}
+                {/* Local Development Notice */}
+                {window.location.hostname === 'localhost' && (
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    <span className="font-medium text-slate-700">Local mode:</span> Use Test Bot in the sidebar or{' '}
+                    <a href="https://ngrok.com" target="_blank" rel="noopener noreferrer" className="text-slate-700 underline underline-offset-2">
+                      ngrok
+                    </a>{' '}
+                    for live webhooks.
                   </p>
                 )}
+
+                {/* Disconnect Button */}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs text-red-600 border-slate-200 hover:bg-red-50 hover:border-red-200"
+                      data-testid="disconnect-bot-btn"
+                    >
+                      Disconnect Bot
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Disconnect Telegram Bot?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Your bot will stop receiving messages. You can reconnect anytime.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-red-600 hover:bg-red-700"
+                        onClick={disconnectTelegramBot}
+                      >
+                        Disconnect
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  onClick={testBitrixConnection}
-                  disabled={testingBitrix}
-                  data-testid="test-bitrix-btn"
-                >
-                  {testingBitrix && <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={2} />}
-                  Test Connection
-                </Button>
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                  onClick={disconnectBitrix}
-                  data-testid="disconnect-bitrix-btn"
-                >
-                  Disconnect
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
-                <div className="flex items-start gap-2 text-blue-800">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" strokeWidth={2} />
-                  <div className="text-sm">
-                    <p className="font-medium">How to get your webhook URL:</p>
-                    <ol className="mt-1 text-blue-700 text-xs space-y-0.5 list-decimal list-inside">
-                      <li>Go to your Bitrix24 portal</li>
-                      <li>Navigate to Developer Resources → Inbound webhooks</li>
-                      <li>Create webhook with CRM permissions</li>
-                      <li>Copy the webhook URL</li>
-                    </ol>
+            ) : (
+              <div className="space-y-4">
+                {/* Token Input */}
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-xs font-medium">Bot Token</Label>
+                  <div className="relative">
+                    <Input
+                      type={showToken ? "text" : "password"}
+                      placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                      value={botToken}
+                      onChange={(e) => setBotToken(e.target.value)}
+                      className="h-9 pr-10 text-[13px] border-slate-200 focus:border-slate-400 focus:ring-slate-400"
+                      data-testid="bot-token-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(!showToken)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
+
+                {/* Connect Button */}
+                <Button
+                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  onClick={connectTelegramBot}
+                  disabled={connectingBot}
+                  data-testid="connect-bot-btn"
+                >
+                  {connectingBot && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Connect Bot
+                </Button>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="bitrixWebhook" className="text-slate-700 text-sm">Webhook URL</Label>
-                <div className="relative">
-                  <Input
-                    id="bitrixWebhook"
-                    type={showBitrixUrl ? "text" : "password"}
-                    placeholder="https://your-portal.bitrix24.kz/rest/1/abc123xyz/"
-                    value={bitrixWebhookUrl}
-                    onChange={(e) => setBitrixWebhookUrl(e.target.value)}
-                    className="pr-10 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
-                    data-testid="bitrix-webhook-input"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowBitrixUrl(!showBitrixUrl)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  >
-                    {showBitrixUrl ? (
-                      <EyeOff className="w-4 h-4" strokeWidth={1.75} />
-                    ) : (
-                      <Eye className="w-4 h-4" strokeWidth={1.75} />
-                    )}
-                  </button>
+            )}
+
+            {/* Help Section - Always visible */}
+            <HelpSection isOpen={showHelp} onToggle={() => setShowHelp(!showHelp)} title="Setup instructions">
+              <ol className="space-y-1.5 list-decimal list-inside">
+                <li>Open <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="text-slate-700 underline underline-offset-2">@BotFather</a> in Telegram</li>
+                <li>Send <code className="px-1 py-0.5 bg-slate-100 rounded text-[11px]">/newbot</code> to create a bot</li>
+                <li>Copy the API token provided</li>
+                <li>Paste it above and connect</li>
+              </ol>
+            </HelpSection>
+          </div>
+        </Card>
+
+        {/* Bitrix24 CRM Card */}
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="bitrix-connection">
+          <div className="p-5">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                  <Link2 className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 text-sm">Bitrix24 CRM</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Sync leads and contacts</p>
                 </div>
               </div>
-              <Button 
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700"
-                onClick={connectBitrix}
-                disabled={connectingBitrix}
-                data-testid="connect-bitrix-btn"
-              >
-                {connectingBitrix && <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={2} />}
-                <Link2 className="w-4 h-4 mr-2" strokeWidth={1.75} />
-                Connect Bitrix24
-              </Button>
+              <StatusDot connected={bitrixStatus?.connected} />
             </div>
-          )}
-        </ConnectionCard>
 
-        {/* Google Sheets */}
-        <ConnectionCard
-          title="Google Sheets"
-          description="Fallback option to store leads in a Google Sheet"
-          icon={FileSpreadsheet}
-          iconBg="bg-green-100"
-          connected={integrations?.google_sheets?.connected}
-          testId="sheets-connection"
-        >
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="sheetId" className="text-slate-700 text-sm">Sheet ID</Label>
-              <Input
-                id="sheetId"
-                placeholder="Enter your Google Sheet ID"
-                value={sheetId}
-                onChange={(e) => setSheetId(e.target.value)}
-                disabled
-                className="h-9 border-slate-200"
-                data-testid="sheet-id-input"
-              />
-              <p className="text-xs text-slate-500">
-                Find the Sheet ID in your Google Sheets URL
-              </p>
-            </div>
-            <Button variant="outline" size="sm" disabled className="text-slate-500" data-testid="connect-sheets-btn">
-              <FileSpreadsheet className="w-4 h-4 mr-2" strokeWidth={1.75} />
-              Connect Sheet (Coming Soon)
-            </Button>
+            {/* Content */}
+            {bitrixStatus?.connected ? (
+              <div className="space-y-4">
+                {/* Connected State */}
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-emerald-600" strokeWidth={2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900">CRM Connected</p>
+                    {bitrixStatus.connected_at && (
+                      <p className="text-xs text-slate-500">
+                        Since {new Date(bitrixStatus.connected_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs border-slate-200"
+                    onClick={testBitrixConnection}
+                    disabled={testingBitrix}
+                    data-testid="test-bitrix-btn"
+                  >
+                    {testingBitrix && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+                    Test Connection
+                  </Button>
+
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs text-red-600 border-slate-200 hover:bg-red-50 hover:border-red-200"
+                        data-testid="disconnect-bitrix-btn"
+                      >
+                        Disconnect
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Disconnect Bitrix24?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Lead syncing will stop. You can reconnect anytime.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-red-600 hover:bg-red-700"
+                          onClick={disconnectBitrix}
+                        >
+                          Disconnect
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Webhook Input */}
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-xs font-medium">Webhook URL</Label>
+                  <div className="relative">
+                    <Input
+                      type={showBitrixUrl ? "text" : "password"}
+                      placeholder="https://your-portal.bitrix24.com/rest/1/xxx/"
+                      value={bitrixWebhookUrl}
+                      onChange={(e) => setBitrixWebhookUrl(e.target.value)}
+                      className="h-9 pr-10 text-[13px] border-slate-200 focus:border-slate-400 focus:ring-slate-400"
+                      data-testid="bitrix-webhook-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowBitrixUrl(!showBitrixUrl)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showBitrixUrl ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Connect Button */}
+                <Button
+                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  onClick={connectBitrix}
+                  disabled={connectingBitrix}
+                  data-testid="connect-bitrix-btn"
+                >
+                  {connectingBitrix && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Connect Bitrix24
+                </Button>
+              </div>
+            )}
+
+            {/* Help Section - Always visible */}
+            <HelpSection isOpen={showHelp} onToggle={() => setShowHelp(!showHelp)} title="Setup instructions">
+              <p className="text-amber-600 font-medium mb-2">Requires admin privileges on Bitrix24</p>
+              <ol className="space-y-1.5 list-decimal list-inside">
+                <li>Go to <span className="font-medium text-slate-700">Applications</span> → <span className="font-medium text-slate-700">Developer resources</span> → <span className="font-medium text-slate-700">Other</span> → <span className="font-medium text-slate-700">Inbound webhook</span></li>
+                <li>Click <span className="font-medium text-slate-700">Inbound webhook</span> → <span className="font-medium text-slate-700">Add</span> and name it (e.g., "LeadRelay Integration")</li>
+                <li>In <span className="font-medium text-slate-700">Setting up rights</span>, click <span className="font-medium text-slate-700">+ Select</span> and enable: <span className="font-medium text-slate-700">CRM, Lists, Users, Tasks</span></li>
+                <li>Click <span className="font-medium text-slate-700">Save</span> and copy the webhook URL</li>
+                <li>Paste the URL above and click Connect</li>
+              </ol>
+            </HelpSection>
           </div>
-        </ConnectionCard>
+        </Card>
+
+      </div>
+
+      {/* Info Footer */}
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+          <CircleDot className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+        </div>
+        <div>
+          <h3 className="font-medium text-slate-900 text-sm">Connection Status</h3>
+          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+            Connected services sync automatically. Telegram messages trigger your AI agent,
+            and qualified leads are pushed to your CRM in real-time.
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -15,21 +15,32 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import {
-  Building2,
-  Bot,
-  MessageSquare,
   Save,
   Loader2,
-  Settings,
+  Building2,
+  MessageSquare,
   Globe,
-  Smile,
   Clock,
-  UserCheck
+  User,
+  Smile
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// Section Header Component - Clean, no colored backgrounds
+const SectionHeader = ({ icon: Icon, title, description }) => (
+  <div className="flex items-start gap-3 mb-5">
+    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+      <Icon className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+    </div>
+    <div>
+      <h3 className="text-[14px] font-semibold text-slate-900">{title}</h3>
+      {description && <p className="text-[12px] text-slate-500 mt-0.5">{description}</p>}
+    </div>
+  </div>
+);
 
 const AgentSettingsPage = () => {
   const { agentId } = useParams();
@@ -49,7 +60,11 @@ const AgentSettingsPage = () => {
     closing_message: '',
     min_response_delay: 2,
     max_messages_per_minute: 10,
+    collect_name: true,
     collect_phone: true,
+    collect_product: true,
+    collect_budget: false,
+    collect_location: false,
     vertical: 'default'
   });
 
@@ -102,21 +117,25 @@ const AgentSettingsPage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" strokeWidth={2} />
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-3">
+        <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-white" strokeWidth={2} />
+        </div>
+        <p className="text-[13px] text-slate-400">Loading settings...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 animate-fade-in max-w-4xl" data-testid="agent-settings-page">
+    <div className="space-y-6" data-testid="agent-settings-page">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900">Agent Settings</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Configure your AI agent's behavior and personality</p>
+          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Settings</h1>
+          <p className="text-[13px] text-slate-500 mt-0.5">Configure your AI agent's behavior and personality</p>
         </div>
         <Button
-          className="bg-emerald-600 hover:bg-emerald-700"
+          className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
           onClick={saveConfig}
           disabled={saving}
           data-testid="save-settings-btn"
@@ -130,280 +149,311 @@ const AgentSettingsPage = () => {
         </Button>
       </div>
 
-      <div className="grid gap-5">
-        {/* Business Information */}
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-emerald-600" strokeWidth={1.75} />
-              </div>
-              <div>
-                <CardTitle className="text-base font-semibold text-slate-900">Business Information</CardTitle>
-                <CardDescription className="text-sm text-slate-500">Tell the AI about your business</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-slate-700 text-sm">Business Name</Label>
-                <Input
-                  value={config.business_name || ''}
-                  onChange={(e) => handleChange('business_name', e.target.value)}
-                  placeholder="Your Company Name"
-                  className="h-10 border-slate-200"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-slate-700 text-sm">Industry</Label>
-                <Select value={config.vertical} onValueChange={(v) => handleChange('vertical', v)}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">General Business</SelectItem>
-                    <SelectItem value="clinic">Medical / Clinic</SelectItem>
-                    <SelectItem value="education">Education</SelectItem>
-                    <SelectItem value="retail">Retail / E-commerce</SelectItem>
-                    <SelectItem value="services">Professional Services</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-slate-700 text-sm">Business Description</Label>
-              <Textarea
-                value={config.business_description || ''}
-                onChange={(e) => handleChange('business_description', e.target.value)}
-                placeholder="Describe what your business does..."
-                rows={3}
-                className="border-slate-200 resize-none"
+      {/* Main Content - 2 Column Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Left Column */}
+        <div className="space-y-5">
+          {/* Business Information */}
+          <Card className="bg-white border-slate-200/80 shadow-sm">
+            <CardContent className="p-5">
+              <SectionHeader
+                icon={Building2}
+                title="Business Information"
+                description="Tell the AI about your business"
               />
-            </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-700 text-[12px] font-medium">Business Name</Label>
+                    <Input
+                      value={config.business_name || ''}
+                      onChange={(e) => handleChange('business_name', e.target.value)}
+                      placeholder="Your Company Name"
+                      className="h-9 text-[13px] border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-700 text-[12px] font-medium">Industry</Label>
+                    <Select value={config.vertical} onValueChange={(v) => handleChange('vertical', v)}>
+                      <SelectTrigger className="h-9 text-[13px] border-slate-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">General Business</SelectItem>
+                        <SelectItem value="clinic">Medical / Clinic</SelectItem>
+                        <SelectItem value="education">Education</SelectItem>
+                        <SelectItem value="retail">Retail / E-commerce</SelectItem>
+                        <SelectItem value="services">Professional Services</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-slate-700 text-sm">Products / Services</Label>
-              <Textarea
-                value={config.products_services || ''}
-                onChange={(e) => handleChange('products_services', e.target.value)}
-                placeholder="List your main products or services with pricing..."
-                rows={3}
-                className="border-slate-200 resize-none"
-              />
-            </div>
-          </CardContent>
-        </Card>
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-[12px] font-medium">Business Description</Label>
+                  <Textarea
+                    value={config.business_description || ''}
+                    onChange={(e) => handleChange('business_description', e.target.value)}
+                    placeholder="Describe what your business does..."
+                    rows={3}
+                    className="border-slate-200 resize-none text-[13px]"
+                  />
+                </div>
 
-        {/* Communication Style */}
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                <Bot className="w-5 h-5 text-blue-600" strokeWidth={1.75} />
-              </div>
-              <div>
-                <CardTitle className="text-base font-semibold text-slate-900">Communication Style</CardTitle>
-                <CardDescription className="text-sm text-slate-500">Define how the AI communicates</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-slate-700 text-sm">Tone</Label>
-                <Select value={config.agent_tone} onValueChange={(v) => handleChange('agent_tone', v)}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="professional">Professional</SelectItem>
-                    <SelectItem value="friendly_professional">Friendly Professional</SelectItem>
-                    <SelectItem value="casual">Casual</SelectItem>
-                    <SelectItem value="luxury">Luxury/Premium</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-slate-700 text-sm">Response Length</Label>
-                <Select value={config.response_length} onValueChange={(v) => handleChange('response_length', v)}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="concise">Concise</SelectItem>
-                    <SelectItem value="balanced">Balanced</SelectItem>
-                    <SelectItem value="detailed">Detailed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-slate-700 text-sm">Emoji Usage</Label>
-                <Select value={config.emoji_usage} onValueChange={(v) => handleChange('emoji_usage', v)}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="never">Never</SelectItem>
-                    <SelectItem value="minimal">Minimal</SelectItem>
-                    <SelectItem value="moderate">Moderate</SelectItem>
-                    <SelectItem value="frequent">Frequent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-slate-700 text-sm">Response Delay</Label>
-                <Select
-                  value={String(config.min_response_delay)}
-                  onValueChange={(v) => handleChange('min_response_delay', parseInt(v))}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">Instant</SelectItem>
-                    <SelectItem value="1">1 second</SelectItem>
-                    <SelectItem value="2">2 seconds</SelectItem>
-                    <SelectItem value="3">3 seconds</SelectItem>
-                    <SelectItem value="5">5 seconds</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Languages */}
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
-                <Globe className="w-5 h-5 text-violet-600" strokeWidth={1.75} />
-              </div>
-              <div>
-                <CardTitle className="text-base font-semibold text-slate-900">Languages</CardTitle>
-                <CardDescription className="text-sm text-slate-500">Configure language preferences</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-slate-700 text-sm">Primary Language</Label>
-                <Select
-                  value={config.primary_language}
-                  onValueChange={(v) => {
-                    handleChange('primary_language', v);
-                    handleChange('secondary_languages', config.secondary_languages.filter(l => l !== v));
-                  }}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="uz">Uzbek</SelectItem>
-                    <SelectItem value="ru">Russian</SelectItem>
-                    <SelectItem value="en">English</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-slate-700 text-sm">Additional Languages</Label>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {[
-                    { code: 'uz', label: 'Uzbek' },
-                    { code: 'ru', label: 'Russian' },
-                    { code: 'en', label: 'English' }
-                  ].filter(lang => lang.code !== config.primary_language).map(lang => (
-                    <button
-                      key={lang.code}
-                      type="button"
-                      onClick={() => toggleSecondaryLanguage(lang.code)}
-                      className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                        config.secondary_languages.includes(lang.code)
-                          ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-500'
-                          : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:border-slate-300'
-                      }`}
-                    >
-                      {lang.label}
-                    </button>
-                  ))}
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-[12px] font-medium">Products / Services</Label>
+                  <Textarea
+                    value={config.products_services || ''}
+                    onChange={(e) => handleChange('products_services', e.target.value)}
+                    placeholder="List your main products or services with pricing..."
+                    rows={3}
+                    className="border-slate-200 resize-none text-[13px]"
+                  />
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Messages */}
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                <MessageSquare className="w-5 h-5 text-amber-600" strokeWidth={1.75} />
-              </div>
-              <div>
-                <CardTitle className="text-base font-semibold text-slate-900">Messages</CardTitle>
-                <CardDescription className="text-sm text-slate-500">Customize greeting and closing messages</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-slate-700 text-sm">Greeting Message</Label>
-              <Textarea
-                value={config.greeting_message || ''}
-                onChange={(e) => handleChange('greeting_message', e.target.value)}
-                placeholder="Hello! How can I help you today?"
-                rows={2}
-                className="border-slate-200 resize-none"
+          {/* Languages */}
+          <Card className="bg-white border-slate-200/80 shadow-sm">
+            <CardContent className="p-5">
+              <SectionHeader
+                icon={Globe}
+                title="Languages"
+                description="Configure language preferences"
               />
-              <p className="text-xs text-slate-500">Leave empty to auto-generate based on language</p>
-            </div>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-[12px] font-medium">Primary Language</Label>
+                  <Select
+                    value={config.primary_language}
+                    onValueChange={(v) => {
+                      handleChange('primary_language', v);
+                      handleChange('secondary_languages', config.secondary_languages.filter(l => l !== v));
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-[13px] border-slate-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="uz">Uzbek</SelectItem>
+                      <SelectItem value="ru">Russian</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-slate-700 text-sm">Closing Message</Label>
-              <Textarea
-                value={config.closing_message || ''}
-                onChange={(e) => handleChange('closing_message', e.target.value)}
-                placeholder="Great! I'll connect you with our team..."
-                rows={2}
-                className="border-slate-200 resize-none"
-              />
-            </div>
-          </CardContent>
-        </Card>
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-[12px] font-medium">Also Respond In</Label>
+                  <div className="flex gap-2">
+                    {[
+                      { code: 'uz', label: 'Uzbek' },
+                      { code: 'ru', label: 'Russian' },
+                      { code: 'en', label: 'English' }
+                    ].filter(lang => lang.code !== config.primary_language).map(lang => (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => toggleSecondaryLanguage(lang.code)}
+                        className={`flex-1 py-2 px-3 rounded-lg text-[12px] font-medium transition-all ${
+                          config.secondary_languages.includes(lang.code)
+                            ? 'bg-white text-slate-900 ring-1 ring-slate-900 shadow-sm'
+                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {lang.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Lead Collection */}
-        <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center">
-                <UserCheck className="w-5 h-5 text-rose-600" strokeWidth={1.75} />
-              </div>
-              <div>
-                <CardTitle className="text-base font-semibold text-slate-900">Lead Collection</CardTitle>
-                <CardDescription className="text-sm text-slate-500">What information to collect from customers</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-100">
-              <div>
-                <p className="font-medium text-slate-900 text-sm">Collect Phone Number</p>
-                <p className="text-xs text-slate-500">Ask customers for their phone number</p>
-              </div>
-              <Switch
-                checked={config.collect_phone}
-                onCheckedChange={(checked) => handleChange('collect_phone', checked)}
+          {/* Custom Messages */}
+          <Card className="bg-white border-slate-200/80 shadow-sm">
+            <CardContent className="p-5">
+              <SectionHeader
+                icon={MessageSquare}
+                title="Custom Messages"
+                description="Customize greeting and closing messages"
               />
-            </div>
-          </CardContent>
-        </Card>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-[12px] font-medium">Greeting Message</Label>
+                  <Textarea
+                    value={config.greeting_message || ''}
+                    onChange={(e) => handleChange('greeting_message', e.target.value)}
+                    placeholder="Hello! How can I help you today?"
+                    rows={2}
+                    className="border-slate-200 resize-none text-[13px]"
+                  />
+                  <p className="text-[11px] text-slate-400">Leave empty to auto-generate based on language</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-[12px] font-medium">Closing Message</Label>
+                  <Textarea
+                    value={config.closing_message || ''}
+                    onChange={(e) => handleChange('closing_message', e.target.value)}
+                    placeholder="Great! I'll connect you with our team..."
+                    rows={2}
+                    className="border-slate-200 resize-none text-[13px]"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column */}
+        <div className="space-y-5">
+          {/* Personality & Communication */}
+          <Card className="bg-white border-slate-200/80 shadow-sm">
+            <CardContent className="p-5">
+              <SectionHeader
+                icon={Smile}
+                title="Personality"
+                description="Define how the AI communicates"
+              />
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-700 text-[12px] font-medium">Tone</Label>
+                    <Select value={config.agent_tone} onValueChange={(v) => handleChange('agent_tone', v)}>
+                      <SelectTrigger className="h-9 text-[13px] border-slate-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="professional">Professional</SelectItem>
+                        <SelectItem value="friendly_professional">Friendly Professional</SelectItem>
+                        <SelectItem value="casual">Casual</SelectItem>
+                        <SelectItem value="luxury">Luxury / Premium</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-700 text-[12px] font-medium">Response Length</Label>
+                    <Select value={config.response_length} onValueChange={(v) => handleChange('response_length', v)}>
+                      <SelectTrigger className="h-9 text-[13px] border-slate-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="concise">Concise</SelectItem>
+                        <SelectItem value="balanced">Balanced</SelectItem>
+                        <SelectItem value="detailed">Detailed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-[12px] font-medium">Emoji Usage</Label>
+                  <div className="flex gap-2">
+                    {['never', 'minimal', 'moderate', 'frequent'].map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => handleChange('emoji_usage', level)}
+                        className={`flex-1 py-2 px-3 rounded-lg text-[12px] font-medium transition-all ${
+                          config.emoji_usage === level
+                            ? 'bg-slate-900 text-white'
+                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {level.charAt(0).toUpperCase() + level.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Response Timing */}
+          <Card className="bg-white border-slate-200/80 shadow-sm">
+            <CardContent className="p-5">
+              <SectionHeader
+                icon={Clock}
+                title="Response Timing"
+                description="Control response behavior"
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-[12px] font-medium">Response Delay</Label>
+                  <Select
+                    value={String(config.min_response_delay)}
+                    onValueChange={(v) => handleChange('min_response_delay', parseInt(v))}
+                  >
+                    <SelectTrigger className="h-9 text-[13px] border-slate-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Instant</SelectItem>
+                      <SelectItem value="1">1 second</SelectItem>
+                      <SelectItem value="2">2 seconds</SelectItem>
+                      <SelectItem value="3">3 seconds</SelectItem>
+                      <SelectItem value="5">5 seconds</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-[12px] font-medium">Rate Limit</Label>
+                  <Select
+                    value={String(config.max_messages_per_minute)}
+                    onValueChange={(v) => handleChange('max_messages_per_minute', parseInt(v))}
+                  >
+                    <SelectTrigger className="h-9 text-[13px] border-slate-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 per minute</SelectItem>
+                      <SelectItem value="10">10 per minute</SelectItem>
+                      <SelectItem value="20">20 per minute</SelectItem>
+                      <SelectItem value="0">Unlimited</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Data Collection */}
+          <Card className="bg-white border-slate-200/80 shadow-sm">
+            <CardContent className="p-5">
+              <SectionHeader
+                icon={User}
+                title="Data Collection"
+                description="What information to collect from customers"
+              />
+              <div className="space-y-1">
+                {[
+                  { key: 'collect_name', label: 'Customer Name', desc: 'Full name' },
+                  { key: 'collect_phone', label: 'Phone Number', desc: 'Contact number' },
+                  { key: 'collect_product', label: 'Product Interest', desc: 'What they want' },
+                  { key: 'collect_budget', label: 'Budget Range', desc: 'Price range' },
+                  { key: 'collect_location', label: 'Location', desc: 'Delivery address' },
+                ].map(({ key, label, desc }) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-slate-50 transition-colors -mx-1"
+                  >
+                    <div>
+                      <span className="text-[13px] font-medium text-slate-900">{label}</span>
+                      <span className="text-[11px] text-slate-400 ml-2">{desc}</span>
+                    </div>
+                    <Switch
+                      checked={config[key] || false}
+                      onCheckedChange={(checked) => handleChange(key, checked)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
