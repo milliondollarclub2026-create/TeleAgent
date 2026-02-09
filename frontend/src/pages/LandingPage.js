@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Bot,
   MessageSquare,
@@ -485,10 +486,21 @@ function CRMChatSection() {
 export default function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [heroVisible, setHeroVisible] = useState(false);
   const heroRef = useRef(null);
+
+  // Handle logo click - go to dashboard if logged in, landing page if not
+  const handleLogoClick = (e) => {
+    e.preventDefault();
+    if (user) {
+      navigate('/app/agents');
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   // Handle hash navigation (e.g., /#features from other pages)
   useEffect(() => {
@@ -560,7 +572,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 md:px-12">
           <div className="flex items-center justify-between h-20">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-3 group">
+            <button onClick={handleLogoClick} className="flex items-center gap-3 group">
               <img
                 src="/logo.svg"
                 alt="LeadRelay"
@@ -571,7 +583,7 @@ export default function LandingPage() {
                 <span className="text-emerald-600">Lead</span>
                 <span className="text-slate-900">Relay</span>
               </span>
-            </Link>
+            </button>
 
             {/* Desktop Nav */}
             <div className="hidden md:flex items-center gap-1">

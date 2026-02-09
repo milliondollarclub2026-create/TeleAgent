@@ -78,11 +78,18 @@ const Sidebar = () => {
     navigate('/login');
   };
 
+  const handleLogoClick = () => {
+    navigate('/app/agents');
+  };
+
   const NavContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo Section with Collapse Toggle */}
       <div className={`flex items-center justify-between h-14 border-b border-slate-100 ${collapsed ? 'px-3' : 'px-4'}`}>
-        <div className="flex items-center gap-2.5">
+        <button
+          onClick={handleLogoClick}
+          className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+        >
           <img
             src="/logo.svg"
             alt="LeadRelay"
@@ -94,7 +101,7 @@ const Sidebar = () => {
               <span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span>
             </span>
           )}
-        </div>
+        </button>
         {/* Collapse Toggle - Desktop only */}
         <button
           onClick={(e) => {
