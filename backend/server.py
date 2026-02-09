@@ -39,9 +39,9 @@ load_dotenv(ROOT_DIR / '.env')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Initialize Supabase client
-supabase_url = os.environ.get('SUPABASE_URL')
-supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
+# Initialize Supabase client (strip to remove any accidental newlines from env vars)
+supabase_url = (os.environ.get('SUPABASE_URL') or '').strip()
+supabase_key = (os.environ.get('SUPABASE_SERVICE_KEY') or '').strip()
 supabase: Client = create_client(supabase_url, supabase_key)
 
 # Create HTTP/1.1 client for direct REST API calls (avoids HTTP/2 StreamReset issues)
@@ -80,21 +80,22 @@ def db_rest_update(table: str, data: dict, eq_column: str, eq_value: str):
     return response.json()
 
 # Initialize Resend for email
-resend.api_key = os.environ.get('RESEND_API_KEY')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+# Strip env vars to remove accidental newlines
+resend.api_key = (os.environ.get('RESEND_API_KEY') or '').strip()
+SENDER_EMAIL = (os.environ.get('SENDER_EMAIL') or 'onboarding@resend.dev').strip()
+FRONTEND_URL = (os.environ.get('FRONTEND_URL') or 'http://localhost:3000').strip()
 
 app = FastAPI(title="TeleAgent - AI Sales Agent")
 api_router = APIRouter(prefix="/api")
 
 # ============ Configuration ============
-JWT_SECRET = os.environ.get('JWT_SECRET', 'teleagent-secret-key')
+JWT_SECRET = (os.environ.get('JWT_SECRET') or 'teleagent-secret-key').strip()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 TELEGRAM_API_BASE = "https://api.telegram.org/bot"
 
 # OpenAI client
-openai_client = AsyncOpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+openai_client = AsyncOpenAI(api_key=(os.environ.get('OPENAI_API_KEY') or '').strip())
 
 # ============ Rate Limiting ============
 # Simple in-memory rate limiter (for production, use Redis)
