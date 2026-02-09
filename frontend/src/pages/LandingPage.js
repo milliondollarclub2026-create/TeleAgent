@@ -254,7 +254,7 @@ function CRMChatSection() {
               </div>
 
               {/* Chat Messages */}
-              <div className="relative space-y-4 py-6 min-h-[320px]">
+              <div className="relative space-y-4 py-6 min-h-[420px]">
                 {/* User Message 1 */}
                 <div className={`flex justify-end transition-all duration-500 ${animationPhase >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
                   <div className="group relative max-w-[260px]">
@@ -988,9 +988,9 @@ export default function LandingPage() {
               {/* Animated glow line overlay */}
               <div className="absolute inset-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent rounded-full animate-line-sweep opacity-60" />
               {/* Connection nodes */}
-              <div className="absolute -top-[5px] left-0 w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-1" />
-              <div className="absolute -top-[5px] left-1/2 -translate-x-1/2 w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-2" />
-              <div className="absolute -top-[5px] right-0 w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-3" />
+              <div className="absolute -top-[5px] left-[-5px] w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-1" />
+              <div className="absolute -top-[5px] left-[calc(50%-2px)] -translate-x-1/2 w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-2" />
+              <div className="absolute -top-[5px] right-[-5px] w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-3" />
             </div>
 
             {/* Steps Grid */}
