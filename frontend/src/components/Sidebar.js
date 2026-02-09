@@ -34,11 +34,12 @@ export const useSidebar = () => useContext(SidebarContext);
 
 const mainNavItems = [
   { path: '/app/agents', icon: Bot, label: 'Agents' },
-  { path: '/app/leads', icon: Users, label: 'Leads' },
+  { path: '/app/leads', icon: Users, label: 'All Leads' },
 ];
 
 const agentNavItems = [
   { path: '', icon: LayoutDashboard, label: 'Dashboard', relative: true },
+  { path: '/leads', icon: Users, label: 'Leads', relative: true },
   { path: '/settings', icon: Settings, label: 'Settings', relative: true },
   { path: '/knowledge', icon: FileText, label: 'Knowledge Base', relative: true },
   { path: '/connections', icon: Plug, label: 'Connections', relative: true },

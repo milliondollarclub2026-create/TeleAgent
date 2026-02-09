@@ -16,6 +16,7 @@ import AgentSettingsPage from "./pages/AgentSettingsPage";
 import AgentTestChatPage from "./pages/AgentTestChatPage";
 import CRMChatPage from "./pages/CRMChatPage";
 import LeadsPage from "./pages/LeadsPage";
+import AgentLeadsPage from "./pages/AgentLeadsPage";
 import ConnectionsPage from "./pages/ConnectionsPage";
 import SalesAgentPage from "./pages/SalesAgentPage";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
@@ -58,6 +59,7 @@ function AppRoutes() {
         <Route path="agents/:agentId/knowledge" element={<KnowledgeBasePage />} />
         <Route path="agents/:agentId/connections" element={<ConnectionsPage />} />
         <Route path="agents/:agentId/crm-chat" element={<CRMChatPage />} />
+        <Route path="agents/:agentId/leads" element={<AgentLeadsPage />} />
         <Route path="leads" element={<LeadsPage />} />
         {/* Legacy routes kept for backward compatibility */}
         <Route path="connections" element={<ConnectionsPage />} />
