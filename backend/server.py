@@ -44,6 +44,41 @@ supabase_url = os.environ.get('SUPABASE_URL')
 supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
 supabase: Client = create_client(supabase_url, supabase_key)
 
+# Create HTTP/1.1 client for direct REST API calls (avoids HTTP/2 StreamReset issues)
+_rest_client = httpx.Client(
+    http2=False,
+    timeout=30.0,
+    headers={
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
+)
+
+def db_rest_select(table: str, query_params: dict = None):
+    """Direct REST API select to avoid HTTP/2 issues."""
+    url = f"{supabase_url}/rest/v1/{table}"
+    params = query_params or {}
+    params["select"] = params.get("select", "*")
+    response = _rest_client.get(url, params=params)
+    response.raise_for_status()
+    return response.json()
+
+def db_rest_insert(table: str, data: dict):
+    """Direct REST API insert to avoid HTTP/2 issues."""
+    url = f"{supabase_url}/rest/v1/{table}"
+    response = _rest_client.post(url, json=data)
+    response.raise_for_status()
+    return response.json()
+
+def db_rest_update(table: str, data: dict, eq_column: str, eq_value: str):
+    """Direct REST API update to avoid HTTP/2 issues."""
+    url = f"{supabase_url}/rest/v1/{table}?{eq_column}=eq.{eq_value}"
+    response = _rest_client.patch(url, json=data)
+    response.raise_for_status()
+    return response.json()
+
 # Initialize Resend for email
 resend.api_key = os.environ.get('RESEND_API_KEY')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
@@ -522,13 +557,12 @@ def db_execute_with_retry(operation, max_retries=3):
 async def register(request: RegisterRequest):
     """
     Register a new user with custom auth and Resend email verification.
+    Uses direct REST API calls to avoid HTTP/2 StreamReset issues on Render.
     """
     try:
-        # Check if user already exists (with retry)
-        existing = db_execute_with_retry(
-            lambda: supabase.table('users').select('*').eq('email', request.email).execute()
-        )
-        if existing.data:
+        # Check if user already exists (using direct REST API - HTTP/1.1)
+        existing = db_rest_select('users', {'email': f'eq.{request.email}'})
+        if existing:
             raise HTTPException(status_code=400, detail="Email already registered")
 
         # Generate IDs and confirmation token
@@ -536,13 +570,11 @@ async def register(request: RegisterRequest):
         tenant_id = str(uuid.uuid4())
         confirmation_token = secrets.token_urlsafe(32)
 
-        # Create tenant (with retry)
+        # Create tenant (using direct REST API - HTTP/1.1)
         tenant = {"id": tenant_id, "name": request.business_name, "timezone": "Asia/Tashkent", "created_at": now_iso()}
-        db_execute_with_retry(
-            lambda: supabase.table('tenants').insert(tenant).execute()
-        )
+        db_rest_insert('tenants', tenant)
 
-        # Create user record (with retry)
+        # Create user record (using direct REST API - HTTP/1.1)
         user = {
             "id": user_id,
             "email": request.email,
@@ -554,17 +586,15 @@ async def register(request: RegisterRequest):
             "confirmation_token": confirmation_token,
             "created_at": now_iso()
         }
-        db_execute_with_retry(
-            lambda: supabase.table('users').insert(user).execute()
-        )
+        db_rest_insert('users', user)
 
-        # Create default config
+        # Create default config (using direct REST API - HTTP/1.1)
         config = {
             "tenant_id": tenant_id, "business_name": None, "collect_phone": True,
             "agent_tone": "professional", "primary_language": "uz", "vertical": "default"
         }
         try:
-            supabase.table('tenant_configs').insert(config).execute()
+            db_rest_insert('tenant_configs', config)
         except Exception as e:
             logger.warning(f"Could not create tenant config: {e}")
 
@@ -621,62 +651,43 @@ async def register(request: RegisterRequest):
 @api_router.get("/auth/confirm-email")
 async def confirm_email(token: str = None, type: str = None, access_token: str = None):
     """
-    Confirm user email - handles both custom tokens and Supabase redirects.
-    Supabase sends: /confirm-email?access_token=...&type=signup
+    Confirm user email using direct REST API to avoid HTTP/2 issues.
     """
-    # Handle Supabase Auth callback
-    if access_token and type == "signup":
-        try:
-            # Verify the Supabase session
-            session_response = supabase.auth.get_user(access_token)
-            if session_response and session_response.user:
-                supabase_user = session_response.user
-                
-                # Update our users table
-                supabase.table('users').update({
-                    "email_confirmed": True,
-                    "email_confirmed_at": now_iso()
-                }).eq('email', supabase_user.email).execute()
-                
-                return {"message": "Email confirmed successfully! You can now log in.", "redirect": "/login"}
-        except Exception as e:
-            logger.error(f"Supabase confirmation error: {e}")
-    
-    # Handle custom token (fallback for legacy)
+    # Handle custom token confirmation (primary method now)
     if token:
-        result = supabase.table('users').select('*').eq('confirmation_token', token).execute()
-        if not result.data:
+        result = db_rest_select('users', {'confirmation_token': f'eq.{token}'})
+        if not result:
             raise HTTPException(status_code=400, detail="Invalid or expired confirmation token")
-        
-        user = result.data[0]
+
+        user = result[0]
         if user.get('email_confirmed'):
             return {"message": "Email already confirmed", "redirect": "/login"}
-        
-        supabase.table('users').update({
+
+        db_rest_update('users', {
             "email_confirmed": True,
             "confirmation_token": None,
             "email_confirmed_at": now_iso()
-        }).eq('id', user['id']).execute()
-        
+        }, 'id', user['id'])
+
         return {"message": "Email confirmed successfully! You can now log in.", "redirect": "/login"}
-    
+
     raise HTTPException(status_code=400, detail="Invalid confirmation request")
 
 
 @api_router.post("/auth/resend-confirmation")
 async def resend_confirmation(email: EmailStr):
-    """Resend confirmation email via Resend"""
+    """Resend confirmation email via Resend using direct REST API"""
     try:
-        # Find user and generate new token
-        result = supabase.table('users').select('*').eq('email', email).execute()
-        if result.data and not result.data[0].get('email_confirmed'):
-            user = result.data[0]
+        # Find user using direct REST API (HTTP/1.1)
+        result = db_rest_select('users', {'email': f'eq.{email}'})
+        if result and not result[0].get('email_confirmed'):
+            user = result[0]
             confirmation_token = secrets.token_urlsafe(32)
 
-            # Update token
-            supabase.table('users').update({
+            # Update token using direct REST API
+            db_rest_update('users', {
                 "confirmation_token": confirmation_token
-            }).eq('id', user['id']).execute()
+            }, 'id', user['id'])
 
             # Send email via Resend
             frontend_url = os.environ.get('FRONTEND_URL', 'https://leadrelay-frontend.onrender.com')
@@ -706,17 +717,17 @@ async def resend_confirmation(email: EmailStr):
 
 @api_router.post("/auth/forgot-password")
 async def forgot_password(email: EmailStr):
-    """Request password reset via Resend"""
+    """Request password reset via Resend using direct REST API"""
     try:
-        result = supabase.table('users').select('*').eq('email', email).execute()
-        if result.data:
-            user = result.data[0]
+        result = db_rest_select('users', {'email': f'eq.{email}'})
+        if result:
+            user = result[0]
             reset_token = secrets.token_urlsafe(32)
 
-            # Store reset token (reusing confirmation_token field)
-            supabase.table('users').update({
+            # Store reset token using direct REST API
+            db_rest_update('users', {
                 "confirmation_token": reset_token
-            }).eq('id', user['id']).execute()
+            }, 'id', user['id'])
 
             # Send email via Resend
             frontend_url = os.environ.get('FRONTEND_URL', 'https://leadrelay-frontend.onrender.com')
@@ -752,19 +763,19 @@ class ResetPasswordRequest(BaseModel):
 
 @api_router.post("/auth/reset-password")
 async def reset_password(request: ResetPasswordRequest):
-    """Reset password using custom token"""
+    """Reset password using custom token with direct REST API"""
     try:
-        result = supabase.table('users').select('*').eq('confirmation_token', request.token).execute()
-        if not result.data:
+        result = db_rest_select('users', {'confirmation_token': f'eq.{request.token}'})
+        if not result:
             raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
-        user = result.data[0]
+        user = result[0]
 
-        # Update password and clear token
-        supabase.table('users').update({
+        # Update password and clear token using direct REST API
+        db_rest_update('users', {
             "password_hash": hash_password(request.new_password),
             "confirmation_token": None
-        }).eq('id', user['id']).execute()
+        }, 'id', user['id'])
 
         return {"message": "Password reset successfully. You can now log in."}
     except HTTPException:
@@ -777,27 +788,27 @@ async def reset_password(request: ResetPasswordRequest):
 @api_router.post("/auth/login", response_model=AuthResponse)
 async def login(request: LoginRequest):
     """
-    Login using custom auth (no Supabase Auth to avoid connection issues).
+    Login using custom auth with direct REST API to avoid HTTP/2 StreamReset issues.
     """
-    # Use custom users table directly
-    result = supabase.table('users').select('*').eq('email', request.email).execute()
-    if not result.data:
+    # Use direct REST API (HTTP/1.1) instead of supabase-py client
+    result = db_rest_select('users', {'email': f'eq.{request.email}'})
+    if not result:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    
-    user = result.data[0]
+
+    user = result[0]
     if not verify_password(request.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    
+
     # Check if email is confirmed
     if not user.get('email_confirmed', False):
         raise HTTPException(
-            status_code=403, 
+            status_code=403,
             detail="Please confirm your email before logging in. Check your inbox or request a new confirmation link."
         )
-    
-    tenant_result = supabase.table('tenants').select('*').eq('id', user['tenant_id']).execute()
-    tenant = tenant_result.data[0] if tenant_result.data else None
-    
+
+    tenant_result = db_rest_select('tenants', {'id': f'eq.{user["tenant_id"]}'})
+    tenant = tenant_result[0] if tenant_result else None
+
     token = create_access_token(user["id"], user["tenant_id"], user["email"])
     return AuthResponse(
         token=token,
@@ -807,14 +818,14 @@ async def login(request: LoginRequest):
 
 @api_router.get("/auth/me")
 async def get_me(current_user: Dict = Depends(get_current_user)):
-    result = supabase.table('users').select('*').eq('id', current_user["user_id"]).execute()
-    if not result.data:
+    result = db_rest_select('users', {'id': f'eq.{current_user["user_id"]}'})
+    if not result:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    user = result.data[0]
-    tenant_result = supabase.table('tenants').select('*').eq('id', user['tenant_id']).execute()
-    tenant = tenant_result.data[0] if tenant_result.data else None
-    
+
+    user = result[0]
+    tenant_result = db_rest_select('tenants', {'id': f'eq.{user["tenant_id"]}'})
+    tenant = tenant_result[0] if tenant_result else None
+
     return {"id": user["id"], "email": user["email"], "name": user.get("name"), "tenant_id": user["tenant_id"], "business_name": tenant["name"] if tenant else None, "email_confirmed": user.get("email_confirmed", False)}
 
 
