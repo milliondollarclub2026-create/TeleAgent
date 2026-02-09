@@ -22,15 +22,15 @@ export const SidebarContext = createContext();
 export const useSidebar = () => useContext(SidebarContext);
 
 const mainNavItems = [
-  { path: '/agents', icon: Bot, label: 'Agents' },
-  { path: '/leads', icon: Users, label: 'Leads' },
+  { path: '/app/agents', icon: Bot, label: 'Agents' },
+  { path: '/app/leads', icon: Users, label: 'Leads' },
 ];
 
 const agentNavItems = [
   { path: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', relative: true },
   { path: 'settings', icon: Settings, label: 'Settings', relative: true },
-  { path: '/knowledge-base', icon: FileText, label: 'Knowledge Base' },
-  { path: '/connections', icon: Plug, label: 'Connections' },
+  { path: '/app/knowledge-base', icon: FileText, label: 'Knowledge Base' },
+  { path: '/app/connections', icon: Plug, label: 'Connections' },
 ];
 
 export const SidebarProvider = ({ children }) => {
