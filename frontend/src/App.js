@@ -69,6 +69,9 @@ function AppRoutes() {
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
