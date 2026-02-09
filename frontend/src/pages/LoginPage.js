@@ -14,9 +14,6 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  TrendingUp,
-  Users,
-  MessageSquare,
   CheckCircle,
   Zap
 } from 'lucide-react';
@@ -46,62 +43,86 @@ const Logo = ({ size = 'default' }) => {
   );
 };
 
-// Animated geometric background
-const GeometricBackground = () => (
-  <div className="absolute inset-0 overflow-hidden pointer-events-none">
-    {/* Dot grid pattern */}
-    <div
-      className="absolute inset-0 opacity-[0.03]"
-      style={{
-        backgroundImage: `radial-gradient(circle at 1px 1px, #0f172a 1px, transparent 0)`,
-        backgroundSize: '24px 24px'
-      }}
-    />
-
-    {/* Floating geometric shapes */}
-    <div className="absolute top-[15%] left-[10%] w-64 h-64 login-float-1">
-      <svg viewBox="0 0 200 200" className="w-full h-full">
-        <circle cx="100" cy="100" r="80" fill="none" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" className="login-rotate" />
-        <circle cx="100" cy="100" r="60" fill="none" stroke="#e2e8f0" strokeWidth="1" className="login-rotate-reverse" />
-        <circle cx="100" cy="100" r="4" fill="#10b981" className="login-pulse" />
-      </svg>
-    </div>
-
-    <div className="absolute bottom-[20%] right-[15%] w-48 h-48 login-float-2">
-      <svg viewBox="0 0 150 150" className="w-full h-full">
-        <rect x="25" y="25" width="100" height="100" fill="none" stroke="#e2e8f0" strokeWidth="1" rx="8" className="login-rotate" style={{ transformOrigin: 'center' }} />
-        <rect x="45" y="45" width="60" height="60" fill="none" stroke="#e2e8f0" strokeWidth="1" rx="4" className="login-rotate-reverse" style={{ transformOrigin: 'center' }} />
-      </svg>
-    </div>
-
-    {/* Floating dots */}
-    <div className="absolute top-[40%] left-[25%] w-2 h-2 rounded-full bg-emerald-500/20 login-float-3" />
-    <div className="absolute top-[60%] left-[8%] w-3 h-3 rounded-full bg-slate-300/30 login-float-1" />
-    <div className="absolute top-[25%] right-[30%] w-2 h-2 rounded-full bg-emerald-500/15 login-float-2" />
-    <div className="absolute bottom-[35%] left-[20%] w-1.5 h-1.5 rounded-full bg-slate-400/20 login-float-3" />
-
-    {/* Connecting lines */}
-    <svg className="absolute top-[30%] left-[5%] w-[40%] h-[40%] opacity-[0.04]" viewBox="0 0 400 400">
-      <path d="M50,200 Q200,100 350,200 Q200,300 50,200" fill="none" stroke="#0f172a" strokeWidth="1" className="login-draw-line" />
-    </svg>
-  </div>
-);
-
-// Feature item with animation
-const FeatureItem = ({ icon: Icon, text, index }) => (
+// Chat message component for the demo
+const ChatMessage = ({ isAI, message, delay, mounted }) => (
   <div
-    className="flex items-center gap-4 login-feature-item group"
-    style={{ animationDelay: `${300 + index * 150}ms` }}
+    className={`flex ${isAI ? 'justify-start' : 'justify-end'} login-chat-message`}
+    style={{ animationDelay: `${delay}ms` }}
   >
-    {/* Connector dot */}
-    <div className="absolute -left-6 w-2 h-2 rounded-full bg-slate-200 group-hover:bg-emerald-500 transition-colors duration-300" />
-
-    <div className="w-11 h-11 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center flex-shrink-0 group-hover:border-emerald-200 group-hover:bg-emerald-50 transition-all duration-300">
-      <Icon className="w-5 h-5 text-slate-500 group-hover:text-emerald-600 transition-colors duration-300" strokeWidth={1.75} />
+    <div
+      className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+        isAI
+          ? 'bg-white border border-slate-200 text-slate-700 rounded-tl-md'
+          : 'bg-emerald-600 text-white rounded-tr-md'
+      }`}
+    >
+      {message}
     </div>
-    <span className="text-slate-600 group-hover:text-slate-900 transition-colors duration-300">{text}</span>
   </div>
 );
+
+// Mini Telegram chat demo showing the AI in action
+const ChatDemo = ({ mounted }) => (
+  <div className={`w-full max-w-md mx-auto transition-all duration-700 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+    {/* Chat window */}
+    <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+      {/* Chat header */}
+      <div className="bg-white px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+          <Zap className="w-5 h-5 text-emerald-600" strokeWidth={2} />
+        </div>
+        <div>
+          <div className="font-semibold text-slate-900 text-sm">LeadRelay AI</div>
+          <div className="text-xs text-emerald-600 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            Active now
+          </div>
+        </div>
+      </div>
+
+      {/* Chat messages */}
+      <div className="p-4 space-y-3 min-h-[200px]">
+        <ChatMessage
+          isAI={false}
+          message="Здравствуйте! Хочу узнать о ваших услугах"
+          delay={400}
+          mounted={mounted}
+        />
+        <ChatMessage
+          isAI={true}
+          message="Здравствуйте! Рад вас слышать. Расскажите, какие задачи вы хотите решить? Мы предлагаем индивидуальные решения для каждого клиента."
+          delay={800}
+          mounted={mounted}
+        />
+        <ChatMessage
+          isAI={false}
+          message="Нужна автоматизация продаж"
+          delay={1200}
+          mounted={mounted}
+        />
+        <ChatMessage
+          isAI={true}
+          message="Отлично! Я могу организовать для вас демо-звонок с нашим специалистом. Когда вам удобно?"
+          delay={1600}
+          mounted={mounted}
+        />
+      </div>
+
+      {/* Typing indicator */}
+      <div className="px-4 pb-4">
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className="flex gap-1">
+            <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+          <span>AI is typing...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -204,26 +225,18 @@ const LoginPage = () => {
     }
   };
 
-  const features = [
-    { icon: MessageSquare, text: "AI-powered Telegram sales agent" },
-    { icon: TrendingUp, text: "Lead scoring & pipeline tracking" },
-    { icon: Users, text: "CRM integration with Bitrix24" },
-  ];
-
   // Show confirmation message after registration
   if (showConfirmationMessage) {
     return (
       <div className="min-h-screen bg-slate-50 relative overflow-hidden">
-        <GeometricBackground />
-
         <div className="fixed top-0 left-0 right-0 z-10 px-6 py-5 bg-slate-50/80 backdrop-blur-sm">
           <Logo />
         </div>
 
         <div className="min-h-screen flex items-center justify-center p-6 pt-20 relative z-10">
-          <Card className={`w-full max-w-md bg-white/80 backdrop-blur-sm border-slate-200 shadow-lg shadow-slate-200/50 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <Card className={`w-full max-w-md bg-white border-slate-200 shadow-lg shadow-slate-200/50 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             <CardContent className="pt-10 pb-10 px-8 text-center">
-              <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-5 login-icon-float">
+              <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
                 <Mail className="w-7 h-7 text-emerald-600" strokeWidth={1.75} />
               </div>
               <h2 className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-2">Check Your Email</h2>
@@ -237,7 +250,7 @@ const LoginPage = () => {
                     setShowConfirmationMessage(false);
                     setIsLogin(true);
                   }}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 h-11 text-sm font-medium shadow-sm login-btn-hover"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 h-11 text-sm font-medium shadow-sm"
                 >
                   Back to Sign In
                 </Button>
@@ -262,18 +275,16 @@ const LoginPage = () => {
   if (showForgotPassword) {
     return (
       <div className="min-h-screen bg-slate-50 relative overflow-hidden">
-        <GeometricBackground />
-
         <div className="fixed top-0 left-0 right-0 z-10 px-6 py-5 bg-slate-50/80 backdrop-blur-sm">
           <Logo />
         </div>
 
         <div className="min-h-screen flex items-center justify-center p-6 pt-20 relative z-10">
-          <Card className={`w-full max-w-sm bg-white/80 backdrop-blur-sm border-slate-200 shadow-lg shadow-slate-200/50 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <Card className={`w-full max-w-sm bg-white border-slate-200 shadow-lg shadow-slate-200/50 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             <CardContent className="pt-8 pb-8 px-6">
               {forgotPasswordSent ? (
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-4 login-icon-float">
+                  <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-4">
                     <CheckCircle className="w-6 h-6 text-emerald-600" strokeWidth={1.75} />
                   </div>
                   <h2 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-2">Check Your Email</h2>
@@ -285,7 +296,7 @@ const LoginPage = () => {
                       setShowForgotPassword(false);
                       setForgotPasswordSent(false);
                     }}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 h-10 text-sm font-medium shadow-sm login-btn-hover"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 h-10 text-sm font-medium shadow-sm"
                   >
                     Back to Sign In
                   </Button>
@@ -308,21 +319,21 @@ const LoginPage = () => {
                           placeholder="you@example.com"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 transition-all duration-200 login-input"
+                          className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                           required
                         />
                       </div>
                     </div>
 
                     {error && (
-                      <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm login-shake">
+                      <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm">
                         {error}
                       </div>
                     )}
 
                     <Button
                       type="submit"
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 h-10 text-sm font-medium shadow-sm login-btn-hover"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 h-10 text-sm font-medium shadow-sm"
                       disabled={loading}
                     >
                       {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" strokeWidth={2} />}
@@ -355,66 +366,26 @@ const LoginPage = () => {
         <Logo />
       </div>
 
-      {/* Left side - Branding (desktop only) */}
-      <div className="hidden lg:flex lg:w-1/2 bg-white border-r border-slate-100 flex-col justify-center px-16 xl:px-24 relative overflow-hidden">
-        <GeometricBackground />
-
-        <div className="max-w-lg relative z-10">
-          <h1 className={`text-4xl xl:text-5xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-4 leading-[1.15] tracking-tight transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            Convert Telegram chats{' '}
-            <span className="text-emerald-600">into paying customers</span>
+      {/* Left side - Product Demo (desktop only) */}
+      <div className="hidden lg:flex lg:w-1/2 bg-white border-r border-slate-100 flex-col justify-center items-center px-12 xl:px-16 relative overflow-hidden">
+        <div className="max-w-md w-full relative z-10">
+          <h1 className={`text-3xl xl:text-4xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-3 leading-tight tracking-tight transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+            See your AI sales agent{' '}
+            <span className="text-emerald-600">in action</span>
           </h1>
 
-          <p className={`text-lg text-slate-500 mb-12 leading-relaxed transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            AI sales agent that speaks Uzbek, Russian & English. Qualifies leads, handles objections, and closes deals automatically.
+          <p className={`text-slate-500 mb-6 transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+            Watch how LeadRelay handles real conversations and books meetings automatically.
           </p>
 
-          {/* Features with connecting line */}
-          <div className="relative pl-6">
-            {/* Vertical connecting line */}
-            <div className="absolute left-0 top-2 bottom-2 w-px bg-slate-200">
-              <div className={`absolute inset-0 bg-emerald-500 origin-top transition-transform duration-1000 delay-500 ${mounted ? 'scale-y-100' : 'scale-y-0'}`} />
-            </div>
-
-            <div className="space-y-5">
-              {features.map(({ icon: Icon, text }, index) => (
-                <FeatureItem key={index} icon={Icon} text={text} index={index} />
-              ))}
-            </div>
-          </div>
-
-          {/* Decorative element */}
-          <div className={`mt-16 flex items-center gap-3 transition-all duration-700 delay-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            <div className="flex -space-x-2">
-              {[...Array(4)].map((_, i) => (
-                <div
-                  key={i}
-                  className="w-8 h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-xs font-medium text-slate-500"
-                  style={{ animationDelay: `${800 + i * 100}ms` }}
-                >
-                  {['A', 'B', 'C', 'D'][i]}
-                </div>
-              ))}
-            </div>
-            <span className="text-sm text-slate-400">Join 500+ businesses</span>
-          </div>
+          {/* Chat Demo */}
+          <ChatDemo mounted={mounted} />
         </div>
       </div>
 
       {/* Right side - Form */}
       <div className="flex-1 flex items-center justify-center p-6 pt-24 lg:pt-6 relative">
-        {/* Subtle background for right side on mobile */}
-        <div className="lg:hidden absolute inset-0 overflow-hidden pointer-events-none">
-          <div
-            className="absolute inset-0 opacity-[0.02]"
-            style={{
-              backgroundImage: `radial-gradient(circle at 1px 1px, #0f172a 1px, transparent 0)`,
-              backgroundSize: '20px 20px'
-            }}
-          />
-        </div>
-
-        <Card className={`w-full max-w-sm bg-white/95 backdrop-blur-sm border-slate-200 shadow-xl shadow-slate-200/50 relative z-10 login-card transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-8 scale-[0.98]'}`}>
+        <Card className={`w-full max-w-sm bg-white border-slate-200 shadow-xl shadow-slate-200/50 relative z-10 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-8 scale-[0.98]'}`}>
           <CardContent className="pt-8 pb-8 px-6">
             {/* Mobile tagline */}
             <p className="lg:hidden text-sm text-slate-500 mb-6 text-center">
@@ -433,7 +404,7 @@ const LoginPage = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
                 <>
-                  <div className="space-y-1.5 login-form-field" style={{ animationDelay: '0ms' }}>
+                  <div className="space-y-1.5">
                     <Label htmlFor="name" className="text-slate-700 text-sm font-medium">Your Name</Label>
                     <div className="relative group">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 transition-colors duration-200 group-focus-within:text-emerald-500" strokeWidth={1.75} />
@@ -443,12 +414,12 @@ const LoginPage = () => {
                         placeholder="John Doe"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 transition-all duration-200 login-input"
+                        className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                         required={!isLogin}
                       />
                     </div>
                   </div>
-                  <div className="space-y-1.5 login-form-field" style={{ animationDelay: '50ms' }}>
+                  <div className="space-y-1.5">
                     <Label htmlFor="business" className="text-slate-700 text-sm font-medium">Business Name</Label>
                     <div className="relative group">
                       <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 transition-colors duration-200 group-focus-within:text-emerald-500" strokeWidth={1.75} />
@@ -458,7 +429,7 @@ const LoginPage = () => {
                         placeholder="My Company LLC"
                         value={businessName}
                         onChange={(e) => setBusinessName(e.target.value)}
-                        className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 transition-all duration-200 login-input"
+                        className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                         required={!isLogin}
                       />
                     </div>
@@ -466,7 +437,7 @@ const LoginPage = () => {
                 </>
               )}
 
-              <div className="space-y-1.5 login-form-field" style={{ animationDelay: isLogin ? '0ms' : '100ms' }}>
+              <div className="space-y-1.5">
                 <Label htmlFor="email" className="text-slate-700 text-sm font-medium">Email</Label>
                 <div className="relative group">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 transition-colors duration-200 group-focus-within:text-emerald-500" strokeWidth={1.75} />
@@ -477,13 +448,13 @@ const LoginPage = () => {
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 transition-all duration-200 login-input"
+                    className="pl-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                     required
                   />
                 </div>
               </div>
 
-              <div className="space-y-1.5 login-form-field" style={{ animationDelay: isLogin ? '50ms' : '150ms' }}>
+              <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
                   <Label htmlFor="password" className="text-slate-700 text-sm font-medium">Password</Label>
                   {isLogin && (
@@ -506,7 +477,7 @@ const LoginPage = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 transition-all duration-200 login-input"
+                    className="pl-10 pr-10 h-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                     required
                   />
                   <button
@@ -521,7 +492,7 @@ const LoginPage = () => {
               </div>
 
               {error && (
-                <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm login-shake">
+                <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm">
                   {error}
                   {error.includes('confirm your email') && (
                     <button
@@ -537,7 +508,7 @@ const LoginPage = () => {
 
               <Button
                 type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 h-11 text-sm font-medium shadow-sm login-btn-hover group"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 h-11 text-sm font-medium shadow-sm group"
                 data-testid="login-submit-btn"
                 disabled={loading}
               >
@@ -573,122 +544,20 @@ const LoginPage = () => {
 };
 
 const loginStyles = `
-  /* Floating animations */
-  @keyframes login-float-1 {
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    50% { transform: translateY(-15px) rotate(3deg); }
-  }
-  @keyframes login-float-2 {
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    50% { transform: translateY(-10px) rotate(-2deg); }
-  }
-  @keyframes login-float-3 {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
-  }
-
-  .login-float-1 { animation: login-float-1 8s ease-in-out infinite; }
-  .login-float-2 { animation: login-float-2 10s ease-in-out infinite; animation-delay: 1s; }
-  .login-float-3 { animation: login-float-3 6s ease-in-out infinite; animation-delay: 2s; }
-
-  /* Rotation animations */
-  @keyframes login-rotate {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-  @keyframes login-rotate-reverse {
-    from { transform: rotate(360deg); }
-    to { transform: rotate(0deg); }
-  }
-
-  .login-rotate { animation: login-rotate 60s linear infinite; }
-  .login-rotate-reverse { animation: login-rotate-reverse 45s linear infinite; }
-
-  /* Pulse animation */
-  @keyframes login-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.6; transform: scale(1.2); }
-  }
-  .login-pulse { animation: login-pulse 3s ease-in-out infinite; }
-
-  /* Icon float */
-  @keyframes login-icon-float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-4px); }
-  }
-  .login-icon-float { animation: login-icon-float 3s ease-in-out infinite; }
-
-  /* Draw line animation */
-  @keyframes login-draw-line {
-    from { stroke-dasharray: 0 1000; }
-    to { stroke-dasharray: 1000 0; }
-  }
-  .login-draw-line {
-    stroke-dasharray: 0 1000;
-    animation: login-draw-line 3s ease-out forwards;
-    animation-delay: 1s;
-  }
-
-  /* Feature item animation */
-  @keyframes login-feature-in {
+  /* Chat message animation */
+  @keyframes login-chat-in {
     from {
       opacity: 0;
-      transform: translateX(-10px);
+      transform: translateY(10px);
     }
     to {
       opacity: 1;
-      transform: translateX(0);
+      transform: translateY(0);
     }
   }
-  .login-feature-item {
+  .login-chat-message {
     opacity: 0;
-    animation: login-feature-in 0.5s ease-out forwards;
-    position: relative;
-  }
-
-  /* Card entrance */
-  .login-card {
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-  }
-  .login-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
-  }
-
-  /* Input focus effect */
-  .login-input {
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-  }
-  .login-input:focus {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px -2px rgba(16, 185, 129, 0.15);
-  }
-
-  /* Button hover */
-  .login-btn-hover {
-    transition: all 0.2s ease;
-  }
-  .login-btn-hover:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px -2px rgba(16, 185, 129, 0.3);
-  }
-  .login-btn-hover:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
-  /* Error shake */
-  @keyframes login-shake {
-    0%, 100% { transform: translateX(0); }
-    20%, 60% { transform: translateX(-4px); }
-    40%, 80% { transform: translateX(4px); }
-  }
-  .login-shake {
-    animation: login-shake 0.4s ease-out;
-  }
-
-  /* Form field stagger */
-  .login-form-field {
-    opacity: 1;
+    animation: login-chat-in 0.4s ease-out forwards;
   }
 `;
 
