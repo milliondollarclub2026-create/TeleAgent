@@ -988,9 +988,9 @@ export default function LandingPage() {
               {/* Animated glow line overlay */}
               <div className="absolute inset-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent rounded-full animate-line-sweep opacity-60" />
               {/* Connection nodes */}
-              <div className="absolute -top-[5px] left-[-20px] w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-1" />
-              <div className="absolute -top-[5px] left-[calc(50%-5px)] -translate-x-1/2 w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-2" />
-              <div className="absolute -top-[5px] right-[-20px] w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-3" />
+              <div className="absolute -top-[5px] left-[-40px] w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-1" />
+              <div className="absolute -top-[5px] left-[calc(50%-7px)] -translate-x-1/2 w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-2" />
+              <div className="absolute -top-[5px] right-[-40px] w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-3" />
             </div>
 
             {/* Steps Grid */}
