@@ -911,19 +911,22 @@ async def disconnect_bitrix_webhook(current_user: Dict = Depends(get_current_use
     """Disconnect Bitrix24 CRM"""
     tenant_id = current_user["tenant_id"]
     
+    # Try both tables
+    try:
+        supabase.table('tenant_configs').update({
+            "bitrix_webhook_url": None,
+            "bitrix_connected_at": None
+        }).eq('tenant_id', tenant_id).execute()
+    except:
+        pass
+    
     try:
         supabase.table('tenants').update({
             "bitrix_webhook_url": None,
             "bitrix_connected_at": None
         }).eq('id', tenant_id).execute()
     except:
-        try:
-            supabase.table('tenant_configs').update({
-                "bitrix_webhook_url": None,
-                "bitrix_connected_at": None
-            }).eq('tenant_id', tenant_id).execute()
-        except:
-            pass
+        pass
     
     return {"success": True, "message": "Bitrix24 disconnected"}
 
@@ -933,6 +936,18 @@ async def get_bitrix_webhook_status(current_user: Dict = Depends(get_current_use
     """Get Bitrix24 CRM connection status"""
     tenant_id = current_user["tenant_id"]
     
+    # Try tenant_configs first
+    try:
+        result = supabase.table('tenant_configs').select('bitrix_webhook_url, bitrix_connected_at').eq('tenant_id', tenant_id).execute()
+        if result.data and result.data[0].get('bitrix_webhook_url'):
+            return {
+                "connected": True,
+                "connected_at": result.data[0].get('bitrix_connected_at')
+            }
+    except:
+        pass
+    
+    # Fallback to tenants
     try:
         result = supabase.table('tenants').select('bitrix_webhook_url, bitrix_connected_at').eq('id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
