@@ -291,7 +291,7 @@ const AgentOnboarding = () => {
 
   const finishOnboarding = () => {
     toast.success('Agent created successfully!');
-    navigate('/agents');
+    navigate('/app/agents');
   };
 
   const formatFileSize = (bytes) => {
