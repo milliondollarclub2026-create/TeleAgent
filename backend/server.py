@@ -518,43 +518,18 @@ async def resend_confirmation(email: EmailStr):
     except Exception as e:
         logger.warning(f"Resend confirmation error: {e}")
         return {"message": "If this email is registered, a confirmation link will be sent."}
-    
-    # Send email
-    background_tasks.add_task(send_confirmation_email, email, user.get('name', 'User'), new_token)
-    
-    return {"message": "If this email is registered, a confirmation link will be sent."}
 
 
 @api_router.post("/auth/forgot-password")
-async def forgot_password(email: EmailStr, background_tasks: BackgroundTasks):
-    """Request password reset"""
-    result = supabase.table('users').select('*').eq('email', email).execute()
-    
-    # Always return same message to prevent email enumeration
-    response_msg = "If this email is registered, a password reset link will be sent."
-    
-    if not result.data:
-        return {"message": response_msg}
-    
-    user = result.data[0]
-    
-    # Generate reset token with expiry
-    reset_token = generate_confirmation_token()
-    reset_expiry = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-    
+async def forgot_password(email: EmailStr):
+    """Request password reset via Supabase Auth"""
     try:
-        supabase.table('users').update({
-            "reset_token": reset_token,
-            "reset_token_expiry": reset_expiry
-        }).eq('id', user['id']).execute()
+        # Use Supabase Auth for password reset
+        supabase.auth.reset_password_email(email)
+        return {"message": "If this email is registered, a password reset link will be sent."}
     except Exception as e:
-        # Column might not exist in database schema
-        logger.warning(f"Could not store reset token (column may not exist): {e}")
-        # Still try to send email with token (won't be verifiable but won't crash)
-    
-    background_tasks.add_task(send_password_reset_email, email, user.get('name', 'User'), reset_token)
-    
-    return {"message": response_msg}
+        logger.warning(f"Password reset error: {e}")
+        return {"message": "If this email is registered, a password reset link will be sent."}
 
 
 class ResetPasswordRequest(BaseModel):
