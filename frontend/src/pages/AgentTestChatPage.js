@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Card } from '../components/ui/card';
@@ -17,6 +17,10 @@ import { toast } from 'sonner';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper to get storage key for chat history
+const getChatStorageKey = (agentId) => `test_bot_chat_history_${agentId}`;
+const getDebugStorageKey = (agentId) => `test_bot_debug_info_${agentId}`;
+
 const AgentTestChatPage = () => {
   const { agentId } = useParams();
   const [config, setConfig] = useState({ business_name: 'Your Agent' });
@@ -26,29 +30,78 @@ const AgentTestChatPage = () => {
   const [sending, setSending] = useState(false);
   const [debugInfo, setDebugInfo] = useState(null);
   const messagesRef = useRef(null);
+  const messagesEndRef = useRef(null);
+
+  // Smooth scroll to bottom
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
   useEffect(() => {
     fetchConfig();
   }, [agentId]);
 
+  // Smooth auto-scroll when messages change
   useEffect(() => {
-    if (messagesRef.current) {
-      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+    scrollToBottom();
+  }, [messages, sending, scrollToBottom]);
+
+  // Load chat history from localStorage on mount
+  useEffect(() => {
+    const savedMessages = localStorage.getItem(getChatStorageKey(agentId));
+    const savedDebug = localStorage.getItem(getDebugStorageKey(agentId));
+    if (savedMessages) {
+      try {
+        const parsed = JSON.parse(savedMessages);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+        }
+      } catch (e) {
+        console.error('Failed to parse saved chat history:', e);
+      }
     }
-  }, [messages, sending]);
+    if (savedDebug) {
+      try {
+        setDebugInfo(JSON.parse(savedDebug));
+      } catch (e) {
+        console.error('Failed to parse saved debug info:', e);
+      }
+    }
+  }, [agentId]);
+
+  // Save chat history to localStorage whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem(getChatStorageKey(agentId), JSON.stringify(messages));
+    }
+  }, [messages, agentId]);
+
+  // Save debug info to localStorage whenever it changes
+  useEffect(() => {
+    if (debugInfo) {
+      localStorage.setItem(getDebugStorageKey(agentId), JSON.stringify(debugInfo));
+    }
+  }, [debugInfo, agentId]);
 
   const fetchConfig = async () => {
     try {
       const response = await axios.get(`${API}/config`);
       if (response.data) {
         setConfig(response.data);
-        const defaultGreeting = `Hello! Welcome to ${response.data.business_name || 'our store'}. I'm here to help you find what you're looking for. How can I assist you today?`;
-        const greeting = response.data.greeting_message || defaultGreeting;
-        setMessages([{ role: 'assistant', text: greeting }]);
+        // Only set default greeting if no saved messages exist
+        const savedMessages = localStorage.getItem(getChatStorageKey(agentId));
+        if (!savedMessages) {
+          const defaultGreeting = `Hello! Welcome to ${response.data.business_name || 'our store'}. I'm here to help you find what you're looking for. How can I assist you today?`;
+          const greeting = response.data.greeting_message || defaultGreeting;
+          setMessages([{ role: 'assistant', text: greeting }]);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch config:', error);
-      setMessages([{ role: 'assistant', text: "Hello! I'm here to help you. How can I assist you today?" }]);
+      const savedMessages = localStorage.getItem(getChatStorageKey(agentId));
+      if (!savedMessages) {
+        setMessages([{ role: 'assistant', text: "Hello! I'm here to help you. How can I assist you today?" }]);
+      }
     } finally {
       setLoading(false);
     }
@@ -101,6 +154,9 @@ const AgentTestChatPage = () => {
     setMessages([{ role: 'assistant', text: greeting }]);
     setDebugInfo(null);
     setInput('');
+    // Clear localStorage
+    localStorage.removeItem(getChatStorageKey(agentId));
+    localStorage.removeItem(getDebugStorageKey(agentId));
   };
 
   const handleKeyDown = (e) => {
@@ -122,18 +178,17 @@ const AgentTestChatPage = () => {
   }
 
   return (
-    <div className="space-y-5 animate-fade-in" data-testid="agent-test-chat-page">
+    <div className="h-[calc(100vh-6rem)] flex flex-col animate-fade-in" data-testid="agent-test-chat-page">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div>
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Test Bot</h1>
           <p className="text-[13px] text-slate-500 mt-0.5">Preview how your AI agent responds to customers</p>
         </div>
         <Button
-          variant="outline"
           size="sm"
           onClick={resetChat}
-          className="h-9 border-slate-200 text-slate-600"
+          className="h-9 bg-slate-900 hover:bg-slate-800 text-white"
         >
           <RotateCcw className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
           Reset
@@ -141,11 +196,11 @@ const AgentTestChatPage = () => {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 flex-1 min-h-0">
         {/* Chat Interface - Takes 2 columns */}
         <Card className="lg:col-span-2 bg-white border-slate-200 shadow-sm overflow-hidden flex flex-col">
           {/* Chat Header */}
-          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
                 <MessageCircle className="w-5 h-5 text-white" strokeWidth={1.75} />
@@ -162,7 +217,7 @@ const AgentTestChatPage = () => {
           </div>
 
           {/* Messages */}
-          <div ref={messagesRef} className="flex-1 h-[520px] overflow-y-auto p-5 space-y-4 bg-slate-50/50">
+          <div ref={messagesRef} className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/50">
             {messages.map((msg, idx) => (
               <div
                 key={idx}
@@ -209,10 +264,12 @@ const AgentTestChatPage = () => {
                 </div>
               </div>
             )}
+            {/* Scroll anchor for smooth auto-scroll */}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Input Area */}
-          <div className="px-5 py-4 border-t border-slate-100 bg-white">
+          <div className="px-5 py-4 border-t border-slate-100 bg-white flex-shrink-0">
             <div className="flex items-center gap-3">
               <Input
                 placeholder="Type a message..."
@@ -236,7 +293,7 @@ const AgentTestChatPage = () => {
         </Card>
 
         {/* AI Insights Panel - Takes 1 column */}
-        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden h-fit">
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden lg:max-h-full lg:overflow-y-auto">
           <div className="px-5 py-4 border-b border-slate-100">
             <h3 className="font-semibold text-slate-900 text-sm">AI Insights</h3>
             <p className="text-xs text-slate-500 mt-0.5">Real-time analysis</p>
