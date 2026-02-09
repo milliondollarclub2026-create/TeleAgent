@@ -140,7 +140,7 @@ const AgentsPage = () => {
           <Card 
             key={agent.id} 
             className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-            onClick={() => navigate(`/agents/${agent.id}`)}
+            onClick={() => navigate(`/app/agents/${agent.id}`)}
             data-testid={`agent-card-${agent.id}`}
           >
             <CardContent className="p-5">
