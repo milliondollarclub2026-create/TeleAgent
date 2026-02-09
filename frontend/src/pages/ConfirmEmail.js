@@ -10,40 +10,59 @@ export default function ConfirmEmail() {
   const navigate = useNavigate();
   const [status, setStatus] = useState('loading'); // loading, success, error
   const [message, setMessage] = useState('');
+  
+  // Get parameters - Supabase sends different params
   const token = searchParams.get('token');
+  const accessToken = searchParams.get('access_token');
+  const type = searchParams.get('type');
+  const errorCode = searchParams.get('error_code');
+  const errorDescription = searchParams.get('error_description');
 
   useEffect(() => {
-    if (!token) {
+    // Handle Supabase error responses
+    if (errorCode || errorDescription) {
       setStatus('error');
-      setMessage('Invalid confirmation link. Please check your email for the correct link.');
+      setMessage(errorDescription || 'Email confirmation failed. Please try again.');
       return;
     }
-
-    const confirmEmail = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/auth/confirm-email?token=${token}`);
-        const data = await response.json();
-        
-        if (response.ok) {
-          setStatus('success');
-          setMessage(data.message || 'Email confirmed successfully!');
+    
+    // Handle Supabase successful confirmation (type=signup)
+    if (type === 'signup' || type === 'email_confirmation' || accessToken) {
+      // Supabase has already confirmed the email, just show success
+      setStatus('success');
+      setMessage('Email confirmed successfully! You can now log in.');
+      setTimeout(() => navigate('/login'), 3000);
+      return;
+    }
+    
+    // Handle custom token confirmation
+    if (token) {
+      const confirmEmail = async () => {
+        try {
+          const response = await fetch(`${API_URL}/api/auth/confirm-email?token=${token}`);
+          const data = await response.json();
           
-          // Redirect to login after 3 seconds
-          setTimeout(() => {
-            navigate('/login');
-          }, 3000);
-        } else {
+          if (response.ok) {
+            setStatus('success');
+            setMessage(data.message || 'Email confirmed successfully!');
+            setTimeout(() => navigate('/login'), 3000);
+          } else {
+            setStatus('error');
+            setMessage(data.detail || 'Failed to confirm email. The link may have expired.');
+          }
+        } catch (error) {
           setStatus('error');
-          setMessage(data.detail || 'Failed to confirm email. The link may have expired.');
+          setMessage('Network error. Please try again later.');
         }
-      } catch (error) {
-        setStatus('error');
-        setMessage('Network error. Please try again later.');
-      }
-    };
-
-    confirmEmail();
-  }, [token, navigate]);
+      };
+      confirmEmail();
+      return;
+    }
+    
+    // No valid params
+    setStatus('error');
+    setMessage('Invalid confirmation link. Please check your email for the correct link.');
+  }, [token, accessToken, type, errorCode, errorDescription, navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
