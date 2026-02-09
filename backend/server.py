@@ -956,21 +956,27 @@ async def disconnect_bitrix_webhook(current_user: Dict = Depends(get_current_use
     # Clear from memory cache
     if tenant_id in _bitrix_webhooks_cache:
         del _bitrix_webhooks_cache[tenant_id]
+        logger.info(f"Cleared Bitrix cache for tenant {tenant_id}")
     
-    # Try to clear from DB (may fail if columns don't exist)
+    # Try to clear from tenant_configs table
     try:
         supabase.table('tenant_configs').update({
-            "bitrix_webhook_url": None
+            "bitrix_webhook_url": None,
+            "bitrix_connected_at": None
         }).eq('tenant_id', tenant_id).execute()
-    except:
-        pass
+        logger.info(f"Cleared Bitrix from tenant_configs for tenant {tenant_id}")
+    except Exception as e:
+        logger.debug(f"Could not clear tenant_configs: {e}")
     
+    # Also try to clear from tenants table
     try:
         supabase.table('tenants').update({
-            "bitrix_webhook_url": None
+            "bitrix_webhook_url": None,
+            "bitrix_connected_at": None
         }).eq('id', tenant_id).execute()
-    except:
-        pass
+        logger.info(f"Cleared Bitrix from tenants for tenant {tenant_id}")
+    except Exception as e:
+        logger.debug(f"Could not clear tenants: {e}")
     
     return {"success": True, "message": "Bitrix24 disconnected"}
 
