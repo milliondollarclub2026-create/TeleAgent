@@ -31,7 +31,7 @@ function ProtectedRoute({ children }) {
 function PublicRoute({ children }) {
   const { token } = useAuth();
   if (token) {
-    return <Navigate to="/agents" replace />;
+    return <Navigate to="/app/agents" replace />;
   }
   return children;
 }
