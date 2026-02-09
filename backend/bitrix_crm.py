@@ -74,22 +74,37 @@ class BitrixCRMClient:
             # Get current user info
             user = await self._call("user.current")
             
-            # Get CRM settings
+            # Handle case where user might be a dict or something else
+            if not isinstance(user, dict):
+                return {"ok": False, "message": f"Unexpected user response type: {type(user)}"}
+            
+            # Get CRM settings - result can be an integer (mode ID) not a dict
             try:
                 crm_settings = await self._call("crm.settings.mode.get")
+                # crm.settings.mode.get returns an integer: 0=classic, 1=simple
+                if isinstance(crm_settings, int):
+                    crm_mode = "SIMPLE" if crm_settings == 1 else "CLASSIC"
+                elif isinstance(crm_settings, dict):
+                    crm_mode = crm_settings.get("MODE", "CLASSIC")
+                else:
+                    crm_mode = "CLASSIC"
             except:
-                crm_settings = {"MODE": "CLASSIC"}
+                crm_mode = "CLASSIC"
+            
+            portal_user = f"{user.get('NAME', '')} {user.get('LAST_NAME', '')}".strip()
             
             return {
                 "ok": True,
-                "portal_user": user.get("NAME", "") + " " + user.get("LAST_NAME", ""),
+                "portal_user": portal_user,
                 "user_email": user.get("EMAIL"),
-                "crm_mode": crm_settings.get("MODE", "CLASSIC"),
+                "crm_mode": crm_mode,
                 "message": "Connection successful!"
             }
         except BitrixAPIError as e:
             return {"ok": False, "message": str(e)}
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return {"ok": False, "message": f"Unexpected error: {str(e)}"}
     
     # ==================== Lead Management ====================
