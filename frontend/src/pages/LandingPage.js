@@ -354,7 +354,7 @@ function CRMChatSection() {
                 {/* Revenue Response with Counter */}
                 {animationPhase >= 7 && (
                   <div className="flex justify-start transition-all duration-500">
-                    <div className="bg-white border border-slate-100 rounded-2xl rounded-bl-md px-4 py-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="bg-white border border-slate-100 rounded-2xl rounded-bl-md px-4 py-4 max-w-[320px] shadow-sm hover:shadow-md transition-shadow">
                       <p className="text-slate-600 text-sm mb-2">{revenueResponseText}</p>
                       <div className="flex items-baseline gap-2">
                         <span className="text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tabular-nums">
