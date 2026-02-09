@@ -57,12 +57,23 @@ export const AuthProvider = ({ children }) => {
       name,
       business_name: businessName
     });
-    const { token: newToken, user: userData } = response.data;
+    const { token: newToken, user: userData, message } = response.data;
+
+    // If no token returned, email verification is required
+    if (!newToken) {
+      return {
+        requiresEmailVerification: true,
+        message: message || "Please check your email to confirm your account.",
+        user: userData
+      };
+    }
+
+    // Only log in if token is provided (email already verified)
     localStorage.setItem('token', newToken);
     axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
     setToken(newToken);
     setUser(userData);
-    return userData;
+    return { requiresEmailVerification: false, user: userData };
   };
 
   const logout = () => {

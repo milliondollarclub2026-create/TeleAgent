@@ -73,9 +73,17 @@ const LoginPage = () => {
         toast.success('Welcome back!');
         navigate('/app/agents');
       } else {
-        await register(email, password, name, businessName);
-        setShowConfirmationMessage(true);
-        toast.success('Account created! Please check your email to confirm.');
+        const result = await register(email, password, name, businessName);
+
+        if (result.requiresEmailVerification) {
+          // Show confirmation message instead of logging in
+          setShowConfirmationMessage(true);
+          toast.success(result.message || 'Account created! Please check your email to confirm.');
+        } else {
+          // Email already verified (rare case), go to dashboard
+          toast.success('Account created!');
+          navigate('/app/agents');
+        }
       }
     } catch (err) {
       const errorMsg = err.response?.data?.detail || 'An error occurred. Please try again.';

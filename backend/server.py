@@ -557,12 +557,28 @@ async def register(request: RegisterRequest):
         except Exception as e:
             logger.warning(f"Could not create tenant config: {e}")
         
-        # Create JWT token for immediate use (limited access until email confirmed)
-        token = create_access_token(user_id, tenant_id, request.email)
-        
         # Check if email confirmation is required
         email_confirmed = supabase_user.email_confirmed_at is not None
-        
+
+        # Don't return a token until email is confirmed
+        # User must verify email first, then login
+        if not email_confirmed:
+            return AuthResponse(
+                token=None,
+                user={
+                    "id": user_id,
+                    "email": request.email,
+                    "name": request.name,
+                    "tenant_id": tenant_id,
+                    "business_name": request.business_name,
+                    "email_confirmed": False
+                },
+                message="Account created! Please check your email to confirm your account before logging in."
+            )
+
+        # Only return token if email is already confirmed (shouldn't happen normally)
+        token = create_access_token(user_id, tenant_id, request.email)
+
         return AuthResponse(
             token=token,
             user={
@@ -571,9 +587,9 @@ async def register(request: RegisterRequest):
                 "name": request.name,
                 "tenant_id": tenant_id,
                 "business_name": request.business_name,
-                "email_confirmed": email_confirmed
+                "email_confirmed": True
             },
-            message="Account created! Please check your email to confirm your account." if not email_confirmed else "Account created successfully!"
+            message="Account created successfully!"
         )
         
     except HTTPException:
