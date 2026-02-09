@@ -1117,7 +1117,6 @@ export default function LandingPage() {
           <div className="mt-20 pt-10 border-t border-white/5">
             <div className="flex flex-wrap justify-center items-center gap-10 md:gap-16">
               {[
-                { icon: <Check className="w-4 h-4" strokeWidth={2.5} />, text: 'No credit card required' },
                 { icon: <Zap className="w-4 h-4" strokeWidth={2.5} />, text: '10-minute setup' },
                 { icon: <Sparkles className="w-4 h-4" strokeWidth={2.5} />, text: 'Cancel anytime' }
               ].map((item, i) => (
