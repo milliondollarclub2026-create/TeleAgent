@@ -15,7 +15,7 @@
 - **Database**: Supabase (PostgreSQL)
 - **LLM**: OpenAI GPT-4o
 - **RAG**: OpenAI text-embedding-3-small + semantic search
-- **Email**: Resend (confirmation & password reset)
+- **Email**: Supabase Auth (native email confirmation)
 - **Messaging**: Telegram Bot API (webhook mode)
 - **CRM**: Bitrix24 REST API (via webhook URL)
 
@@ -26,163 +26,125 @@
 4. **Chat Simulator** - Browser-based agent testing before deployment
 5. **Sales Pipeline** - 6-stage funnel with objection handling
 6. **Agent Performance Dashboard** - Analytics with charts and KPIs
-7. **Email Confirmation Flow** - User verification before login
-8. **Bitrix24 CRM Integration** - Full webhook-based CRM access
-9. **CRM Chat** - AI-powered chat for querying CRM data
+7. **Email Confirmation Flow** - Supabase Auth handles verification
+8. **Bitrix24 CRM Integration** - Full webhook-based CRM access ✅
+9. **CRM Chat** - AI-powered chat for querying CRM data ✅
 
 ---
 
-## User Flow
+## Completed Features (2026-02-09)
 
-```
-Register → Confirm Email → Login → Agents Page → [Create New Agent] → 5-Step Wizard → Test → Connect Telegram
-                                        ↓
-                                View Agent Dashboard → CRM Chat / Manage Settings / Knowledge / Leads
-```
-
----
-
-## New Features (2026-02-08)
-
-### Email Confirmation System ✅
-- Registration creates user with `email_confirmed=false`
-- Sends confirmation email via Resend
-- Login blocked (403) until email confirmed
-- Resend confirmation option available
-- Password reset flow with email link
-
-### Bitrix24 CRM Integration ✅
-Full webhook-based CRM integration:
+### Bitrix24 CRM Integration ✅ FULLY WORKING
+Full webhook-based CRM integration with real data access:
 
 **Connection Flow:**
 1. User goes to Connections page
 2. Enters Bitrix24 webhook URL (from portal's inbound webhooks)
 3. System tests connection automatically
-4. CRM data becomes available
+4. CRM data becomes available immediately
 
-**Capabilities:**
-- **Leads**: List, create, update, search by phone
-- **Deals**: List, view, track pipeline
-- **Products**: Browse catalog, search, pricing
-- **Contacts**: Find by phone, view purchase history
-- **Analytics**: Conversion rates, top products, trends
+**Verified Capabilities:**
+- **Leads**: List 50+ leads, with status breakdown (Muhokama, Tasdiqlandi, Yangi lead, etc.)
+- **Products**: Browse catalog (Tiramisu - 20,000 KZT)
+- **Analytics**: Conversion rates, lead sources, deal stages
+- **Real-time data**: All API calls return actual CRM data
 
-### CRM Chat ✅
+**API Endpoints (All Working):**
+| Endpoint | Status | Description |
+|----------|--------|-------------|
+| `/api/bitrix-crm/connect` | ✅ | Connect with webhook URL |
+| `/api/bitrix-crm/status` | ✅ | Get connection status |
+| `/api/bitrix-crm/test` | ✅ | Test connection |
+| `/api/bitrix-crm/disconnect` | ✅ | Disconnect CRM |
+| `/api/bitrix-crm/leads` | ✅ | List leads (50 leads returned) |
+| `/api/bitrix-crm/products` | ✅ | List products |
+| `/api/bitrix-crm/analytics` | ✅ | Get analytics |
+| `/api/bitrix-crm/chat` | ✅ | CRM Chat AI queries |
+
+### CRM Chat ✅ FULLY WORKING
 AI-powered chat interface for querying CRM data:
+
+**Features:**
 - Access from Agent Dashboard via "CRM Chat" button
-- Ask natural language questions:
-  - "What are our top selling products?"
-  - "Show me recent leads"
-  - "What's our conversion rate?"
-  - "How many deals are in the pipeline?"
-- Powered by GPT-4o with live CRM data context
+- Suggested questions for quick start
+- Natural language queries in English, Russian, Uzbek
+- AI analyzes real CRM data and provides insights
+
+**Example Queries Tested:**
+- "Show me recent leads" → Returns list of 50 leads with status/source
+- "What are our top selling products?" → Analyzes sales data
+- "What's our conversion rate?" → Returns 0.0% (no deals yet)
+- "Give me a CRM overview" → Full summary with metrics
 
 ---
 
-## API Endpoints
+## Database Schema Requirements
 
-### Authentication
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/auth/register` | POST | Register (sends confirmation email) |
-| `/api/auth/login` | POST | Login (requires confirmed email) |
-| `/api/auth/confirm-email` | GET | Confirm email with token |
-| `/api/auth/resend-confirmation` | POST | Resend confirmation email |
-| `/api/auth/forgot-password` | POST | Request password reset |
-| `/api/auth/reset-password` | POST | Reset password with token |
+**⚠️ USER ACTION REQUIRED for Persistence:**
 
-### Bitrix24 CRM
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/bitrix-crm/connect` | POST | Connect with webhook URL |
-| `/api/bitrix-crm/status` | GET | Get connection status |
-| `/api/bitrix-crm/test` | POST | Test connection |
-| `/api/bitrix-crm/disconnect` | POST | Disconnect CRM |
-| `/api/bitrix-crm/leads` | GET | List leads |
-| `/api/bitrix-crm/deals` | GET | List deals |
-| `/api/bitrix-crm/products` | GET | List products |
-| `/api/bitrix-crm/analytics` | GET | Get analytics |
-| `/api/bitrix-crm/chat` | POST | CRM Chat AI queries |
+The Bitrix24 connection currently works but stores data in memory only. For persistence across server restarts, add these columns to `tenant_configs` table in Supabase:
 
-### Agent & Telegram
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/agents` | GET | List all agents |
-| `/api/chat/test` | POST | Test agent in browser |
-| `/api/telegram/bot` | POST/GET/DELETE | Manage Telegram bot |
-| `/api/telegram/webhook` | POST | Telegram webhook handler |
+```sql
+-- Run this in Supabase SQL Editor
+ALTER TABLE tenant_configs 
+ADD COLUMN IF NOT EXISTS bitrix_webhook_url TEXT,
+ADD COLUMN IF NOT EXISTS bitrix_connected_at TIMESTAMPTZ;
+```
 
 ---
 
-## Database Schema Additions Needed
+## Test Reports
 
-**tenants table:**
-```sql
-ALTER TABLE tenants ADD COLUMN bitrix_webhook_url TEXT;
-ALTER TABLE tenants ADD COLUMN bitrix_connected_at TIMESTAMPTZ;
-```
+**Latest Test (iteration_10.json):**
+- Backend: 100% (11/11 Bitrix integration tests passed)
+- Frontend: 100% (All CRM features working)
+- CRM Chat: Verified with real data responses
+- All features tested with actual Bitrix24 CRM data
 
-**users table:**
-```sql
-ALTER TABLE users ADD COLUMN reset_token TEXT;
-ALTER TABLE users ADD COLUMN reset_token_expiry TIMESTAMPTZ;
-```
-
-**documents table:**
-```sql
-ALTER TABLE documents ADD COLUMN chunk_count INTEGER;
-ALTER TABLE documents ADD COLUMN chunks_data JSONB;
-```
+**Real CRM Data Verified:**
+- Total Leads: 50
+- Products: 1 (Tiramisu - 20,000)
+- Portal User: Ishaq Ansari
+- CRM Mode: SIMPLE
 
 ---
 
 ## Test Credentials
 - **Email**: test2@teleagent.uz
 - **Password**: testpass123
-- **Status**: email_confirmed=true
-
----
-
-## Test Reports
-- `/app/test_reports/iteration_9.json` - Latest (100% pass rate, 64 tests)
-- All backend tests: 64/64 passed
-- Frontend tests: All features verified
+- **Bitrix24 Webhook**: https://b24-48tcii.bitrix24.kz/rest/15/3rncfhh9z5j9opvf/
 
 ---
 
 ## Files Reference
 
 ### Backend
-- `/app/backend/server.py` - Main FastAPI app
-- `/app/backend/bitrix_crm.py` - Bitrix24 CRM client
+- `/app/backend/server.py` - Main FastAPI app with Bitrix24 endpoints
+- `/app/backend/bitrix_crm.py` - Bitrix24 CRM client (enhanced)
 - `/app/backend/document_processor.py` - RAG processing
-- `/app/backend/.env` - Environment variables (Resend key configured)
+- `/app/backend/.env` - Environment variables
 
 ### Frontend
 - `/app/frontend/src/App.js` - Routes (includes CRM Chat)
-- `/app/frontend/src/pages/LoginPage.js` - Auth with confirmation flow
-- `/app/frontend/src/pages/ConfirmEmail.js` - Email confirmation page
-- `/app/frontend/src/pages/ResetPassword.js` - Password reset page
 - `/app/frontend/src/pages/CRMChatPage.js` - CRM Chat interface
 - `/app/frontend/src/pages/ConnectionsPage.js` - Bitrix24 connection UI
-- `/app/frontend/src/pages/AgentDashboard.js` - CRM Chat button added
+- `/app/frontend/src/pages/AgentDashboard.js` - CRM Chat button
 
 ### Test Files
-- `/app/backend/tests/test_bitrix_crm.py` - Bitrix24 CRM tests
-- `/app/backend/tests/test_api_endpoints.py` - API tests
-- `/app/backend/tests/test_bug_fixes.py` - Bug fix tests
+- `/app/test_reports/iteration_10.json` - Latest test results
+- `/app/backend/tests/test_bitrix_real_integration.py` - Real Bitrix tests
 
 ---
 
 ## Backlog
 
 ### P0 (Critical) - DONE ✅
-- [x] Email confirmation via Resend
 - [x] Bitrix24 CRM integration (webhook)
-- [x] CRM Chat feature
+- [x] CRM Chat feature with AI analysis
+- [x] All Bitrix API endpoints working
 
-### P1 (High)
-- [ ] Add DB columns for full persistence
+### P1 (High) - PENDING USER ACTION
+- [ ] Add DB columns for full persistence (user must run SQL)
 - [ ] Conversation History & Viewer page
 - [ ] Customer recognition in Telegram bot
 
@@ -195,3 +157,4 @@ ALTER TABLE documents ADD COLUMN chunks_data JSONB;
 - [ ] Voice message support
 - [ ] WhatsApp integration
 - [ ] Broadcast messaging
+- [ ] Lead sync from Telegram to Bitrix24
