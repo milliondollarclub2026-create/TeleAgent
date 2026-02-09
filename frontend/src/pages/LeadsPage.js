@@ -102,7 +102,7 @@ const LeadsPage = () => {
   return (
     <div className="space-y-5 animate-fade-in" data-testid="leads-page">
       <div>
-        <h1 className="text-xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900">Leads</h1>
+        <h1 className="text-xl font-semibold font-['Plus_Jakarta_Sans'] text-slate-900">Leads</h1>
         <p className="text-slate-500 text-sm mt-0.5">Manage and track your sales leads</p>
       </div>
 

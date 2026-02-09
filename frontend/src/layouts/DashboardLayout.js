@@ -7,15 +7,15 @@ import { Loader2 } from 'lucide-react';
 
 const DashboardContent = () => {
   const { collapsed } = useSidebar();
-  
+
   return (
     <div className="min-h-screen bg-[#F5F7F6]">
       <Sidebar />
-      <main 
+      <main
         className={`
           transition-all duration-200 ease-out
           p-4 lg:p-6
-          ${collapsed ? 'lg:ml-[68px]' : 'lg:ml-56'}
+          ${collapsed ? 'lg:ml-[60px]' : 'lg:ml-56'}
         `}
         data-testid="main-content"
       >
@@ -33,8 +33,8 @@ const DashboardLayout = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5F7F6]">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-600" strokeWidth={2} />
-          <p className="text-sm text-slate-500">Loading...</p>
+          <Loader2 className="w-6 h-6 animate-spin text-slate-400" strokeWidth={2} />
+          <p className="text-sm text-slate-400">Loading...</p>
         </div>
       </div>
     );

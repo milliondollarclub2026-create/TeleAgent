@@ -12,6 +12,8 @@ import DashboardLayout from "./layouts/DashboardLayout";
 import AgentsPage from "./pages/AgentsPage";
 import AgentOnboarding from "./pages/AgentOnboarding";
 import AgentDashboard from "./pages/AgentDashboard";
+import AgentSettingsPage from "./pages/AgentSettingsPage";
+import AgentTestChatPage from "./pages/AgentTestChatPage";
 import CRMChatPage from "./pages/CRMChatPage";
 import LeadsPage from "./pages/LeadsPage";
 import ConnectionsPage from "./pages/ConnectionsPage";
@@ -46,14 +48,18 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPassword />} />
       
       {/* Protected routes */}
-      <Route path="/agents/new" element={<ProtectedRoute><AgentOnboarding /></ProtectedRoute>} />
       <Route path="/app" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/app/agents" replace />} />
         <Route path="agents" element={<AgentsPage />} />
+        <Route path="agents/new" element={<AgentOnboarding />} />
         <Route path="agents/:agentId" element={<AgentDashboard />} />
+        <Route path="agents/:agentId/settings" element={<AgentSettingsPage />} />
+        <Route path="agents/:agentId/test-chat" element={<AgentTestChatPage />} />
+        <Route path="agents/:agentId/knowledge" element={<KnowledgeBasePage />} />
+        <Route path="agents/:agentId/connections" element={<ConnectionsPage />} />
         <Route path="agents/:agentId/crm-chat" element={<CRMChatPage />} />
-        <Route path="agents/:agentId/settings" element={<SalesAgentPage />} />
         <Route path="leads" element={<LeadsPage />} />
+        {/* Legacy routes kept for backward compatibility */}
         <Route path="connections" element={<ConnectionsPage />} />
         <Route path="sales-agent" element={<SalesAgentPage />} />
         <Route path="knowledge-base" element={<KnowledgeBasePage />} />

@@ -223,7 +223,7 @@ const ConnectionsPage = () => {
               <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-100">
                 <div className="flex items-center gap-2 text-emerald-700">
                   <Zap className="w-4 h-4" strokeWidth={2} />
-                  <span className="font-medium text-sm">Bot is active and receiving messages</span>
+                  <span className="font-medium text-sm">Bot @{integrations.telegram.bot_username} connected</span>
                 </div>
                 {integrations.telegram.last_webhook_at && (
                   <p className="text-xs text-slate-500 mt-1.5">
@@ -231,7 +231,27 @@ const ConnectionsPage = () => {
                   </p>
                 )}
               </div>
-              <Button 
+
+              {/* Local development warning */}
+              {window.location.hostname === 'localhost' && (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                  <div className="flex items-start gap-2 text-amber-800">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" strokeWidth={2} />
+                    <div className="text-sm">
+                      <p className="font-medium">Local Development Mode</p>
+                      <p className="text-amber-700 text-xs mt-1">
+                        Telegram webhooks require a public URL. For local testing:
+                      </p>
+                      <ul className="text-amber-700 text-xs mt-1 space-y-0.5 list-disc list-inside">
+                        <li>Use the <strong>Test Chat</strong> feature in the sidebar</li>
+                        <li>Or use <a href="https://ngrok.com" target="_blank" rel="noopener noreferrer" className="underline">ngrok</a> to expose your local server</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <Button
                 variant="outline"
                 size="sm"
                 className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"

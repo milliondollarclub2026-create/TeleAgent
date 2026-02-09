@@ -1,21 +1,32 @@
 import React, { useState, createContext, useContext } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-  Bot, 
-  Users, 
-  Plug, 
-  Settings, 
-  FileText, 
+import {
+  Bot,
+  Users,
+  Plug,
+  Settings,
+  FileText,
   LogOut,
   Menu,
   X,
   Zap,
   ChevronLeft,
   ChevronRight,
-  LayoutDashboard
+  LayoutDashboard,
+  ArrowLeft,
+  MessageSquare,
+  MessageCircle,
+  ChevronDown,
+  User
 } from 'lucide-react';
-import { Button } from '../components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 
 // Create context for sidebar state
 export const SidebarContext = createContext();
@@ -27,16 +38,18 @@ const mainNavItems = [
 ];
 
 const agentNavItems = [
-  { path: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', relative: true },
-  { path: 'settings', icon: Settings, label: 'Settings', relative: true },
-  { path: '/app/knowledge-base', icon: FileText, label: 'Knowledge Base' },
-  { path: '/app/connections', icon: Plug, label: 'Connections' },
+  { path: '', icon: LayoutDashboard, label: 'Dashboard', relative: true },
+  { path: '/settings', icon: Settings, label: 'Settings', relative: true },
+  { path: '/test-chat', icon: MessageSquare, label: 'Test Chat', relative: true },
+  { path: '/knowledge', icon: FileText, label: 'Knowledge', relative: true },
+  { path: '/connections', icon: Plug, label: 'Connections', relative: true },
+  { path: '/crm-chat', icon: MessageCircle, label: 'CRM Chat', relative: true },
 ];
 
 export const SidebarProvider = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const toggleSidebar = () => setCollapsed(!collapsed);
-  
+
   return (
     <SidebarContext.Provider value={{ collapsed, setCollapsed, toggleSidebar }}>
       {children}
@@ -62,23 +75,40 @@ const Sidebar = () => {
   };
 
   const NavContent = () => (
-    <>
-      {/* Logo - Top Left */}
-      <div className={`p-4 border-b border-slate-200 ${collapsed ? 'px-3' : ''}`}>
+    <div className="flex flex-col h-full">
+      {/* Logo Section with Collapse Toggle */}
+      <div className={`flex items-center justify-between h-14 border-b border-slate-100 ${collapsed ? 'px-3' : 'px-4'}`}>
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-sm flex-shrink-0">
-            <Zap className="w-5 h-5 text-white" strokeWidth={2.25} />
+          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center flex-shrink-0">
+            <Zap className="w-4 h-4 text-white" strokeWidth={2.5} />
           </div>
           {!collapsed && (
-            <span className="text-lg font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">
+            <span className="font-semibold text-slate-900 text-[15px] tracking-tight">
               TeleAgent
             </span>
           )}
         </div>
+        {/* Collapse Toggle - Desktop only */}
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleSidebar();
+          }}
+          className={`hidden lg:flex items-center justify-center w-6 h-6 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all duration-150 ${collapsed ? 'mx-auto' : ''}`}
+          data-testid="toggle-sidebar-btn"
+          title={collapsed ? "Expand" : "Collapse"}
+        >
+          {collapsed ? (
+            <ChevronRight className="w-4 h-4" strokeWidth={2} />
+          ) : (
+            <ChevronLeft className="w-4 h-4" strokeWidth={2} />
+          )}
+        </button>
       </div>
 
-      {/* Main Navigation */}
-      <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+      {/* Navigation */}
+      <nav className="flex-1 py-3 px-2 overflow-y-auto">
         {/* Primary Nav */}
         <div className="space-y-0.5">
           {mainNavItems.map(({ path, icon: Icon, label }) => (
@@ -88,18 +118,18 @@ const Sidebar = () => {
               onClick={() => setMobileOpen(false)}
               title={collapsed ? label : undefined}
               className={({ isActive }) =>
-                `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group relative ${
+                `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition-all duration-150 group relative ${
                   isActive
-                    ? 'bg-emerald-50 text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                } ${collapsed ? 'justify-center px-2.5' : ''}`
+                    ? 'bg-slate-100 text-slate-900'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                } ${collapsed ? 'justify-center' : ''}`
               }
               data-testid={`nav-${label.toLowerCase().replace(' ', '-')}`}
             >
               <Icon className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.75} />
               {!collapsed && <span>{label}</span>}
               {collapsed && (
-                <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-slate-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg">
+                <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg pointer-events-none">
                   {label}
                 </div>
               )}
@@ -109,37 +139,37 @@ const Sidebar = () => {
 
         {/* Agent Context Nav */}
         {isInAgentContext && (
-          <>
-            <div className={`pt-3 mt-3 border-t border-slate-100 ${collapsed ? 'mx-1' : ''}`}>
-              {!collapsed && (
-                <p className="px-3 py-1.5 text-xs font-medium text-slate-400 uppercase tracking-wider">
-                  Current Agent
-                </p>
-              )}
-            </div>
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            {!collapsed && (
+              <p className="px-2.5 mb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                Agent
+              </p>
+            )}
+
             <div className="space-y-0.5">
               {agentNavItems.map(({ path, icon: Icon, label, relative }) => {
-                const fullPath = relative ? `/app/agents/${currentAgentId}${path === 'dashboard' ? '' : `/${path}`}` : path;
-                
+                const fullPath = relative ? `/app/agents/${currentAgentId}${path}` : path;
+
                 return (
                   <NavLink
-                    key={path}
+                    key={path || 'dashboard'}
                     to={fullPath}
+                    end={path === ''}
                     onClick={() => setMobileOpen(false)}
                     title={collapsed ? label : undefined}
                     className={({ isActive }) =>
-                      `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group relative ${
+                      `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition-all duration-150 group relative ${
                         isActive
-                          ? 'bg-emerald-50 text-emerald-700 shadow-sm'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      } ${collapsed ? 'justify-center px-2.5' : ''}`
+                          ? 'bg-slate-100 text-slate-900'
+                          : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                      } ${collapsed ? 'justify-center' : ''}`
                     }
                     data-testid={`nav-agent-${label.toLowerCase().replace(' ', '-')}`}
                   >
                     <Icon className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.75} />
                     {!collapsed && <span>{label}</span>}
                     {collapsed && (
-                      <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-slate-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg">
+                      <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg pointer-events-none">
                         {label}
                       </div>
                     )}
@@ -147,105 +177,113 @@ const Sidebar = () => {
                 );
               })}
             </div>
-          </>
+          </div>
         )}
       </nav>
 
-      {/* Collapse toggle button */}
-      <div className={`py-2 border-t border-slate-100 hidden lg:block ${collapsed ? 'px-1.5' : 'px-2'}`}>
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleSidebar();
-          }}
-          className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors text-sm ${collapsed ? 'px-0' : 'px-3'}`}
-          data-testid="toggle-sidebar-btn"
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? (
-            <ChevronRight className="w-4 h-4" strokeWidth={1.75} />
-          ) : (
-            <>
-              <ChevronLeft className="w-4 h-4" strokeWidth={1.75} />
-              <span className="text-xs font-medium">Collapse</span>
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* User section */}
-      <div className={`p-3 border-t border-slate-200 ${collapsed ? 'p-2' : ''}`}>
-        {!collapsed ? (
-          <>
-            <div className="flex items-center gap-2.5 px-2 py-2 mb-2 rounded-lg bg-slate-50">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-sm">
-                <span className="text-xs font-bold text-white">
-                  {user?.name?.[0]?.toUpperCase() || 'U'}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900 truncate">{user?.name || 'User'}</p>
-                <p className="text-xs text-slate-500 truncate">{user?.business_name || user?.email}</p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start gap-2 text-slate-500 hover:text-red-600 hover:bg-red-50 h-9"
-              onClick={handleLogout}
-              data-testid="logout-btn"
+      {/* Bottom Section */}
+      <div className="mt-auto border-t border-slate-100">
+        {/* User Account Section */}
+        <div className={`p-2 border-t border-slate-100 ${collapsed ? 'px-1.5' : ''}`}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={`w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-all duration-150 group ${collapsed ? 'justify-center' : ''}`}
+                data-testid="account-menu-btn"
+              >
+                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-semibold text-slate-600">
+                    {user?.name?.[0]?.toUpperCase() || 'U'}
+                  </span>
+                </div>
+                {!collapsed && (
+                  <>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="text-[13px] font-medium text-slate-900 truncate">
+                        {user?.name || 'User'}
+                      </p>
+                      <p className="text-[11px] text-slate-400 truncate">
+                        {user?.email || 'Account'}
+                      </p>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" strokeWidth={1.75} />
+                  </>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align={collapsed ? "center" : "end"}
+              side="top"
+              sideOffset={8}
+              className="w-56"
             >
-              <LogOut className="w-4 h-4" strokeWidth={1.75} />
-              <span className="text-sm">Sign Out</span>
-            </Button>
-          </>
-        ) : (
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-sm">
-              <span className="text-xs font-bold text-white">
-                {user?.name?.[0]?.toUpperCase() || 'U'}
-              </span>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
-              data-testid="logout-btn-collapsed"
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" strokeWidth={1.75} />
-            </button>
-          </div>
-        )}
+              <div className="px-3 py-2.5 border-b border-slate-100">
+                <p className="text-sm font-medium text-slate-900">{user?.name || 'User'}</p>
+                <p className="text-xs text-slate-500 truncate">{user?.email || ''}</p>
+              </div>
+              <div className="py-1">
+                <DropdownMenuItem
+                  className="gap-2.5 px-3 py-2 text-[13px] cursor-pointer"
+                  onClick={() => navigate('/app/settings')}
+                >
+                  <Settings className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                  <span>Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="gap-2.5 px-3 py-2 text-[13px] cursor-pointer"
+                  onClick={() => navigate('/app/account')}
+                >
+                  <User className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                  <span>Account</span>
+                </DropdownMenuItem>
+              </div>
+              <DropdownMenuSeparator />
+              <div className="py-1">
+                <DropdownMenuItem
+                  className="gap-2.5 px-3 py-2 text-[13px] text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
+                  onClick={handleLogout}
+                  data-testid="logout-menu-item"
+                >
+                  <LogOut className="w-4 h-4" strokeWidth={1.75} />
+                  <span>Sign out</span>
+                </DropdownMenuItem>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
-    </>
+    </div>
   );
 
   return (
     <>
       {/* Mobile menu button */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-lg bg-white border border-slate-200 shadow-sm hover:shadow transition-shadow"
         onClick={() => setMobileOpen(!mobileOpen)}
         data-testid="mobile-menu-btn"
       >
-        {mobileOpen ? <X className="w-5 h-5 text-slate-600" /> : <Menu className="w-5 h-5 text-slate-600" />}
+        {mobileOpen ? (
+          <X className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
+        ) : (
+          <Menu className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
+        )}
       </button>
 
       {/* Mobile overlay */}
       {mobileOpen && (
-        <div 
+        <div
           className="lg:hidden fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <aside 
+      <aside
         className={`
-          fixed top-0 left-0 h-screen bg-white border-r border-slate-200 flex flex-col z-40
+          fixed top-0 left-0 h-screen bg-white border-r border-slate-200/80 flex flex-col z-40
           transition-all duration-200 ease-out
-          ${collapsed ? 'w-[68px]' : 'w-56'}
+          ${collapsed ? 'w-[60px]' : 'w-56'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
         `}

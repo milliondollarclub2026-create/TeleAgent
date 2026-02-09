@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Card, CardContent } from '../components/ui/card';
@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { 
+import {
   ArrowLeft,
   ArrowRight,
   Building2,
@@ -32,8 +32,24 @@ import {
   Send,
   RefreshCw,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Link2,
+  Eye,
+  EyeOff,
+  HelpCircle,
+  MessageCircle,
+  Globe,
+  Smile,
+  Clock,
+  Shield,
+  User
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../components/ui/tooltip';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -64,7 +80,8 @@ const AgentOnboarding = () => {
   const [documents, setDocuments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
-  
+  const chatMessagesRef = useRef(null);
+
   // Step 3: Settings
   const [settings, setSettings] = useState({
     tone: 'friendly_professional',
@@ -90,13 +107,27 @@ const AgentOnboarding = () => {
   const [showDebug, setShowDebug] = useState(false);
   const [debugInfo, setDebugInfo] = useState(null);
   
-  // Step 5: Connect
+  // Step 5: Connect - Telegram
   const [botToken, setBotToken] = useState('');
+  const [showBotToken, setShowBotToken] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [botUsername, setBotUsername] = useState('');
 
+  // Step 5: Connect - Bitrix24
+  const [bitrixWebhookUrl, setBitrixWebhookUrl] = useState('');
+  const [showBitrixUrl, setShowBitrixUrl] = useState(false);
+  const [connectingBitrix, setConnectingBitrix] = useState(false);
+  const [bitrixConnected, setBitrixConnected] = useState(false);
+
   const progress = (currentStep / STEPS.length) * 100;
+
+  // Auto-scroll chat messages
+  useEffect(() => {
+    if (chatMessagesRef.current) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+    }
+  }, [testMessages, testLoading]);
 
   const handleFileUpload = async (event) => {
     const files = event.target.files;
@@ -174,6 +205,7 @@ const AgentOnboarding = () => {
       await axios.put(`${API}/config`, {
         agent_tone: settings.tone,
         primary_language: settings.primary_language,
+        secondary_languages: settings.secondary_languages,
         emoji_usage: settings.emoji_usage,
         response_length: settings.response_length,
         greeting_message: settings.greeting_message,
@@ -206,9 +238,10 @@ const AgentOnboarding = () => {
       
       // Initialize test chat on step 4
       if (currentStep === 3) {
+        const defaultGreeting = `Hello! Welcome to ${businessInfo.name || 'our store'}. I'm here to help you find what you're looking for. How can I assist you today?`;
         setTestMessages([{
           role: 'assistant',
-          text: settings.greeting_message || `Hello! 👋 Welcome to ${businessInfo.name}. How can I help you today?`
+          text: settings.greeting_message || defaultGreeting
         }]);
       }
     }
@@ -261,9 +294,10 @@ const AgentOnboarding = () => {
   };
 
   const resetTestChat = () => {
+    const defaultGreeting = `Hello! Welcome to ${businessInfo.name || 'our store'}. I'm here to help you find what you're looking for. How can I assist you today?`;
     setTestMessages([{
       role: 'assistant',
-      text: settings.greeting_message || `Hello! 👋 Welcome to ${businessInfo.name}. How can I help you today?`
+      text: settings.greeting_message || defaultGreeting
     }]);
     setDebugInfo(null);
   };
@@ -289,6 +323,26 @@ const AgentOnboarding = () => {
     }
   };
 
+  const connectBitrix = async () => {
+    if (!bitrixWebhookUrl.trim()) {
+      toast.error('Please enter your Bitrix24 webhook URL');
+      return;
+    }
+
+    setConnectingBitrix(true);
+    try {
+      const response = await axios.post(`${API}/bitrix-crm/connect`, {
+        webhook_url: bitrixWebhookUrl
+      });
+      setBitrixConnected(true);
+      toast.success(response.data.message || 'Bitrix24 connected successfully!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to connect Bitrix24');
+    } finally {
+      setConnectingBitrix(false);
+    }
+  };
+
   const finishOnboarding = () => {
     toast.success('Agent created successfully!');
     navigate('/app/agents');
@@ -302,98 +356,77 @@ const AgentOnboarding = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-2rem)]" data-testid="agent-onboarding">
+    <div className="pb-8" data-testid="agent-onboarding">
       {/* Progress Header */}
-      <div className="bg-white border-b border-slate-200 rounded-t-lg -mx-4 lg:-mx-6 -mt-4 lg:-mt-6 mb-6">
-        <div className="max-w-4xl mx-auto px-6 py-5">
-          {/* Header Row */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => navigate('/app/agents')}
-                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
-                data-testid="back-to-agents-btn"
-              >
-                <ArrowLeft className="w-4 h-4 text-slate-600" strokeWidth={2} />
-              </button>
-              <div>
-                <h1 className="text-xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900">
-                  Create New Agent
-                </h1>
-                <p className="text-sm text-slate-500 mt-0.5">Set up your AI sales assistant in minutes</p>
-              </div>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="text-slate-500 hover:text-slate-700 border-slate-200"
-              onClick={() => navigate('/agents')}
-              data-testid="cancel-onboarding-btn"
-            >
-              Cancel
-            </Button>
+      <div className="max-w-4xl mx-auto mb-8">
+        {/* Top Row - Back button and title */}
+        <div className="flex items-center gap-4 mb-6">
+          <button
+            onClick={() => navigate('/app/agents')}
+            className="w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center transition-colors"
+            data-testid="back-to-agents-btn"
+          >
+            <ArrowLeft className="w-4 h-4 text-slate-600" strokeWidth={2} />
+          </button>
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900 tracking-tight">
+              Create New Agent
+            </h1>
+            <p className="text-[13px] text-slate-500">Step {currentStep} of {STEPS.length}</p>
           </div>
-          
-          {/* Step Indicator */}
-          <div className="flex items-center justify-between mb-3">
-            {STEPS.map((step, index) => {
-              const StepIcon = step.icon;
-              const isActive = step.id === currentStep;
-              const isComplete = step.id < currentStep;
-              
-              return (
-                <div key={step.id} className="flex items-center">
-                  <div className={`flex items-center gap-2 ${
-                    isActive ? 'text-emerald-600' : isComplete ? 'text-emerald-600' : 'text-slate-400'
+        </div>
+
+        {/* Step Indicator - Horizontal bar style */}
+        <div className="flex items-center gap-2">
+          {STEPS.map((step, index) => {
+            const isActive = step.id === currentStep;
+            const isComplete = step.id < currentStep;
+
+            return (
+              <div key={step.id} className="flex-1 flex flex-col gap-2">
+                <div
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    isComplete ? 'bg-emerald-500' : isActive ? 'bg-emerald-500' : 'bg-slate-200'
+                  }`}
+                />
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[11px] font-semibold ${
+                    isActive ? 'text-emerald-600' : isComplete ? 'text-slate-600' : 'text-slate-400'
                   }`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                      isActive 
-                        ? 'bg-emerald-600 text-white' 
-                        : isComplete 
-                          ? 'bg-emerald-100 text-emerald-600' 
-                          : 'bg-slate-100 text-slate-400'
-                    }`}>
-                      {isComplete ? <Check className="w-4 h-4" strokeWidth={2.5} /> : step.id}
-                    </div>
-                    <span className={`text-sm font-medium hidden sm:block ${
-                      isActive ? 'text-slate-900' : isComplete ? 'text-slate-600' : 'text-slate-400'
-                    }`}>
-                      {step.title}
-                    </span>
-                  </div>
-                  {index < STEPS.length - 1 && (
-                    <div className={`w-8 sm:w-16 h-0.5 mx-2 ${
-                      isComplete ? 'bg-emerald-300' : 'bg-slate-200'
-                    }`} />
-                  )}
+                    {step.id}
+                  </span>
+                  <span className={`text-[11px] font-medium hidden sm:block ${
+                    isActive ? 'text-slate-900' : isComplete ? 'text-slate-600' : 'text-slate-400'
+                  }`}>
+                    {step.title}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-          
-          <Progress value={progress} className="h-1" />
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* Content */}
-      <div className="max-w-2xl mx-auto px-6 py-8">
-        
+      <div className={`max-w-4xl mx-auto`}>
+        <div className={`mx-auto ${currentStep === 4 ? 'max-w-3xl' : 'max-w-xl'}`}>
+
         {/* Step 1: Business Info */}
         {currentStep === 1 && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900 mb-2">
+          <div className="space-y-5 animate-fade-in">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-semibold font-['Plus_Jakarta_Sans'] text-slate-900 mb-1">
                 About Your Business
               </h2>
-              <p className="text-slate-500">
+              <p className="text-sm text-slate-500">
                 Tell us about your business so your AI agent can represent you accurately
               </p>
             </div>
 
             <Card className="bg-white border-slate-200 shadow-sm">
-              <CardContent className="p-6 space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="businessName" className="text-slate-700">
+              <CardContent className="p-5 space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="businessName" className="text-slate-700 text-sm">
                     Business Name <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -401,13 +434,13 @@ const AgentOnboarding = () => {
                     placeholder="e.g., TechStore Uzbekistan"
                     value={businessInfo.name}
                     onChange={(e) => setBusinessInfo(prev => ({ ...prev, name: e.target.value }))}
-                    className="h-11 border-slate-200 focus:border-emerald-500"
+                    className="h-10 border-slate-200 focus:border-emerald-500"
                     data-testid="business-name-input"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="businessDesc" className="text-slate-700">
+                <div className="space-y-1.5">
+                  <Label htmlFor="businessDesc" className="text-slate-700 text-sm">
                     What does your business do? <span className="text-red-500">*</span>
                   </Label>
                   <Textarea
@@ -415,15 +448,15 @@ const AgentOnboarding = () => {
                     placeholder="Describe your business, target customers, and what makes you unique..."
                     value={businessInfo.description}
                     onChange={(e) => setBusinessInfo(prev => ({ ...prev, description: e.target.value }))}
-                    rows={4}
-                    className="border-slate-200 focus:border-emerald-500 resize-none"
+                    rows={3}
+                    className="border-slate-200 focus:border-emerald-500 resize-none text-sm"
                     data-testid="business-desc-input"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="products" className="text-slate-700">
-                    Products or Services (optional)
+                <div className="space-y-1.5">
+                  <Label htmlFor="products" className="text-slate-700 text-sm">
+                    Products or Services <span className="text-slate-400 font-normal">(optional)</span>
                   </Label>
                   <Textarea
                     id="products"
@@ -431,7 +464,7 @@ const AgentOnboarding = () => {
                     value={businessInfo.products_services}
                     onChange={(e) => setBusinessInfo(prev => ({ ...prev, products_services: e.target.value }))}
                     rows={3}
-                    className="border-slate-200 focus:border-emerald-500 resize-none"
+                    className="border-slate-200 focus:border-emerald-500 resize-none text-sm"
                     data-testid="products-input"
                   />
                 </div>
@@ -442,36 +475,36 @@ const AgentOnboarding = () => {
 
         {/* Step 2: Knowledge Base */}
         {currentStep === 2 && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900 mb-2">
+          <div className="space-y-5 animate-fade-in">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-semibold font-['Plus_Jakarta_Sans'] text-slate-900 mb-1">
                 Upload Your Knowledge
               </h2>
-              <p className="text-slate-500">
-                Add documents to help your AI agent answer customer questions accurately
+              <p className="text-sm text-slate-500">
+                Add documents to help your AI agent answer questions accurately
               </p>
             </div>
 
             {/* Upload Area */}
             <Card className="bg-white border-slate-200 shadow-sm">
-              <CardContent className="p-6">
-                <div 
-                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-                    uploading ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50'
-                  } cursor-pointer relative`}
+              <CardContent className="p-5">
+                <div
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-150 ${
+                    uploading ? 'border-emerald-400 bg-emerald-50/50' : 'border-slate-200 hover:border-emerald-400 hover:bg-slate-50/50'
+                  } cursor-pointer`}
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {uploading ? (
-                    <div className="space-y-3">
-                      <Loader2 className="w-10 h-10 mx-auto animate-spin text-emerald-600" strokeWidth={1.5} />
-                      <p className="font-medium text-slate-900">Processing files...</p>
+                    <div className="space-y-2">
+                      <Loader2 className="w-8 h-8 mx-auto animate-spin text-emerald-600" strokeWidth={2} />
+                      <p className="font-medium text-slate-900 text-sm">Processing files...</p>
                     </div>
                   ) : (
                     <>
-                      <Upload className="w-10 h-10 mx-auto text-slate-400 mb-3" strokeWidth={1.5} />
-                      <p className="font-medium text-slate-900">Drop files here or click to browse</p>
-                      <p className="text-sm text-slate-500 mt-1">
-                        PDF, Word, Excel, Images, or Text files (max 10MB each)
+                      <Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" strokeWidth={1.5} />
+                      <p className="font-medium text-slate-900 text-sm">Drop files here or click to browse</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        PDF, Word, Excel, Images, or Text (max 10MB)
                       </p>
                     </>
                   )}
@@ -535,198 +568,263 @@ const AgentOnboarding = () => {
 
         {/* Step 3: Agent Settings */}
         {currentStep === 3 && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900 mb-2">
+          <div className="space-y-4 animate-fade-in">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-semibold text-slate-900 mb-1">
                 Configure Your Agent
               </h2>
-              <p className="text-slate-500">
-                Customize how your AI agent communicates with customers
+              <p className="text-[13px] text-slate-500">
+                Customize how your AI agent communicates
               </p>
             </div>
 
-            {/* Communication Style */}
-            <Card className="bg-white border-slate-200 shadow-sm">
-              <CardContent className="p-6 space-y-5">
-                <h3 className="font-semibold text-slate-900">Communication Style</h3>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-700 text-sm">Tone</Label>
-                    <Select 
-                      value={settings.tone} 
-                      onValueChange={(v) => setSettings(prev => ({ ...prev, tone: v }))}
-                    >
-                      <SelectTrigger className="h-10" data-testid="tone-select">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="professional">Professional</SelectItem>
-                        <SelectItem value="friendly_professional">Friendly Professional</SelectItem>
-                        <SelectItem value="casual">Casual</SelectItem>
-                        <SelectItem value="luxury">Luxury/Premium</SelectItem>
-                      </SelectContent>
-                    </Select>
+            {/* Personality & Language - Combined Card */}
+            <Card className="bg-white border-slate-200/60 shadow-sm overflow-hidden">
+              <CardContent className="p-0">
+                {/* Tone & Response Style */}
+                <div className="p-5 border-b border-slate-100">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center">
+                      <Smile className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+                    </div>
+                    <h3 className="text-[13px] font-semibold text-slate-900">Personality</h3>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-slate-700 text-sm">Primary Language</Label>
-                    <Select 
-                      value={settings.primary_language} 
-                      onValueChange={(v) => setSettings(prev => ({ ...prev, primary_language: v }))}
-                    >
-                      <SelectTrigger className="h-10" data-testid="language-select">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="uz">🇺🇿 Uzbek</SelectItem>
-                        <SelectItem value="ru">🇷🇺 Russian</SelectItem>
-                        <SelectItem value="en">🇬🇧 English</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-600 text-[12px] font-medium">Tone</Label>
+                      <Select
+                        value={settings.tone}
+                        onValueChange={(v) => setSettings(prev => ({ ...prev, tone: v }))}
+                      >
+                        <SelectTrigger className="h-9 text-[13px] border-slate-200" data-testid="tone-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="professional">Professional</SelectItem>
+                          <SelectItem value="friendly_professional">Friendly Professional</SelectItem>
+                          <SelectItem value="casual">Casual</SelectItem>
+                          <SelectItem value="luxury">Luxury/Premium</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-600 text-[12px] font-medium">Response Style</Label>
+                      <Select
+                        value={settings.response_length}
+                        onValueChange={(v) => setSettings(prev => ({ ...prev, response_length: v }))}
+                      >
+                        <SelectTrigger className="h-9 text-[13px] border-slate-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="concise">Concise</SelectItem>
+                          <SelectItem value="balanced">Balanced</SelectItem>
+                          <SelectItem value="detailed">Detailed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5 col-span-2">
+                      <Label className="text-slate-600 text-[12px] font-medium">Emoji Usage</Label>
+                      <div className="flex gap-2">
+                        {['never', 'minimal', 'moderate', 'frequent'].map((level) => (
+                          <button
+                            key={level}
+                            type="button"
+                            onClick={() => setSettings(prev => ({ ...prev, emoji_usage: level }))}
+                            className={`flex-1 py-2 px-3 rounded-md text-[12px] font-medium transition-all ${
+                              settings.emoji_usage === level
+                                ? 'bg-slate-900 text-white'
+                                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {level.charAt(0).toUpperCase() + level.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-slate-700 text-sm">Response Length</Label>
-                    <Select 
-                      value={settings.response_length} 
-                      onValueChange={(v) => setSettings(prev => ({ ...prev, response_length: v }))}
-                    >
-                      <SelectTrigger className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="concise">Concise</SelectItem>
-                        <SelectItem value="balanced">Balanced</SelectItem>
-                        <SelectItem value="detailed">Detailed</SelectItem>
-                      </SelectContent>
-                    </Select>
+                </div>
+
+                {/* Languages */}
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center">
+                      <Globe className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+                    </div>
+                    <h3 className="text-[13px] font-semibold text-slate-900">Languages</h3>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-slate-700 text-sm">Emoji Usage</Label>
-                    <Select 
-                      value={settings.emoji_usage} 
-                      onValueChange={(v) => setSettings(prev => ({ ...prev, emoji_usage: v }))}
-                    >
-                      <SelectTrigger className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="never">Never</SelectItem>
-                        <SelectItem value="minimal">Minimal</SelectItem>
-                        <SelectItem value="moderate">Moderate</SelectItem>
-                        <SelectItem value="frequent">Frequent</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-600 text-[12px] font-medium">Primary Language</Label>
+                      <Select
+                        value={settings.primary_language}
+                        onValueChange={(v) => {
+                          const newSecondary = settings.secondary_languages.filter(l => l !== v);
+                          setSettings(prev => ({ ...prev, primary_language: v, secondary_languages: newSecondary }));
+                        }}
+                      >
+                        <SelectTrigger className="h-9 text-[13px] border-slate-200" data-testid="language-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="uz">🇺🇿 Uzbek</SelectItem>
+                          <SelectItem value="ru">🇷🇺 Russian</SelectItem>
+                          <SelectItem value="en">🇬🇧 English</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-600 text-[12px] font-medium">Also respond in</Label>
+                      <div className="flex gap-2">
+                        {[
+                          { code: 'uz', label: '🇺🇿 Uzbek' },
+                          { code: 'ru', label: '🇷🇺 Russian' },
+                          { code: 'en', label: '🇬🇧 English' }
+                        ].filter(lang => lang.code !== settings.primary_language).map(lang => (
+                          <button
+                            key={lang.code}
+                            type="button"
+                            onClick={() => {
+                              const isSelected = settings.secondary_languages.includes(lang.code);
+                              setSettings(prev => ({
+                                ...prev,
+                                secondary_languages: isSelected
+                                  ? prev.secondary_languages.filter(l => l !== lang.code)
+                                  : [...prev.secondary_languages, lang.code]
+                              }));
+                            }}
+                            className={`flex-1 py-2 px-3 rounded-md text-[12px] font-medium transition-all ${
+                              settings.secondary_languages.includes(lang.code)
+                                ? 'bg-white text-slate-900 ring-1 ring-slate-900'
+                                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {lang.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Messages */}
-            <Card className="bg-white border-slate-200 shadow-sm">
-              <CardContent className="p-6 space-y-5">
-                <h3 className="font-semibold text-slate-900">Messages</h3>
-                
-                <div className="space-y-2">
-                  <Label className="text-slate-700 text-sm">Greeting Message</Label>
-                  <Textarea
-                    placeholder="Hello! 👋 Welcome to our store. How can I help you today?"
-                    value={settings.greeting_message}
-                    onChange={(e) => setSettings(prev => ({ ...prev, greeting_message: e.target.value }))}
-                    rows={2}
-                    className="border-slate-200 focus:border-emerald-500 resize-none"
-                    data-testid="greeting-input"
-                  />
-                  <p className="text-xs text-slate-500">Leave empty to auto-generate based on language</p>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label className="text-slate-700 text-sm">Closing Message (when ready to buy)</Label>
-                  <Textarea
-                    placeholder="Great! I'll connect you with our team to finalize your order..."
-                    value={settings.closing_message}
-                    onChange={(e) => setSettings(prev => ({ ...prev, closing_message: e.target.value }))}
-                    rows={2}
-                    className="border-slate-200 focus:border-emerald-500 resize-none"
-                    data-testid="closing-input"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Rate Limiting */}
-            <Card className="bg-white border-slate-200 shadow-sm">
-              <CardContent className="p-6 space-y-5">
-                <h3 className="font-semibold text-slate-900">Rate Limiting</h3>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-700 text-sm">Response Delay (seconds)</Label>
-                    <Select 
-                      value={String(settings.min_response_delay)} 
-                      onValueChange={(v) => setSettings(prev => ({ ...prev, min_response_delay: parseInt(v) }))}
-                    >
-                      <SelectTrigger className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">Instant</SelectItem>
-                        <SelectItem value="1">1 second</SelectItem>
-                        <SelectItem value="2">2 seconds</SelectItem>
-                        <SelectItem value="3">3 seconds</SelectItem>
-                        <SelectItem value="5">5 seconds</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-slate-500">Feels more human</p>
+            <Card className="bg-white border-slate-200/60 shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center">
+                    <MessageSquare className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-slate-700 text-sm">Max Messages/Minute</Label>
-                    <Select 
-                      value={String(settings.max_messages_per_minute)} 
-                      onValueChange={(v) => setSettings(prev => ({ ...prev, max_messages_per_minute: parseInt(v) }))}
-                    >
-                      <SelectTrigger className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5 messages</SelectItem>
-                        <SelectItem value="10">10 messages</SelectItem>
-                        <SelectItem value="20">20 messages</SelectItem>
-                        <SelectItem value="0">Unlimited</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-slate-500">Prevents spam</p>
+                  <h3 className="text-[13px] font-semibold text-slate-900">Custom Messages</h3>
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-600 text-[12px] font-medium">Greeting</Label>
+                    <Textarea
+                      placeholder="Hello! Welcome to our store. How can I help you today?"
+                      value={settings.greeting_message}
+                      onChange={(e) => setSettings(prev => ({ ...prev, greeting_message: e.target.value }))}
+                      rows={2}
+                      className="border-slate-200 focus:border-slate-300 resize-none text-[13px]"
+                      data-testid="greeting-input"
+                    />
+                    <p className="text-[11px] text-slate-400">Leave empty to auto-generate</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-600 text-[12px] font-medium">Closing (when ready to buy)</Label>
+                    <Textarea
+                      placeholder="Great! I'll connect you with our team to finalize your order..."
+                      value={settings.closing_message}
+                      onChange={(e) => setSettings(prev => ({ ...prev, closing_message: e.target.value }))}
+                      rows={2}
+                      className="border-slate-200 focus:border-slate-300 resize-none text-[13px]"
+                      data-testid="closing-input"
+                    />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Lead Collection */}
-            <Card className="bg-white border-slate-200 shadow-sm">
-              <CardContent className="p-6 space-y-4">
-                <h3 className="font-semibold text-slate-900">Lead Collection</h3>
-                <p className="text-sm text-slate-500">What information should your agent collect?</p>
-                
-                <div className="space-y-3">
-                  {[
-                    { key: 'collect_name', label: 'Customer Name' },
-                    { key: 'collect_phone', label: 'Phone Number' },
-                    { key: 'collect_product', label: 'Product Interest' },
-                    { key: 'collect_budget', label: 'Budget Range' },
-                    { key: 'collect_location', label: 'Delivery Location' },
-                  ].map(({ key, label }) => (
-                    <div key={key} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-slate-50">
-                      <span className="text-sm text-slate-700">{label}</span>
-                      <Switch
-                        checked={settings[key]}
-                        onCheckedChange={(checked) => setSettings(prev => ({ ...prev, [key]: checked }))}
-                        data-testid={`switch-${key}`}
-                      />
+            {/* Behavior & Data Collection - Combined */}
+            <Card className="bg-white border-slate-200/60 shadow-sm overflow-hidden">
+              <CardContent className="p-0">
+                {/* Rate Limiting */}
+                <div className="p-5 border-b border-slate-100">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center">
+                      <Clock className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
                     </div>
-                  ))}
+                    <h3 className="text-[13px] font-semibold text-slate-900">Response Timing</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-600 text-[12px] font-medium">Delay</Label>
+                      <Select
+                        value={String(settings.min_response_delay)}
+                        onValueChange={(v) => setSettings(prev => ({ ...prev, min_response_delay: parseInt(v) }))}
+                      >
+                        <SelectTrigger className="h-9 text-[13px] border-slate-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Instant</SelectItem>
+                          <SelectItem value="1">1 second</SelectItem>
+                          <SelectItem value="2">2 seconds</SelectItem>
+                          <SelectItem value="3">3 seconds</SelectItem>
+                          <SelectItem value="5">5 seconds</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-600 text-[12px] font-medium">Rate Limit</Label>
+                      <Select
+                        value={String(settings.max_messages_per_minute)}
+                        onValueChange={(v) => setSettings(prev => ({ ...prev, max_messages_per_minute: parseInt(v) }))}
+                      >
+                        <SelectTrigger className="h-9 text-[13px] border-slate-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5/min</SelectItem>
+                          <SelectItem value="10">10/min</SelectItem>
+                          <SelectItem value="20">20/min</SelectItem>
+                          <SelectItem value="0">Unlimited</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lead Collection */}
+                <div className="p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-7 h-7 rounded-md bg-slate-100 flex items-center justify-center">
+                      <User className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+                    </div>
+                    <h3 className="text-[13px] font-semibold text-slate-900">Data Collection</h3>
+                  </div>
+                  <div className="space-y-1">
+                    {[
+                      { key: 'collect_name', label: 'Customer Name', desc: 'Full name' },
+                      { key: 'collect_phone', label: 'Phone Number', desc: 'Contact number' },
+                      { key: 'collect_product', label: 'Product Interest', desc: 'What they want' },
+                      { key: 'collect_budget', label: 'Budget Range', desc: 'Price range' },
+                      { key: 'collect_location', label: 'Location', desc: 'Delivery address' },
+                    ].map(({ key, label, desc }) => (
+                      <div key={key} className="flex items-center justify-between py-2.5 px-3 rounded-md hover:bg-slate-50 transition-colors">
+                        <div>
+                          <span className="text-[13px] font-medium text-slate-900">{label}</span>
+                          <span className="text-[11px] text-slate-400 ml-2">{desc}</span>
+                        </div>
+                        <Switch
+                          checked={settings[key]}
+                          onCheckedChange={(checked) => setSettings(prev => ({ ...prev, [key]: checked }))}
+                          data-testid={`switch-${key}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -735,73 +833,93 @@ const AgentOnboarding = () => {
 
         {/* Step 4: Test Chat */}
         {currentStep === 4 && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900 mb-2">
+          <div className="space-y-4 animate-fade-in">
+            <div className="text-center mb-4">
+              <h2 className="text-xl font-semibold text-slate-900 mb-1">
                 Test Your Agent
               </h2>
-              <p className="text-slate-500">
-                Have a conversation to make sure everything works as expected
+              <p className="text-[13px] text-slate-500">
+                Have a conversation to see how your agent responds
               </p>
             </div>
 
-            <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+            <Card className="bg-white border-slate-200/60 shadow-sm overflow-hidden">
               {/* Chat Header */}
-              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-white" strokeWidth={2} />
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center">
+                    <MessageCircle className="w-4.5 h-4.5 text-white" strokeWidth={1.75} />
                   </div>
                   <div>
-                    <p className="font-medium text-slate-900 text-sm">{businessInfo.name || 'Your Agent'}</p>
-                    <p className="text-xs text-emerald-600">● Online</p>
+                    <p className="font-medium text-slate-900 text-[13px]">{businessInfo.name || 'Your Agent'}</p>
+                    <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Online
+                    </p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" className="text-slate-500" onClick={resetTestChat}>
-                  <RefreshCw className="w-4 h-4 mr-1" strokeWidth={1.75} />
-                  Reset
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-slate-400 hover:text-slate-600 h-8 w-8 p-0"
+                  onClick={resetTestChat}
+                  title="Reset conversation"
+                >
+                  <RefreshCw className="w-4 h-4" strokeWidth={1.75} />
                 </Button>
               </div>
 
               {/* Chat Messages */}
-              <div className="h-80 overflow-y-auto p-4 space-y-3">
+              <div ref={chatMessagesRef} className="h-72 overflow-y-auto p-4 space-y-3 bg-white">
                 {testMessages.map((msg, idx) => (
-                  <div 
+                  <div
                     key={idx}
-                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start gap-2.5'}`}
                   >
-                    <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm ${
+                    {msg.role === 'assistant' && (
+                      <div className="w-6 h-6 rounded-md bg-slate-100 flex-shrink-0 flex items-center justify-center mt-0.5">
+                        <MessageCircle className="w-3 h-3 text-slate-500" strokeWidth={2} />
+                      </div>
+                    )}
+                    <div className={`max-w-[75%] px-3.5 py-2.5 text-[13px] leading-relaxed ${
                       msg.role === 'user'
-                        ? 'bg-emerald-600 text-white rounded-br-md'
-                        : 'bg-slate-100 text-slate-800 rounded-bl-md'
+                        ? 'bg-slate-900 text-white rounded-2xl rounded-br-md'
+                        : 'bg-slate-50 text-slate-700 rounded-2xl rounded-bl-md'
                     }`}>
                       {msg.text}
                     </div>
                   </div>
                 ))}
                 {testLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-slate-100 px-4 py-3 rounded-2xl rounded-bl-md">
-                      <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+                  <div className="flex justify-start gap-2.5">
+                    <div className="w-6 h-6 rounded-md bg-slate-100 flex-shrink-0 flex items-center justify-center mt-0.5">
+                      <MessageCircle className="w-3 h-3 text-slate-500" strokeWidth={2} />
+                    </div>
+                    <div className="bg-slate-50 px-4 py-3 rounded-2xl rounded-bl-md">
+                      <div className="flex gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* Chat Input */}
-              <div className="px-4 py-3 border-t border-slate-200">
-                <div className="flex gap-2">
+              <div className="px-4 py-3 border-t border-slate-100 bg-white">
+                <div className="flex items-center gap-2">
                   <Input
                     placeholder="Type a message..."
                     value={testInput}
                     onChange={(e) => setTestInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendTestMessage()}
-                    className="h-10 border-slate-200"
+                    className="flex-1 h-9 border-slate-200 bg-slate-50 focus:bg-white focus:border-slate-300 focus-visible:ring-0 text-[13px] rounded-lg"
                     data-testid="test-chat-input"
                   />
-                  <Button 
+                  <Button
                     size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 h-10 px-4"
+                    className="bg-slate-900 hover:bg-slate-800 h-9 w-9 p-0 rounded-lg"
                     onClick={sendTestMessage}
                     disabled={testLoading}
                     data-testid="send-test-btn"
@@ -811,180 +929,277 @@ const AgentOnboarding = () => {
                 </div>
               </div>
 
-              {/* Debug Panel */}
-              <div className="border-t border-slate-200">
+              {/* Insights Drawer */}
+              <div className="border-t border-slate-100">
                 <button
-                  className="w-full px-4 py-2 text-sm text-slate-500 hover:bg-slate-50 flex items-center justify-center gap-1"
+                  className="w-full px-4 py-2 text-[11px] font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-colors"
                   onClick={() => setShowDebug(!showDebug)}
                 >
-                  {showDebug ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  {showDebug ? 'Hide' : 'Show'} Debug Info
+                  {showDebug ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  {showDebug ? 'Hide' : 'View'} Insights
                 </button>
-                
-                {showDebug && debugInfo && (
-                  <div className="px-4 py-3 bg-slate-50 text-xs space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Stage:</span>
-                      <Badge variant="outline" className="text-xs">{debugInfo.stage}</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Hotness:</span>
-                      <Badge variant="outline" className="text-xs">{debugInfo.hotness}</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Score:</span>
-                      <span className="font-mono">{debugInfo.score}/100</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">RAG Used:</span>
-                      <span>{debugInfo.rag_used ? 'Yes' : 'No'}</span>
-                    </div>
+
+                {showDebug && (
+                  <div className="px-4 py-4 bg-slate-50 border-t border-slate-100">
+                    {debugInfo ? (
+                      <div className="flex items-center justify-around">
+                        <div className="text-center">
+                          <p className="text-[10px] text-slate-400 font-medium mb-1">Sales Stage</p>
+                          <p className="text-[12px] font-semibold text-slate-800 capitalize">{debugInfo.stage?.replace('_', ' ') || 'Awareness'}</p>
+                        </div>
+                        <div className="w-px h-8 bg-slate-200" />
+                        <div className="text-center">
+                          <p className="text-[10px] text-slate-400 font-medium mb-1">Lead Temp</p>
+                          <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold capitalize ${
+                            debugInfo.hotness === 'hot' ? 'bg-orange-100 text-orange-700' :
+                            debugInfo.hotness === 'warm' ? 'bg-amber-100 text-amber-700' :
+                            'bg-slate-200 text-slate-600'
+                          }`}>
+                            {debugInfo.hotness || 'Cold'}
+                          </span>
+                        </div>
+                        <div className="w-px h-8 bg-slate-200" />
+                        <div className="text-center">
+                          <p className="text-[10px] text-slate-400 font-medium mb-1">Score</p>
+                          <p className="text-[12px] font-semibold text-slate-800 font-mono">{debugInfo.score || 0}/100</p>
+                        </div>
+                        <div className="w-px h-8 bg-slate-200" />
+                        <div className="text-center">
+                          <p className="text-[10px] text-slate-400 font-medium mb-1">Knowledge</p>
+                          <span className={`inline-block w-2 h-2 rounded-full ${debugInfo.rag_used ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400 text-center">Send a message to see conversation insights</p>
+                    )}
                   </div>
                 )}
               </div>
             </Card>
 
-            <p className="text-center text-sm text-slate-500">
-              Try asking about your products, prices, or delivery
+            <p className="text-center text-[11px] text-slate-400">
+              Try asking about products, prices, or delivery options
             </p>
           </div>
         )}
 
         {/* Step 5: Connect */}
         {currentStep === 5 && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900 mb-2">
-                Connect Your Channels
-              </h2>
-              <p className="text-slate-500">
-                Link your agent to Telegram to start receiving messages
-              </p>
-            </div>
+          <TooltipProvider delayDuration={100}>
+            <div className="space-y-4 animate-fade-in">
+              <div className="text-center mb-6">
+                <h2 className="text-xl font-semibold text-slate-900 mb-1">
+                  Connect Your Channels
+                </h2>
+                <p className="text-[13px] text-slate-500">
+                  Link your agent to start receiving messages
+                </p>
+              </div>
 
-            {/* Telegram Connection */}
-            <Card className="bg-white border-slate-200 shadow-sm">
-              <CardContent className="p-6">
-                {connected ? (
-                  <div className="text-center py-4">
-                    <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 flex items-center justify-center mb-4">
-                      <Check className="w-8 h-8 text-emerald-600" strokeWidth={2} />
-                    </div>
-                    <h3 className="font-semibold text-slate-900 mb-1">Connected!</h3>
-                    <p className="text-slate-500 text-sm mb-4">
-                      Your bot @{botUsername} is now active
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(`https://t.me/${botUsername}`, '_blank')}
-                    >
-                      Open in Telegram
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1.01.54-1.45.53-.48-.01-1.39-.27-2.07-.49-.84-.27-1.51-.42-1.45-.89.03-.25.38-.51 1.07-.78 4.18-1.82 6.97-3.02 8.38-3.61 3.99-1.66 4.83-1.95 5.37-1.96.12 0 .38.03.55.17.14.12.18.28.2.45-.01.06.01.24 0 .38z"/>
-                        </svg>
+              {/* Telegram Connection */}
+              <Card className="bg-white border-slate-200/60 shadow-sm">
+                <CardContent className="p-5">
+                  {connected ? (
+                    <div className="text-center py-4">
+                      <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 flex items-center justify-center mb-3">
+                        <Check className="w-6 h-6 text-emerald-600" strokeWidth={2} />
                       </div>
-                      <div>
-                        <h3 className="font-medium text-slate-900">Telegram Bot</h3>
-                        <p className="text-sm text-slate-500">Connect your Telegram bot</p>
-                      </div>
+                      <h3 className="font-semibold text-slate-900 mb-0.5">Connected!</h3>
+                      <p className="text-slate-500 text-[13px] mb-3">
+                        Your bot @{botUsername} is now active
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-slate-200 text-[13px]"
+                        onClick={() => window.open(`https://t.me/${botUsername}`, '_blank')}
+                      >
+                        Open in Telegram
+                      </Button>
                     </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-[#0088cc]/10 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-[#0088cc]" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1.01.54-1.45.53-.48-.01-1.39-.27-2.07-.49-.84-.27-1.51-.42-1.45-.89.03-.25.38-.51 1.07-.78 4.18-1.82 6.97-3.02 8.38-3.61 3.99-1.66 4.83-1.95 5.37-1.96.12 0 .38.03.55.17.14.12.18.28.2.45-.01.06.01.24 0 .38z"/>
+                            </svg>
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-slate-900 text-[13px]">Telegram Bot</h3>
+                            <p className="text-[11px] text-slate-500">Connect your Telegram bot</p>
+                          </div>
+                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button className="w-7 h-7 rounded-md hover:bg-slate-100 flex items-center justify-center transition-colors">
+                              <HelpCircle className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-[280px] p-3 bg-slate-900 text-white">
+                            <p className="text-[12px] font-semibold mb-2 text-white">How to get your bot token:</p>
+                            <ol className="text-[11px] text-slate-300 space-y-1 list-decimal list-inside">
+                              <li>Open Telegram and search for @BotFather</li>
+                              <li>Send /newbot to create a new bot</li>
+                              <li>Follow the prompts to set a name</li>
+                              <li>Copy the token provided</li>
+                            </ol>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
 
-                    <div className="space-y-2">
-                      <Label className="text-slate-700 text-sm">Bot Token</Label>
-                      <Input
-                        type="password"
-                        placeholder="Paste your bot token from @BotFather"
-                        value={botToken}
-                        onChange={(e) => setBotToken(e.target.value)}
-                        className="h-10 border-slate-200"
-                        data-testid="bot-token-input"
-                      />
-                      <p className="text-xs text-slate-500">
-                        Get your token from{' '}
-                        <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">
-                          @BotFather
-                        </a>
+                      <div className="space-y-1.5">
+                        <Label className="text-slate-600 text-[12px] font-medium">Bot Token</Label>
+                        <Input
+                          type="password"
+                          placeholder="Paste your bot token from @BotFather"
+                          value={botToken}
+                          onChange={(e) => setBotToken(e.target.value)}
+                          className="h-9 text-[13px] border-slate-200"
+                          data-testid="bot-token-input"
+                        />
+                      </div>
+
+                      <Button
+                        className="w-full bg-slate-900 hover:bg-slate-800 h-9 text-[13px]"
+                        onClick={connectTelegram}
+                        disabled={connecting}
+                        data-testid="connect-telegram-btn"
+                      >
+                        {connecting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Connect Telegram
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Bitrix24 CRM Connection */}
+              <Card className="bg-white border-slate-200/60 shadow-sm">
+                <CardContent className="p-5">
+                  {bitrixConnected ? (
+                    <div className="text-center py-4">
+                      <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 flex items-center justify-center mb-3">
+                        <Check className="w-6 h-6 text-emerald-600" strokeWidth={2} />
+                      </div>
+                      <h3 className="font-semibold text-slate-900 mb-0.5">Bitrix24 Connected!</h3>
+                      <p className="text-slate-500 text-[13px]">
+                        Leads will automatically sync to your CRM
                       </p>
                     </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
+                            <Link2 className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-slate-900 text-[13px]">Bitrix24 CRM</h3>
+                              <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200 px-1.5 py-0">Optional</Badge>
+                            </div>
+                            <p className="text-[11px] text-slate-500">Sync leads to your CRM</p>
+                          </div>
+                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button className="w-7 h-7 rounded-md hover:bg-slate-100 flex items-center justify-center transition-colors">
+                              <HelpCircle className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-[300px] p-3 bg-slate-900 text-white">
+                            <p className="text-[12px] font-semibold mb-2 text-white">How to get your webhook URL:</p>
+                            <ol className="text-[11px] text-slate-300 space-y-1 list-decimal list-inside">
+                              <li>Go to Developer Resources → Other → Inbound webhooks</li>
+                              <li>Click "Add webhook"</li>
+                              <li>Enable permissions: CRM, Lists (products)</li>
+                              <li>Copy the webhook URL</li>
+                            </ol>
+                            <p className="text-[10px] text-slate-400 mt-2">
+                              Format: https://your-portal.bitrix24.kz/rest/1/abc123/
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
 
-                    <Button
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 h-10"
-                      onClick={connectTelegram}
-                      disabled={connecting}
-                      data-testid="connect-telegram-btn"
-                    >
-                      {connecting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                      Connect Telegram
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      <div className="space-y-1.5">
+                        <Label className="text-slate-600 text-[12px] font-medium">Webhook URL</Label>
+                        <div className="relative">
+                          <Input
+                            type={showBitrixUrl ? "text" : "password"}
+                            placeholder="https://your-portal.bitrix24.kz/rest/1/abc123/"
+                            value={bitrixWebhookUrl}
+                            onChange={(e) => setBitrixWebhookUrl(e.target.value)}
+                            className="h-9 text-[13px] border-slate-200 pr-10"
+                            data-testid="bitrix-webhook-input"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowBitrixUrl(!showBitrixUrl)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            {showBitrixUrl ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
 
-            {/* Other Channels (Coming Soon) */}
-            <Card className="bg-white border-slate-200 shadow-sm opacity-60">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
-                      <Plug className="w-5 h-5 text-indigo-600" strokeWidth={1.75} />
+                      <Button
+                        className="w-full bg-slate-900 hover:bg-slate-800 h-9 text-[13px]"
+                        onClick={connectBitrix}
+                        disabled={connectingBitrix}
+                        data-testid="connect-bitrix-btn"
+                      >
+                        {connectingBitrix && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Connect Bitrix24
+                      </Button>
                     </div>
-                    <div>
-                      <h3 className="font-medium text-slate-900">Bitrix24 CRM</h3>
-                      <p className="text-sm text-slate-500">Sync leads to your CRM</p>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="text-slate-500">Coming Soon</Badge>
-                </div>
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
 
-            <p className="text-center text-sm text-slate-500">
-              You can skip this step and connect channels later
-            </p>
-          </div>
+              <p className="text-center text-[11px] text-slate-400">
+                You can skip this step and connect channels later
+              </p>
+            </div>
+          </TooltipProvider>
         )}
 
-        {/* Navigation Buttons */}
-        <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-200">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={currentStep === 1}
-            className="h-10"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" strokeWidth={2} />
-            Back
-          </Button>
+          {/* Navigation Buttons */}
+          <div className="flex items-center justify-between mt-8 pt-5 border-t border-slate-200">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 1}
+              className="h-10 px-5 border-slate-200"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" strokeWidth={2} />
+              Back
+            </Button>
 
-          {currentStep < STEPS.length ? (
-            <Button
-              className="bg-emerald-600 hover:bg-emerald-700 h-10"
-              onClick={handleNext}
-              disabled={saving}
-              data-testid="next-step-btn"
-            >
-              {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Continue
-              <ArrowRight className="w-4 h-4 ml-2" strokeWidth={2} />
-            </Button>
-          ) : (
-            <Button
-              className="bg-emerald-600 hover:bg-emerald-700 h-10"
-              onClick={finishOnboarding}
-              data-testid="finish-btn"
-            >
-              <Check className="w-4 h-4 mr-2" strokeWidth={2} />
-              Finish Setup
-            </Button>
-          )}
+            {currentStep < STEPS.length ? (
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700 h-10 px-5"
+                onClick={handleNext}
+                disabled={saving}
+                data-testid="next-step-btn"
+              >
+                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Continue
+                <ArrowRight className="w-4 h-4 ml-2" strokeWidth={2} />
+              </Button>
+            ) : (
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700 h-10 px-5"
+                onClick={finishOnboarding}
+                data-testid="finish-btn"
+              >
+                <Check className="w-4 h-4 mr-2" strokeWidth={2} />
+                Finish Setup
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
