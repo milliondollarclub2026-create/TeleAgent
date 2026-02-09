@@ -194,7 +194,7 @@ const AgentsPage = () => {
                       <ExternalLink className="w-4 h-4 mr-2" strokeWidth={1.75} />
                       View Dashboard
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/agents/${agent.id}/settings`); }}>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/app/agents/${agent.id}/settings`); }}>
                       <Settings className="w-4 h-4 mr-2" strokeWidth={1.75} />
                       Settings
                     </DropdownMenuItem>
