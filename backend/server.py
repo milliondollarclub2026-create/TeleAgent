@@ -3096,30 +3096,35 @@ async def get_agents(current_user: Dict = Depends(get_current_user)):
         # Calculate average response time (in seconds)
         avg_response_time = None
         try:
-            messages_result = supabase.table('messages').select('conversation_id, sender, created_at').eq('tenant_id', current_user["tenant_id"]).order('created_at').execute()
-            if messages_result.data:
-                response_times = []
-                messages_by_convo = {}
-                for msg in messages_result.data:
-                    cid = msg.get('conversation_id')
-                    if cid not in messages_by_convo:
-                        messages_by_convo[cid] = []
-                    messages_by_convo[cid].append(msg)
+            # Get conversation IDs for this tenant first
+            if convos_result.data:
+                convo_ids = [c['id'] for c in convos_result.data]
+                if convo_ids:
+                    # Fetch messages for these conversations
+                    messages_result = supabase.table('messages').select('conversation_id, sender_type, created_at').in_('conversation_id', convo_ids).order('created_at').execute()
+                    if messages_result.data:
+                        response_times = []
+                        messages_by_convo = {}
+                        for msg in messages_result.data:
+                            cid = msg.get('conversation_id')
+                            if cid not in messages_by_convo:
+                                messages_by_convo[cid] = []
+                            messages_by_convo[cid].append(msg)
 
-                for cid, msgs in messages_by_convo.items():
-                    for i in range(1, len(msgs)):
-                        if msgs[i-1].get('sender') == 'customer' and msgs[i].get('sender') == 'agent':
-                            try:
-                                t1 = datetime.fromisoformat(msgs[i-1]['created_at'].replace('Z', '+00:00'))
-                                t2 = datetime.fromisoformat(msgs[i]['created_at'].replace('Z', '+00:00'))
-                                diff = (t2 - t1).total_seconds()
-                                if diff > 0 and diff < 3600:  # Only count if less than 1 hour
-                                    response_times.append(diff)
-                            except:
-                                pass
+                        for cid, msgs in messages_by_convo.items():
+                            for i in range(1, len(msgs)):
+                                if msgs[i-1].get('sender_type') == 'user' and msgs[i].get('sender_type') == 'agent':
+                                    try:
+                                        t1 = datetime.fromisoformat(msgs[i-1]['created_at'].replace('Z', '+00:00'))
+                                        t2 = datetime.fromisoformat(msgs[i]['created_at'].replace('Z', '+00:00'))
+                                        diff = (t2 - t1).total_seconds()
+                                        if diff > 0 and diff < 3600:  # Only count if less than 1 hour
+                                            response_times.append(diff)
+                                    except:
+                                        pass
 
-                if response_times:
-                    avg_response_time = round(sum(response_times) / len(response_times), 1)
+                        if response_times:
+                            avg_response_time = round(sum(response_times) / len(response_times), 1)
         except Exception as e:
             logger.warning(f"Could not calculate avg response time: {e}")
 
