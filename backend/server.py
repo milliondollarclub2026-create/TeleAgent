@@ -371,83 +371,153 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict:
     return token_data
 
 
-# ============ Auth Endpoints ============
+# ============ Auth Endpoints (Supabase Auth) ============
 @api_router.post("/auth/register", response_model=AuthResponse)
-async def register(request: RegisterRequest, background_tasks: BackgroundTasks):
-    result = supabase.table('users').select('*').eq('email', request.email).execute()
-    if result.data:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    tenant_id = str(uuid.uuid4())
-    tenant = {"id": tenant_id, "name": request.business_name, "timezone": "Asia/Tashkent", "created_at": now_iso()}
-    supabase.table('tenants').insert(tenant).execute()
-    
-    user_id = str(uuid.uuid4())
-    confirmation_token = generate_confirmation_token()
-    user = {
-        "id": user_id, "email": request.email, "password_hash": hash_password(request.password),
-        "name": request.name, "tenant_id": tenant_id, "role": "admin",
-        "email_confirmed": False, "confirmation_token": confirmation_token, "created_at": now_iso()
-    }
-    supabase.table('users').insert(user).execute()
-    
-    # Create default config - only include columns that exist in the database
-    config = {
-        "tenant_id": tenant_id, "business_name": request.business_name, "collect_phone": True,
-        "agent_tone": "professional", "primary_language": "uz", "vertical": "default"
-    }
+async def register(request: RegisterRequest):
+    """
+    Register a new user using Supabase Auth.
+    Supabase handles email confirmation automatically.
+    """
     try:
-        supabase.table('tenant_configs').insert(config).execute()
+        # Use Supabase Auth for registration - it handles email confirmation
+        auth_response = supabase.auth.sign_up({
+            "email": request.email,
+            "password": request.password,
+            "options": {
+                "data": {
+                    "name": request.name,
+                    "business_name": request.business_name
+                }
+            }
+        })
+        
+        if not auth_response.user:
+            raise HTTPException(status_code=400, detail="Registration failed")
+        
+        supabase_user = auth_response.user
+        user_id = str(supabase_user.id)
+        
+        # Check if user already exists in our users table
+        existing = supabase.table('users').select('*').eq('email', request.email).execute()
+        if existing.data:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Create tenant
+        tenant_id = str(uuid.uuid4())
+        tenant = {"id": tenant_id, "name": request.business_name, "timezone": "Asia/Tashkent", "created_at": now_iso()}
+        supabase.table('tenants').insert(tenant).execute()
+        
+        # Create user record in our users table (linked to Supabase Auth user)
+        user = {
+            "id": user_id,
+            "email": request.email,
+            "password_hash": hash_password(request.password),  # Keep for backward compat
+            "name": request.name,
+            "tenant_id": tenant_id,
+            "role": "admin",
+            "email_confirmed": False,  # Will be updated when Supabase confirms
+            "confirmation_token": None,
+            "created_at": now_iso()
+        }
+        supabase.table('users').insert(user).execute()
+        
+        # Create default config
+        config = {
+            "tenant_id": tenant_id, "business_name": request.business_name, "collect_phone": True,
+            "agent_tone": "professional", "primary_language": "uz", "vertical": "default"
+        }
+        try:
+            supabase.table('tenant_configs').insert(config).execute()
+        except Exception as e:
+            logger.warning(f"Could not create tenant config: {e}")
+        
+        # Create JWT token for immediate use (limited access until email confirmed)
+        token = create_access_token(user_id, tenant_id, request.email)
+        
+        # Check if email confirmation is required
+        email_confirmed = supabase_user.email_confirmed_at is not None
+        
+        return AuthResponse(
+            token=token,
+            user={
+                "id": user_id,
+                "email": request.email,
+                "name": request.name,
+                "tenant_id": tenant_id,
+                "business_name": request.business_name,
+                "email_confirmed": email_confirmed
+            },
+            message="Account created! Please check your email to confirm your account." if not email_confirmed else "Account created successfully!"
+        )
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.warning(f"Could not create tenant config: {e}")
-    
-    # Send confirmation email in background
-    background_tasks.add_task(send_confirmation_email, request.email, request.name, confirmation_token)
-    
-    token = create_access_token(user_id, tenant_id, request.email)
-    return AuthResponse(
-        token=token,
-        user={"id": user_id, "email": request.email, "name": request.name, "tenant_id": tenant_id, "business_name": tenant["name"], "email_confirmed": False},
-        message="Account created! Please check your email to confirm your account."
-    )
+        logger.error(f"Registration error: {e}")
+        # Check if it's a duplicate email error from Supabase
+        if "already registered" in str(e).lower() or "already been registered" in str(e).lower():
+            raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 
 @api_router.get("/auth/confirm-email")
-async def confirm_email(token: str):
-    """Confirm user email with token"""
-    result = supabase.table('users').select('*').eq('confirmation_token', token).execute()
-    if not result.data:
-        raise HTTPException(status_code=400, detail="Invalid or expired confirmation token")
+async def confirm_email(token: str = None, type: str = None, access_token: str = None):
+    """
+    Confirm user email - handles both custom tokens and Supabase redirects.
+    Supabase sends: /confirm-email?access_token=...&type=signup
+    """
+    # Handle Supabase Auth callback
+    if access_token and type == "signup":
+        try:
+            # Verify the Supabase session
+            session_response = supabase.auth.get_user(access_token)
+            if session_response and session_response.user:
+                supabase_user = session_response.user
+                
+                # Update our users table
+                supabase.table('users').update({
+                    "email_confirmed": True,
+                    "email_confirmed_at": now_iso()
+                }).eq('email', supabase_user.email).execute()
+                
+                return {"message": "Email confirmed successfully! You can now log in.", "redirect": "/login"}
+        except Exception as e:
+            logger.error(f"Supabase confirmation error: {e}")
     
-    user = result.data[0]
-    if user.get('email_confirmed'):
-        return {"message": "Email already confirmed", "redirect": "/login"}
+    # Handle custom token (fallback for legacy)
+    if token:
+        result = supabase.table('users').select('*').eq('confirmation_token', token).execute()
+        if not result.data:
+            raise HTTPException(status_code=400, detail="Invalid or expired confirmation token")
+        
+        user = result.data[0]
+        if user.get('email_confirmed'):
+            return {"message": "Email already confirmed", "redirect": "/login"}
+        
+        supabase.table('users').update({
+            "email_confirmed": True,
+            "confirmation_token": None,
+            "email_confirmed_at": now_iso()
+        }).eq('id', user['id']).execute()
+        
+        return {"message": "Email confirmed successfully! You can now log in.", "redirect": "/login"}
     
-    # Update user as confirmed
-    supabase.table('users').update({
-        "email_confirmed": True,
-        "confirmation_token": None,
-        "email_confirmed_at": now_iso()
-    }).eq('id', user['id']).execute()
-    
-    return {"message": "Email confirmed successfully! You can now log in.", "redirect": "/login"}
+    raise HTTPException(status_code=400, detail="Invalid confirmation request")
 
 
 @api_router.post("/auth/resend-confirmation")
-async def resend_confirmation(email: EmailStr, background_tasks: BackgroundTasks):
-    """Resend confirmation email"""
-    result = supabase.table('users').select('*').eq('email', email).execute()
-    if not result.data:
-        # Don't reveal if email exists
+async def resend_confirmation(email: EmailStr):
+    """Resend confirmation email via Supabase Auth"""
+    try:
+        # Use Supabase to resend confirmation
+        supabase.auth.resend({
+            "type": "signup",
+            "email": email
+        })
         return {"message": "If this email is registered, a confirmation link will be sent."}
-    
-    user = result.data[0]
-    if user.get('email_confirmed'):
-        return {"message": "Email is already confirmed. Please log in."}
-    
-    # Generate new token
-    new_token = generate_confirmation_token()
-    supabase.table('users').update({"confirmation_token": new_token}).eq('id', user['id']).execute()
+    except Exception as e:
+        logger.warning(f"Resend confirmation error: {e}")
+        return {"message": "If this email is registered, a confirmation link will be sent."}
     
     # Send email
     background_tasks.add_task(send_confirmation_email, email, user.get('name', 'User'), new_token)
