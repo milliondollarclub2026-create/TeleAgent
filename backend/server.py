@@ -19,7 +19,6 @@ import json
 import asyncio
 from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
-import httpx
 import resend
 
 # Import document processor for RAG
