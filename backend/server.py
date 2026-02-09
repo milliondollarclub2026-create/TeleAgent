@@ -824,22 +824,32 @@ async def get_bitrix_client(tenant_id: str) -> Optional[BitrixCRMClient]:
     if tenant_id in _bitrix_webhooks_cache:
         return create_bitrix_client(_bitrix_webhooks_cache[tenant_id]['webhook_url'])
     
-    # Try tenant_configs
+    # Try tenant_configs table first
     try:
-        result = supabase.table('tenant_configs').select('bitrix_webhook_url').eq('tenant_id', tenant_id).execute()
+        result = supabase.table('tenant_configs').select('bitrix_webhook_url, bitrix_connected_at').eq('tenant_id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
             webhook_url = result.data[0]['bitrix_webhook_url']
-            _bitrix_webhooks_cache[tenant_id] = {'webhook_url': webhook_url}
+            connected_at = result.data[0].get('bitrix_connected_at')
+            _bitrix_webhooks_cache[tenant_id] = {
+                'webhook_url': webhook_url,
+                'connected_at': connected_at
+            }
+            logger.info(f"Loaded Bitrix webhook from tenant_configs for tenant {tenant_id}")
             return create_bitrix_client(webhook_url)
     except Exception as e:
         logger.debug(f"Could not get Bitrix from tenant_configs: {e}")
     
-    # Try tenants table
+    # Try tenants table as fallback
     try:
-        result = supabase.table('tenants').select('bitrix_webhook_url').eq('id', tenant_id).execute()
+        result = supabase.table('tenants').select('bitrix_webhook_url, bitrix_connected_at').eq('id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
             webhook_url = result.data[0]['bitrix_webhook_url']
-            _bitrix_webhooks_cache[tenant_id] = {'webhook_url': webhook_url}
+            connected_at = result.data[0].get('bitrix_connected_at')
+            _bitrix_webhooks_cache[tenant_id] = {
+                'webhook_url': webhook_url,
+                'connected_at': connected_at
+            }
+            logger.info(f"Loaded Bitrix webhook from tenants for tenant {tenant_id}")
             return create_bitrix_client(webhook_url)
     except Exception as e:
         logger.debug(f"Could not get Bitrix from tenants: {e}")
