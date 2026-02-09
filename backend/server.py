@@ -18,7 +18,6 @@ from openai import AsyncOpenAI
 import json
 import asyncio
 from supabase import create_client, Client
-from supabase.lib.client_options import ClientOptions
 import resend
 
 # Import document processor for RAG
@@ -40,20 +39,10 @@ load_dotenv(ROOT_DIR / '.env')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Initialize Supabase client with HTTP/1.1 (avoid HTTP/2 StreamReset issues)
+# Initialize Supabase client
 supabase_url = os.environ.get('SUPABASE_URL')
 supabase_key = os.environ.get('SUPABASE_SERVICE_KEY')
-
-# Create custom httpx client without HTTP/2 to avoid connection issues
-_http_client = httpx.Client(http2=False, timeout=30.0)
-supabase: Client = create_client(
-    supabase_url,
-    supabase_key,
-    options=ClientOptions(
-        postgrest_client_timeout=30,
-        storage_client_timeout=30
-    )
-)
+supabase: Client = create_client(supabase_url, supabase_key)
 
 # Initialize Resend for email
 resend.api_key = os.environ.get('RESEND_API_KEY')
