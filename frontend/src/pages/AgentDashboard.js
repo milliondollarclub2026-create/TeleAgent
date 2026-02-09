@@ -184,7 +184,7 @@ const AgentDashboard = () => {
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => navigate(`/agents/${agentId}/crm-chat`)}
+            onClick={() => navigate(`/app/agents/${agentId}/crm-chat`)}
             className="text-emerald-600 border-emerald-200 hover:bg-emerald-50"
             data-testid="crm-chat-btn"
           >
