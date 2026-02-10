@@ -1223,19 +1223,23 @@ async def connect_telegram_bot(request: TelegramBotCreate, current_user: Dict = 
     
     tenant_id = current_user["tenant_id"]
     backend_url = os.environ.get('REACT_APP_BACKEND_URL', 'https://aiagent-hub-17.preview.emergentagent.com')
-    webhook_url = f"{backend_url}/api/telegram/webhook"
-    
+
+    # Check if bot already exists for this tenant
     result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
     bot_id = result.data[0]['id'] if result.data else str(uuid.uuid4())
-    
+
+    # SECURITY: Use bot-specific webhook URL for proper tenant isolation
+    webhook_url = f"{backend_url}/api/telegram/webhook/{bot_id}"
+
     bot_data = {"id": bot_id, "tenant_id": tenant_id, "bot_token": request.bot_token, "bot_username": bot_info.get("username"), "webhook_url": webhook_url, "is_active": True, "created_at": now_iso()}
-    
+
     if result.data:
         supabase.table('telegram_bots').update(bot_data).eq('id', bot_id).execute()
     else:
         supabase.table('telegram_bots').insert(bot_data).execute()
-    
+
     await set_telegram_webhook(request.bot_token, webhook_url)
+    logger.info(f"Set webhook for bot {bot_id} (tenant {tenant_id}): {webhook_url}")
     return {"id": bot_id, "bot_username": bot_info.get("username"), "is_active": True, "webhook_url": webhook_url}
 
 
@@ -1307,12 +1311,17 @@ class ClickConnect(BaseModel):
     secret_key: str = Field(..., description="Click Secret Key")
 
 
+class GoogleSheetsConnect(BaseModel):
+    sheet_url: str = Field(..., description="Google Sheets share link (Anyone with link can view)")
+
+
 # In-memory storage for Bitrix webhooks (fallback when DB columns don't exist)
 _bitrix_webhooks_cache = {}
 
 # In-memory storage for payment credentials (fallback when DB columns don't exist)
 _payme_credentials_cache = {}
 _click_credentials_cache = {}
+_google_sheets_cache = {}
 
 # Product catalog cache for CRM pricing queries {tenant_id: {"products": [...], "cached_at": timestamp}}
 _product_catalog_cache = {}
@@ -2161,6 +2170,176 @@ async def disconnect_click(current_user: Dict = Depends(get_current_user)):
         logger.debug(f"Could not clear Click from database: {e}")
 
     return {"success": True, "message": "Click disconnected"}
+
+
+# ============ Google Sheets Endpoints ============
+
+def _extract_sheet_id(url: str) -> Optional[str]:
+    """Extract Google Sheet ID from a share URL."""
+    import re
+    # Matches: https://docs.google.com/spreadsheets/d/SHEET_ID/...
+    match = re.search(r'/spreadsheets/d/([a-zA-Z0-9-_]+)', url)
+    return match.group(1) if match else None
+
+
+@api_router.post("/google-sheets/connect")
+async def connect_google_sheets(
+    request: GoogleSheetsConnect,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Connect a Google Sheet (must be shared as 'Anyone with link can view')"""
+    tenant_id = current_user["tenant_id"]
+
+    sheet_id = _extract_sheet_id(request.sheet_url)
+    if not sheet_id:
+        raise HTTPException(status_code=400, detail="Invalid Google Sheets URL. Please paste a valid share link.")
+
+    # Test that the sheet is publicly accessible by fetching first row as CSV
+    import httpx
+    test_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            resp = await client.get(test_url)
+            if resp.status_code != 200:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Could not access the sheet. Make sure it's shared as 'Anyone with the link can view'."
+                )
+            # Verify it's actually CSV content (not an HTML error page)
+            content_type = resp.headers.get('content-type', '')
+            if 'text/csv' not in content_type and 'text/plain' not in content_type and 'application/csv' not in content_type:
+                # Google sometimes returns HTML login page for non-public sheets
+                if '<html' in resp.text[:200].lower():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Sheet is not publicly accessible. Set sharing to 'Anyone with the link can view'."
+                    )
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=400, detail=f"Could not reach Google Sheets: {str(e)}")
+
+    connected_at = datetime.utcnow().isoformat()
+
+    # Store in memory cache
+    _google_sheets_cache[tenant_id] = {
+        'sheet_url': request.sheet_url,
+        'sheet_id': sheet_id,
+        'connected_at': connected_at
+    }
+    logger.info(f"Stored Google Sheets config in cache for tenant {tenant_id}")
+
+    # Try to save to database
+    saved_to_db = False
+    try:
+        result = supabase.table('tenant_configs').update({
+            "google_sheet_url": request.sheet_url,
+            "google_sheet_id": sheet_id,
+            "google_sheet_connected_at": connected_at
+        }).eq('tenant_id', tenant_id).execute()
+        if result.data:
+            saved_to_db = True
+            logger.info(f"Saved Google Sheets config to database for tenant {tenant_id}")
+    except Exception as e:
+        logger.debug(f"Could not save Google Sheets to database (columns may not exist): {e}")
+
+    return {
+        "success": True,
+        "message": "Google Sheet connected successfully!",
+        "sheet_id": sheet_id,
+        "connected_at": connected_at,
+        "persisted": saved_to_db
+    }
+
+
+@api_router.get("/google-sheets/status")
+async def get_google_sheets_status(current_user: Dict = Depends(get_current_user)):
+    """Get Google Sheets connection status"""
+    tenant_id = current_user["tenant_id"]
+
+    # Check memory cache first
+    if tenant_id in _google_sheets_cache:
+        return {
+            "connected": True,
+            "sheet_url": _google_sheets_cache[tenant_id].get('sheet_url'),
+            "sheet_id": _google_sheets_cache[tenant_id].get('sheet_id'),
+            "connected_at": _google_sheets_cache[tenant_id].get('connected_at'),
+            "source": "cache"
+        }
+
+    # Try database
+    try:
+        result = supabase.table('tenant_configs').select('google_sheet_url, google_sheet_id, google_sheet_connected_at').eq('tenant_id', tenant_id).execute()
+        if result.data and result.data[0].get('google_sheet_id'):
+            return {
+                "connected": True,
+                "sheet_url": result.data[0].get('google_sheet_url'),
+                "sheet_id": result.data[0].get('google_sheet_id'),
+                "connected_at": result.data[0].get('google_sheet_connected_at'),
+                "source": "database"
+            }
+    except Exception as e:
+        logger.debug(f"Could not check Google Sheets status from database: {e}")
+
+    return {"connected": False, "sheet_url": None, "sheet_id": None, "connected_at": None}
+
+
+@api_router.post("/google-sheets/test")
+async def test_google_sheets_connection(current_user: Dict = Depends(get_current_user)):
+    """Test Google Sheets connection by fetching data"""
+    tenant_id = current_user["tenant_id"]
+
+    sheet_id = None
+    if tenant_id in _google_sheets_cache:
+        sheet_id = _google_sheets_cache[tenant_id].get('sheet_id')
+    else:
+        try:
+            result = supabase.table('tenant_configs').select('google_sheet_id').eq('tenant_id', tenant_id).execute()
+            if result.data and result.data[0].get('google_sheet_id'):
+                sheet_id = result.data[0]['google_sheet_id']
+        except Exception:
+            pass
+
+    if not sheet_id:
+        return {"ok": False, "message": "Google Sheets not connected"}
+
+    # Try to fetch the sheet
+    import httpx
+    test_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            resp = await client.get(test_url)
+            if resp.status_code == 200:
+                # Count rows for feedback
+                lines = resp.text.strip().split('\n')
+                row_count = len(lines) - 1  # exclude header
+                return {"ok": True, "message": f"Sheet accessible. {row_count} data rows found."}
+            else:
+                return {"ok": False, "message": "Sheet is no longer accessible. Check sharing settings."}
+    except Exception as e:
+        return {"ok": False, "message": f"Connection failed: {str(e)}"}
+
+
+@api_router.post("/google-sheets/disconnect")
+async def disconnect_google_sheets(current_user: Dict = Depends(get_current_user)):
+    """Disconnect Google Sheets"""
+    tenant_id = current_user["tenant_id"]
+
+    # Clear from memory cache
+    if tenant_id in _google_sheets_cache:
+        del _google_sheets_cache[tenant_id]
+        logger.info(f"Cleared Google Sheets from cache for tenant {tenant_id}")
+
+    # Try to clear from database
+    try:
+        supabase.table('tenant_configs').update({
+            "google_sheet_url": None,
+            "google_sheet_id": None,
+            "google_sheet_connected_at": None
+        }).eq('tenant_id', tenant_id).execute()
+        logger.info(f"Cleared Google Sheets from database for tenant {tenant_id}")
+    except Exception as e:
+        logger.debug(f"Could not clear Google Sheets from database: {e}")
+
+    return {"success": True, "message": "Google Sheets disconnected"}
 
 
 # ============ Enhanced LLM Service ============
@@ -3052,18 +3231,18 @@ async def call_sales_agent(
 
 
 # ============ Telegram Webhook Handler ============
-@api_router.post("/telegram/webhook")
-async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
-    """Handle incoming Telegram webhook updates"""
+@api_router.post("/telegram/webhook/{bot_id}")
+async def telegram_webhook_with_bot_id(bot_id: str, request: Request, background_tasks: BackgroundTasks):
+    """Handle incoming Telegram webhook updates with bot-specific URL (SECURE - multi-tenant safe)"""
     try:
         update = await request.json()
-        logger.info(f"Received Telegram update: {json.dumps(update, default=str)[:500]}")
-        
+        logger.info(f"Received Telegram update for bot {bot_id}: {json.dumps(update, default=str)[:500]}")
+
         message = update.get("message")
         if not message or not isinstance(message, dict):
             logger.debug("No valid message in update, ignoring")
             return {"ok": True}
-        
+
         text = message.get("text")
         if not text:
             logger.debug("No text in message, ignoring")
@@ -3074,7 +3253,6 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
         if len(text) > MAX_MESSAGE_LENGTH:
             logger.warning(f"Message too long ({len(text)} chars), truncating to {MAX_MESSAGE_LENGTH}")
             text = text[:MAX_MESSAGE_LENGTH] + "..."
-            # Update message with truncated text
             message["text"] = text
 
         # CRITICAL: Rate limiting to prevent flooding
@@ -3082,29 +3260,25 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
         if not message_rate_limiter.is_allowed(user_id):
             wait_time = message_rate_limiter.get_wait_time(user_id)
             logger.warning(f"Rate limit exceeded for user {user_id}, wait {wait_time}s")
-            # Don't process, but return OK to Telegram
             return {"ok": True}
 
-        # Get the bot that received this message
-        # We need to identify which bot this came from - Telegram sends bot_id in the update
-        # But since we don't have that, we check all active bots
-        result = supabase.table('telegram_bots').select('*').eq('is_active', True).execute()
-        
+        # SECURITY: Get the SPECIFIC bot by ID - ensures tenant isolation
+        result = supabase.table('telegram_bots').select('*').eq('id', bot_id).eq('is_active', True).execute()
+
         if not result.data:
-            logger.warning("No active Telegram bots configured")
+            logger.warning(f"No active bot found with id {bot_id}")
             return {"ok": True}
-        
-        # For now, process with first active bot (single-tenant scenario)
-        # TODO: In multi-tenant, we'd need to verify the bot_token matches
+
         bot = result.data[0]
-        
+        logger.info(f"Processing message for tenant {bot['tenant_id']}")
+
         # Update last webhook timestamp
         try:
             supabase.table('telegram_bots').update({"last_webhook_at": now_iso()}).eq('id', bot['id']).execute()
         except Exception as e:
             logger.warning(f"Could not update webhook timestamp: {e}")
-        
-        # Process message in background
+
+        # Process message in background with correct tenant
         background_tasks.add_task(process_telegram_message, bot["tenant_id"], bot["bot_token"], update)
         return {"ok": True}
         
@@ -3115,6 +3289,55 @@ async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
         logger.error(f"Webhook error: {e}")
         import traceback
         traceback.print_exc()
+        return {"ok": True}
+
+
+@api_router.post("/telegram/webhook")
+async def telegram_webhook_legacy(request: Request, background_tasks: BackgroundTasks):
+    """
+    DEPRECATED: Legacy webhook endpoint without bot_id.
+    For security, new bots should use /telegram/webhook/{bot_id}
+    This endpoint only works for single-tenant scenarios as a fallback.
+    """
+    logger.warning("DEPRECATED: Using legacy /telegram/webhook endpoint without bot_id. Migrate to /telegram/webhook/{bot_id}")
+
+    try:
+        update = await request.json()
+
+        message = update.get("message")
+        if not message or not isinstance(message, dict):
+            return {"ok": True}
+
+        text = message.get("text")
+        if not text:
+            return {"ok": True}
+
+        # Rate limiting
+        user_id = str(message.get("from", {}).get("id", "unknown"))
+        if not message_rate_limiter.is_allowed(user_id):
+            return {"ok": True}
+
+        # SECURITY WARNING: This queries all bots - only safe in single-tenant mode
+        # Get the first active bot as fallback (DEPRECATED behavior)
+        result = supabase.table('telegram_bots').select('*').eq('is_active', True).limit(1).execute()
+
+        if not result.data:
+            logger.warning("No active Telegram bots configured")
+            return {"ok": True}
+
+        bot = result.data[0]
+        logger.warning(f"Legacy webhook: Processing for tenant {bot['tenant_id']} - PLEASE MIGRATE TO /telegram/webhook/{bot['id']}")
+
+        try:
+            supabase.table('telegram_bots').update({"last_webhook_at": now_iso()}).eq('id', bot['id']).execute()
+        except Exception as e:
+            logger.warning(f"Could not update webhook timestamp: {e}")
+
+        background_tasks.add_task(process_telegram_message, bot["tenant_id"], bot["bot_token"], update)
+        return {"ok": True}
+
+    except Exception as e:
+        logger.error(f"Legacy webhook error: {e}")
         return {"ok": True}
 
 
@@ -3748,11 +3971,13 @@ async def get_leads(status: Optional[str] = None, hotness: Optional[str] = None,
         return []
 
     # Fetch all customers in ONE query instead of N queries (fixes N+1 problem)
+    # SECURITY: Include tenant_id filter for defense-in-depth
+    tenant_id = current_user["tenant_id"]
     customer_ids = list(set(lead['customer_id'] for lead in leads if lead.get('customer_id')))
     customers_map = {}
     if customer_ids:
         try:
-            cust_result = supabase.table('customers').select('id, name, phone').in_('id', customer_ids).execute()
+            cust_result = supabase.table('customers').select('id, name, phone').in_('id', customer_ids).eq('tenant_id', tenant_id).execute()
             customers_map = {c['id']: c for c in (cust_result.data or [])}
         except Exception as e:
             logger.warning(f"Failed to fetch customers: {e}")
@@ -4279,10 +4504,12 @@ async def upload_document(
 @api_router.delete("/documents/{doc_id}")
 async def delete_document(doc_id: str, current_user: Dict = Depends(get_current_user)):
     """Delete a document"""
-    result = supabase.table('documents').select('*').eq('id', doc_id).eq('tenant_id', current_user["tenant_id"]).execute()
+    tenant_id = current_user["tenant_id"]
+    result = supabase.table('documents').select('*').eq('id', doc_id).eq('tenant_id', tenant_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Document not found")
-    supabase.table('documents').delete().eq('id', doc_id).execute()
+    # SECURITY: Include tenant_id in delete for defense-in-depth against IDOR
+    supabase.table('documents').delete().eq('id', doc_id).eq('tenant_id', tenant_id).execute()
     # Also remove from cache
     if doc_id in document_embeddings_cache:
         del document_embeddings_cache[doc_id]
@@ -4343,7 +4570,10 @@ async def get_integrations_status(current_user: Dict = Depends(get_current_user)
     return {
         "telegram": {"connected": telegram_bot is not None, "bot_username": telegram_bot.get("bot_username") if telegram_bot else None, "last_webhook_at": telegram_bot.get("last_webhook_at") if telegram_bot else None},
         "bitrix": bitrix_status,
-        "google_sheets": {"connected": False, "sheet_id": None}
+        "google_sheets": {
+            "connected": tenant_id in _google_sheets_cache or False,
+            "sheet_id": _google_sheets_cache.get(tenant_id, {}).get('sheet_id')
+        }
     }
 
 
