@@ -503,6 +503,24 @@ class TenantConfigUpdate(BaseModel):
     closing_scripts: Optional[Dict] = None
     required_fields: Optional[Dict] = None
     active_promotions: Optional[List[Dict]] = None
+    # Data collection fields - Essential
+    collect_name: Optional[bool] = None
+    collect_email: Optional[bool] = None
+    # Data collection fields - Purchase Intent
+    collect_product: Optional[bool] = None
+    collect_budget: Optional[bool] = None
+    collect_timeline: Optional[bool] = None
+    collect_quantity: Optional[bool] = None
+    # Data collection fields - Qualification
+    collect_company: Optional[bool] = None
+    collect_job_title: Optional[bool] = None
+    collect_team_size: Optional[bool] = None
+    # Data collection fields - Logistics
+    collect_location: Optional[bool] = None
+    collect_preferred_time: Optional[bool] = None
+    collect_urgency: Optional[bool] = None
+    collect_reference: Optional[bool] = None
+    collect_notes: Optional[bool] = None
 
 class DocumentCreate(BaseModel):
     title: str
@@ -1229,8 +1247,22 @@ class CRMChatRequest(BaseModel):
     conversation_history: List[Dict] = Field(default=[], description="Previous messages in conversation")
 
 
+class PaymeConnect(BaseModel):
+    merchant_id: str = Field(..., description="Payme Merchant ID")
+    secret_key: str = Field(..., description="Payme Secret Key")
+
+
+class ClickConnect(BaseModel):
+    service_id: str = Field(..., description="Click Service ID")
+    secret_key: str = Field(..., description="Click Secret Key")
+
+
 # In-memory storage for Bitrix webhooks (fallback when DB columns don't exist)
 _bitrix_webhooks_cache = {}
+
+# In-memory storage for payment credentials (fallback when DB columns don't exist)
+_payme_credentials_cache = {}
+_click_credentials_cache = {}
 
 
 async def get_bitrix_client(tenant_id: str) -> Optional[BitrixCRMClient]:
@@ -1609,6 +1641,232 @@ Language: Respond in the same language the user uses (English, Russian, or Uzbek
     except Exception as e:
         logger.error(f"CRM Chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ Payment Gateway Endpoints ============
+
+@api_router.post("/payme/connect")
+async def connect_payme(
+    request: PaymeConnect,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Connect Payme payment gateway"""
+    tenant_id = current_user["tenant_id"]
+    connected_at = datetime.utcnow().isoformat()
+
+    # Store in memory cache
+    _payme_credentials_cache[tenant_id] = {
+        'merchant_id': request.merchant_id,
+        'secret_key': request.secret_key,
+        'connected_at': connected_at
+    }
+    logger.info(f"Stored Payme credentials in cache for tenant {tenant_id}")
+
+    # Try to save to database
+    saved_to_db = False
+    try:
+        result = supabase.table('tenant_configs').update({
+            "payme_merchant_id": request.merchant_id,
+            "payme_secret_key": request.secret_key,
+            "payme_connected_at": connected_at
+        }).eq('tenant_id', tenant_id).execute()
+        if result.data:
+            saved_to_db = True
+            logger.info(f"Saved Payme credentials to database for tenant {tenant_id}")
+    except Exception as e:
+        logger.debug(f"Could not save Payme to database (columns may not exist): {e}")
+
+    return {
+        "success": True,
+        "message": "Payme connected successfully!",
+        "connected_at": connected_at,
+        "persisted": saved_to_db
+    }
+
+
+@api_router.get("/payme/status")
+async def get_payme_status(current_user: Dict = Depends(get_current_user)):
+    """Get Payme connection status"""
+    tenant_id = current_user["tenant_id"]
+
+    # Check memory cache first
+    if tenant_id in _payme_credentials_cache:
+        return {
+            "connected": True,
+            "connected_at": _payme_credentials_cache[tenant_id].get('connected_at'),
+            "source": "cache"
+        }
+
+    # Try database
+    try:
+        result = supabase.table('tenant_configs').select('payme_merchant_id, payme_connected_at').eq('tenant_id', tenant_id).execute()
+        if result.data and result.data[0].get('payme_merchant_id'):
+            connected_at = result.data[0].get('payme_connected_at')
+            return {
+                "connected": True,
+                "connected_at": connected_at,
+                "source": "database"
+            }
+    except Exception as e:
+        logger.debug(f"Could not check Payme status from database: {e}")
+
+    return {"connected": False, "connected_at": None}
+
+
+@api_router.post("/payme/test")
+async def test_payme_connection(current_user: Dict = Depends(get_current_user)):
+    """Test Payme connection (validates credentials are stored)"""
+    tenant_id = current_user["tenant_id"]
+
+    # Check if credentials exist
+    if tenant_id in _payme_credentials_cache:
+        return {"ok": True, "message": "Payme credentials are configured"}
+
+    # Check database
+    try:
+        result = supabase.table('tenant_configs').select('payme_merchant_id').eq('tenant_id', tenant_id).execute()
+        if result.data and result.data[0].get('payme_merchant_id'):
+            return {"ok": True, "message": "Payme credentials are configured"}
+    except Exception as e:
+        logger.debug(f"Could not check Payme from database: {e}")
+
+    return {"ok": False, "message": "Payme not connected"}
+
+
+@api_router.post("/payme/disconnect")
+async def disconnect_payme(current_user: Dict = Depends(get_current_user)):
+    """Disconnect Payme payment gateway"""
+    tenant_id = current_user["tenant_id"]
+
+    # Clear from memory cache
+    if tenant_id in _payme_credentials_cache:
+        del _payme_credentials_cache[tenant_id]
+        logger.info(f"Cleared Payme from cache for tenant {tenant_id}")
+
+    # Try to clear from database
+    try:
+        supabase.table('tenant_configs').update({
+            "payme_merchant_id": None,
+            "payme_secret_key": None,
+            "payme_connected_at": None
+        }).eq('tenant_id', tenant_id).execute()
+        logger.info(f"Cleared Payme from database for tenant {tenant_id}")
+    except Exception as e:
+        logger.debug(f"Could not clear Payme from database: {e}")
+
+    return {"success": True, "message": "Payme disconnected"}
+
+
+@api_router.post("/click/connect")
+async def connect_click(
+    request: ClickConnect,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Connect Click payment gateway"""
+    tenant_id = current_user["tenant_id"]
+    connected_at = datetime.utcnow().isoformat()
+
+    # Store in memory cache
+    _click_credentials_cache[tenant_id] = {
+        'service_id': request.service_id,
+        'secret_key': request.secret_key,
+        'connected_at': connected_at
+    }
+    logger.info(f"Stored Click credentials in cache for tenant {tenant_id}")
+
+    # Try to save to database
+    saved_to_db = False
+    try:
+        result = supabase.table('tenant_configs').update({
+            "click_service_id": request.service_id,
+            "click_secret_key": request.secret_key,
+            "click_connected_at": connected_at
+        }).eq('tenant_id', tenant_id).execute()
+        if result.data:
+            saved_to_db = True
+            logger.info(f"Saved Click credentials to database for tenant {tenant_id}")
+    except Exception as e:
+        logger.debug(f"Could not save Click to database (columns may not exist): {e}")
+
+    return {
+        "success": True,
+        "message": "Click connected successfully!",
+        "connected_at": connected_at,
+        "persisted": saved_to_db
+    }
+
+
+@api_router.get("/click/status")
+async def get_click_status(current_user: Dict = Depends(get_current_user)):
+    """Get Click connection status"""
+    tenant_id = current_user["tenant_id"]
+
+    # Check memory cache first
+    if tenant_id in _click_credentials_cache:
+        return {
+            "connected": True,
+            "connected_at": _click_credentials_cache[tenant_id].get('connected_at'),
+            "source": "cache"
+        }
+
+    # Try database
+    try:
+        result = supabase.table('tenant_configs').select('click_service_id, click_connected_at').eq('tenant_id', tenant_id).execute()
+        if result.data and result.data[0].get('click_service_id'):
+            connected_at = result.data[0].get('click_connected_at')
+            return {
+                "connected": True,
+                "connected_at": connected_at,
+                "source": "database"
+            }
+    except Exception as e:
+        logger.debug(f"Could not check Click status from database: {e}")
+
+    return {"connected": False, "connected_at": None}
+
+
+@api_router.post("/click/test")
+async def test_click_connection(current_user: Dict = Depends(get_current_user)):
+    """Test Click connection (validates credentials are stored)"""
+    tenant_id = current_user["tenant_id"]
+
+    # Check if credentials exist
+    if tenant_id in _click_credentials_cache:
+        return {"ok": True, "message": "Click credentials are configured"}
+
+    # Check database
+    try:
+        result = supabase.table('tenant_configs').select('click_service_id').eq('tenant_id', tenant_id).execute()
+        if result.data and result.data[0].get('click_service_id'):
+            return {"ok": True, "message": "Click credentials are configured"}
+    except Exception as e:
+        logger.debug(f"Could not check Click from database: {e}")
+
+    return {"ok": False, "message": "Click not connected"}
+
+
+@api_router.post("/click/disconnect")
+async def disconnect_click(current_user: Dict = Depends(get_current_user)):
+    """Disconnect Click payment gateway"""
+    tenant_id = current_user["tenant_id"]
+
+    # Clear from memory cache
+    if tenant_id in _click_credentials_cache:
+        del _click_credentials_cache[tenant_id]
+        logger.info(f"Cleared Click from cache for tenant {tenant_id}")
+
+    # Try to clear from database
+    try:
+        supabase.table('tenant_configs').update({
+            "click_service_id": None,
+            "click_secret_key": None,
+            "click_connected_at": None
+        }).eq('tenant_id', tenant_id).execute()
+        logger.info(f"Cleared Click from database for tenant {tenant_id}")
+    except Exception as e:
+        logger.debug(f"Could not clear Click from database: {e}")
+
+    return {"success": True, "message": "Click disconnected"}
 
 
 # ============ Enhanced LLM Service ============
@@ -2708,10 +2966,35 @@ async def get_tenant_config(current_user: Dict = Depends(get_current_user)):
         "business_description": config.get("business_description"),
         "products_services": config.get("products_services"),
         "faq_objections": config.get("faq_objections"),
-        "collect_phone": config.get("collect_phone", True),
         "greeting_message": config.get("greeting_message"),
+        "closing_message": config.get("closing_message"),
         "agent_tone": config.get("agent_tone"),
+        "response_length": config.get("response_length"),
+        "emoji_usage": config.get("emoji_usage"),
         "primary_language": config.get("primary_language"),
+        "secondary_languages": config.get("secondary_languages"),
+        "min_response_delay": config.get("min_response_delay"),
+        "max_messages_per_minute": config.get("max_messages_per_minute"),
+        # Data collection fields - Essential
+        "collect_name": config.get("collect_name", True),
+        "collect_phone": config.get("collect_phone", True),
+        "collect_email": config.get("collect_email", False),
+        # Data collection fields - Purchase Intent
+        "collect_product": config.get("collect_product", True),
+        "collect_budget": config.get("collect_budget", False),
+        "collect_timeline": config.get("collect_timeline", False),
+        "collect_quantity": config.get("collect_quantity", False),
+        # Data collection fields - Qualification
+        "collect_company": config.get("collect_company", False),
+        "collect_job_title": config.get("collect_job_title", False),
+        "collect_team_size": config.get("collect_team_size", False),
+        # Data collection fields - Logistics
+        "collect_location": config.get("collect_location", False),
+        "collect_preferred_time": config.get("collect_preferred_time", False),
+        "collect_urgency": config.get("collect_urgency", False),
+        "collect_reference": config.get("collect_reference", False),
+        "collect_notes": config.get("collect_notes", False),
+        # Legacy fields
         "objection_playbook": config.get("objection_playbook") or DEFAULT_OBJECTION_PLAYBOOK,
         "closing_scripts": config.get("closing_scripts") or DEFAULT_CLOSING_SCRIPTS,
         "required_fields": config.get("required_fields") or DEFAULT_REQUIRED_FIELDS,
@@ -2721,7 +3004,24 @@ async def get_tenant_config(current_user: Dict = Depends(get_current_user)):
 
 @api_router.put("/config")
 async def update_tenant_config(request: TenantConfigUpdate, current_user: Dict = Depends(get_current_user)):
-    update_data = {k: v for k, v in request.model_dump().items() if v is not None}
+    # Valid database columns for tenant_configs table
+    VALID_DB_COLUMNS = {
+        'business_name', 'business_description', 'products_services', 'vertical',
+        'greeting_message', 'closing_message', 'agent_tone', 'response_length',
+        'emoji_usage', 'primary_language', 'secondary_languages',
+        'min_response_delay', 'max_messages_per_minute', 'faq_objections',
+        'lead_fields_json', 'qualification_rules_json',
+        'bitrix_webhook_url', 'bitrix_connected_at',
+        # Data collection fields
+        'collect_name', 'collect_phone', 'collect_email', 'collect_product',
+        'collect_budget', 'collect_timeline', 'collect_quantity',
+        'collect_company', 'collect_job_title', 'collect_team_size',
+        'collect_location', 'collect_preferred_time', 'collect_urgency',
+        'collect_reference', 'collect_notes'
+    }
+
+    # Filter to only include valid database columns and non-None values
+    update_data = {k: v for k, v in request.model_dump().items() if v is not None and k in VALID_DB_COLUMNS}
 
     # Sanitize user input to prevent XSS attacks
     update_data = sanitize_dict(update_data, SANITIZE_FIELDS)
