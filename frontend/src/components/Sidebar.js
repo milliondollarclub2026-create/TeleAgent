@@ -50,7 +50,6 @@ const agentNavItems = [
 const chatNavItems = [
   { path: '/test-chat', icon: MessageSquare, label: 'Test Bot', relative: true },
   { path: '/crm-chat', icon: MessageCircle, label: 'CRM Chat', relative: true },
-  { path: '/dialogue', icon: MessagesSquare, label: 'Dialogue', relative: true },
 ];
 
 export const SidebarProvider = ({ children }) => {

@@ -308,11 +308,19 @@ const AgentDialoguePage = () => {
                         }`} />
 
                         <div className="pl-2">
-                          {/* Top row: Name + Time */}
+                          {/* Top row: Name + Ongoing badge + Time */}
                           <div className="flex items-center justify-between mb-1">
-                            <span className={`text-sm font-medium ${isSelected ? 'text-emerald-900' : 'text-slate-900'}`}>
-                              {customer?.name || 'Unknown'}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-medium ${isSelected ? 'text-emerald-900' : 'text-slate-900'}`}>
+                                {customer?.name || 'Unknown'}
+                              </span>
+                              {ongoing && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-emerald-50 text-emerald-700 border-emerald-200">
+                                  <Radio className="w-2.5 h-2.5 mr-1" strokeWidth={2} />
+                                  Ongoing
+                                </Badge>
+                              )}
+                            </div>
                             <span className="text-[11px] text-slate-400 flex items-center gap-1">
                               <Clock className="w-3 h-3" strokeWidth={2} />
                               {formatRelativeTime(conversation.last_message_at)}
@@ -327,18 +335,10 @@ const AgentDialoguePage = () => {
                             </p>
                           )}
 
-                          {/* Badges */}
-                          <div className="flex items-center gap-1.5">
-                            {ongoing && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-emerald-50 text-emerald-700 border-emerald-200">
-                                <Radio className="w-2.5 h-2.5 mr-1" strokeWidth={2} />
-                                Ongoing
-                              </Badge>
-                            )}
-                            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 ${hotnessConfig[hotness]?.color}`}>
-                              {hotness}
-                            </Badge>
-                          </div>
+                          {/* Hotness Badge */}
+                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 ${hotnessConfig[hotness]?.color}`}>
+                            {hotness}
+                          </Badge>
                         </div>
                       </button>
                     );

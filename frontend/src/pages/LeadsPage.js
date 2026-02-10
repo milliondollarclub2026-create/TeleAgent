@@ -26,7 +26,6 @@ import {
   Loader2,
   Phone,
   Calendar,
-  Info,
   Trash2,
   MessageSquare
 } from 'lucide-react';
@@ -315,15 +314,6 @@ const LeadsPage = () => {
                               <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
                             </Button>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-slate-400 hover:text-slate-600"
-                            onClick={() => toast.info(lead.llm_explanation || 'No AI notes available')}
-                            data-testid={`view-notes-${lead.id}`}
-                          >
-                            <Info className="w-4 h-4" strokeWidth={1.75} />
-                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
