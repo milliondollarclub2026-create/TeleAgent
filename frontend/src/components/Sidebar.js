@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   MessageSquare,
   MessageCircle,
+  MessagesSquare,
   ChevronDown,
   User
 } from 'lucide-react';
@@ -35,6 +36,7 @@ export const useSidebar = () => useContext(SidebarContext);
 const mainNavItems = [
   { path: '/app/agents', icon: Bot, label: 'Agents' },
   { path: '/app/leads', icon: Users, label: 'All Leads' },
+  { path: '/app/dialogue', icon: MessagesSquare, label: 'Dialogue' },
 ];
 
 const agentNavItems = [
@@ -48,6 +50,7 @@ const agentNavItems = [
 const chatNavItems = [
   { path: '/test-chat', icon: MessageSquare, label: 'Test Bot', relative: true },
   { path: '/crm-chat', icon: MessageCircle, label: 'CRM Chat', relative: true },
+  { path: '/dialogue', icon: MessagesSquare, label: 'Dialogue', relative: true },
 ];
 
 export const SidebarProvider = ({ children }) => {

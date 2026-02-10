@@ -178,9 +178,9 @@ const AgentTestChatPage = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-6rem)] flex flex-col animate-fade-in" data-testid="agent-test-chat-page">
+    <div className="h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] flex flex-col animate-fade-in" data-testid="agent-test-chat-page">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 flex-shrink-0">
+      <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <div>
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Test Bot</h1>
           <p className="text-[13px] text-slate-500 mt-0.5">Preview how your AI agent responds to customers</p>

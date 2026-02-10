@@ -3991,6 +3991,7 @@ async def get_leads(status: Optional[str] = None, hotness: Optional[str] = None,
 
         response.append({
             "id": lead["id"],
+            "customer_id": lead.get("customer_id"),
             "customer_name": customer_name,
             "customer_phone": customer_phone,
             "status": lead.get("status", "new"),
@@ -4066,6 +4067,196 @@ async def delete_lead(lead_id: str, current_user: Dict = Depends(get_current_use
         logger.error(f"Failed to delete lead: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete lead")
     return {"success": True}
+
+
+# ============ Conversations Endpoints ============
+from math import ceil
+
+@api_router.get("/conversations")
+async def list_conversations(
+    current_user: Dict = Depends(get_current_user),
+    page: int = 1,
+    limit: int = 20,
+    filter: str = "all",  # all, ongoing, hot, warm, cold
+    search: Optional[str] = None
+):
+    """
+    List all conversations for the tenant with pagination and filters.
+    - filter: all, ongoing (active in last 15 mins), hot, warm, cold (by lead hotness)
+    - search: search by customer name or phone
+    """
+    tenant_id = current_user["tenant_id"]
+
+    # Clamp limit
+    limit = min(max(1, limit), 100)
+    offset = (page - 1) * limit
+
+    try:
+        # Base query - get conversations with customer and lead data
+        # We need to manually join since Supabase doesn't support complex joins well
+
+        # First get all conversations for tenant
+        query = supabase.table('conversations').select('*').eq('tenant_id', tenant_id)
+
+        # Filter by ongoing (last_message_at within 15 minutes)
+        if filter == "ongoing":
+            fifteen_min_ago = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat()
+            query = query.gte('last_message_at', fifteen_min_ago)
+
+        # Order by most recent activity
+        query = query.order('last_message_at', desc=True)
+
+        # Get all matching conversations first (for total count and filtering)
+        all_convos_result = query.execute()
+        all_convos = all_convos_result.data or []
+
+        # Enrich with customer and lead data
+        customer_ids = list(set(c['customer_id'] for c in all_convos if c.get('customer_id')))
+
+        customers_map = {}
+        leads_map = {}
+
+        if customer_ids:
+            # Fetch customers
+            customers_result = supabase.table('customers').select('*').in_('id', customer_ids).execute()
+            for cust in (customers_result.data or []):
+                customers_map[cust['id']] = cust
+
+            # Fetch leads (most recent per customer)
+            leads_result = supabase.table('leads').select('*').eq('tenant_id', tenant_id).in_('customer_id', customer_ids).execute()
+            for lead in (leads_result.data or []):
+                # Keep most recent lead per customer
+                cust_id = lead.get('customer_id')
+                if cust_id:
+                    if cust_id not in leads_map or lead.get('created_at', '') > leads_map[cust_id].get('created_at', ''):
+                        leads_map[cust_id] = lead
+
+        # Enrich and filter conversations
+        enriched_convos = []
+        for conv in all_convos:
+            cust_id = conv.get('customer_id')
+            customer = customers_map.get(cust_id, {})
+            lead = leads_map.get(cust_id)
+
+            # Apply search filter
+            if search:
+                search_lower = search.lower()
+                name_match = (customer.get('name') or '').lower().find(search_lower) >= 0
+                phone_match = (customer.get('phone') or '').find(search) >= 0
+                if not name_match and not phone_match:
+                    continue
+
+            # Apply hotness filter
+            hotness = lead.get('final_hotness') if lead else 'cold'
+            if filter in ['hot', 'warm', 'cold'] and hotness != filter:
+                continue
+
+            enriched_convos.append({
+                **conv,
+                'customers': customer,
+                'leads': [lead] if lead else []
+            })
+
+        # Calculate total and paginate
+        total = len(enriched_convos)
+        total_pages = ceil(total / limit) if total > 0 else 1
+
+        # Apply pagination
+        paginated = enriched_convos[offset:offset + limit]
+
+        return {
+            "conversations": paginated,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to fetch conversations: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch conversations")
+
+
+@api_router.get("/conversations/by-customer/{customer_id}")
+async def get_conversation_by_customer(
+    customer_id: str,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Get the most recent conversation for a customer.
+    Used for deep-linking from Leads page to Dialogue.
+    """
+    tenant_id = current_user["tenant_id"]
+
+    try:
+        # SECURITY: Verify customer belongs to tenant
+        customer_check = supabase.table('customers').select('id').eq('id', customer_id).eq('tenant_id', tenant_id).execute()
+        if not customer_check.data:
+            raise HTTPException(status_code=404, detail="Customer not found")
+
+        # Get most recent conversation for this customer
+        result = supabase.table('conversations').select('*').eq('tenant_id', tenant_id).eq('customer_id', customer_id).order('last_message_at', desc=True).limit(1).execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="No conversation found for this customer")
+
+        conversation = result.data[0]
+
+        # Enrich with customer data
+        customer_result = supabase.table('customers').select('*').eq('id', customer_id).execute()
+        customer = customer_result.data[0] if customer_result.data else {}
+
+        # Get lead data
+        lead_result = supabase.table('leads').select('*').eq('tenant_id', tenant_id).eq('customer_id', customer_id).order('created_at', desc=True).limit(1).execute()
+        lead = lead_result.data[0] if lead_result.data else None
+
+        return {
+            **conversation,
+            'customers': customer,
+            'leads': [lead] if lead else []
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch conversation by customer: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch conversation")
+
+
+@api_router.get("/conversations/{conversation_id}/messages")
+async def get_conversation_messages(
+    conversation_id: str,
+    current_user: Dict = Depends(get_current_user),
+    after: Optional[str] = None  # For real-time: fetch only messages after this timestamp
+):
+    """
+    Get messages for a conversation.
+    - after: ISO timestamp to fetch only newer messages (for polling)
+    """
+    tenant_id = current_user["tenant_id"]
+
+    try:
+        # SECURITY: Verify conversation belongs to tenant
+        conv_check = supabase.table('conversations').select('id').eq('id', conversation_id).eq('tenant_id', tenant_id).execute()
+        if not conv_check.data:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Fetch messages
+        query = supabase.table('messages').select('*').eq('conversation_id', conversation_id)
+
+        if after:
+            query = query.gt('created_at', after)
+
+        query = query.order('created_at')
+        result = query.execute()
+
+        return {"messages": result.data or []}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch messages: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch messages")
 
 
 # ============ Config Endpoints ============

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -26,7 +27,8 @@ import {
   Phone,
   Calendar,
   Info,
-  Trash2
+  Trash2,
+  MessageSquare
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -61,6 +63,7 @@ const stageColors = {
 };
 
 const LeadsPage = () => {
+  const navigate = useNavigate();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -68,6 +71,22 @@ const LeadsPage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState(null);
+  const [defaultAgentId, setDefaultAgentId] = useState(null);
+
+  // Fetch the default agent for navigation
+  useEffect(() => {
+    const fetchDefaultAgent = async () => {
+      try {
+        const response = await axios.get(`${API}/agents`);
+        if (response.data?.length > 0) {
+          setDefaultAgentId(response.data[0].id);
+        }
+      } catch (error) {
+        console.error('Failed to fetch agents:', error);
+      }
+    };
+    fetchDefaultAgent();
+  }, []);
 
   useEffect(() => {
     fetchLeads();
@@ -284,6 +303,18 @@ const LeadsPage = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
+                          {lead.customer_id && defaultAgentId && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-slate-400 hover:text-emerald-600"
+                              onClick={() => navigate(`/app/agents/${defaultAgentId}/dialogue/${lead.customer_id}`)}
+                              data-testid={`view-chat-${lead.id}`}
+                              title="View conversation"
+                            >
+                              <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -30,7 +30,8 @@ import {
   TrendingUp,
   Flame,
   Target,
-  Trash2
+  Trash2,
+  MessageSquare
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -66,6 +67,7 @@ const stageColors = {
 
 const AgentLeadsPage = () => {
   const { agentId } = useParams();
+  const navigate = useNavigate();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -367,6 +369,18 @@ const AgentLeadsPage = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
+                          {lead.customer_id && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-slate-400 hover:text-emerald-600"
+                              onClick={() => navigate(`/app/agents/${agentId}/dialogue/${lead.customer_id}`)}
+                              data-testid={`agent-view-chat-${lead.id}`}
+                              title="View conversation"
+                            >
+                              <MessageSquare className="w-4 h-4" strokeWidth={1.75} />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
