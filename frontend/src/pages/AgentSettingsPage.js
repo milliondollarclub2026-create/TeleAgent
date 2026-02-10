@@ -22,7 +22,24 @@ import {
   Globe,
   Clock,
   User,
-  Smile
+  Smile,
+  Phone,
+  Mail,
+  ShoppingBag,
+  DollarSign,
+  Calendar,
+  Package,
+  Briefcase,
+  UserCheck,
+  MapPin,
+  ClockIcon,
+  AlertCircle,
+  Users,
+  Hash,
+  FileText,
+  X,
+  Plus,
+  ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -47,6 +64,41 @@ const AgentSettingsPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Data collection field definitions - grouped by category
+  const DATA_COLLECTION_FIELDS = [
+    // Essential - Contact Info
+    { key: 'collect_name', label: 'Customer Name', desc: 'Full name', icon: User, category: 'essential' },
+    { key: 'collect_phone', label: 'Phone Number', desc: 'Contact number', icon: Phone, category: 'essential' },
+    { key: 'collect_email', label: 'Email Address', desc: 'Email contact', icon: Mail, category: 'essential' },
+
+    // Purchase Intent
+    { key: 'collect_product', label: 'Product Interest', desc: 'What they want', icon: ShoppingBag, category: 'purchase' },
+    { key: 'collect_budget', label: 'Budget Range', desc: 'Price range', icon: DollarSign, category: 'purchase' },
+    { key: 'collect_timeline', label: 'Timeline', desc: 'When they need it', icon: Calendar, category: 'purchase' },
+    { key: 'collect_quantity', label: 'Quantity', desc: 'How many units', icon: Package, category: 'purchase' },
+
+    // Qualification - B2B
+    { key: 'collect_company', label: 'Company Name', desc: 'Organization', icon: Briefcase, category: 'qualification' },
+    { key: 'collect_job_title', label: 'Job Title', desc: 'Their role', icon: UserCheck, category: 'qualification' },
+    { key: 'collect_team_size', label: 'Team Size', desc: 'Number of users', icon: Users, category: 'qualification' },
+
+    // Logistics
+    { key: 'collect_location', label: 'Location', desc: 'City or address', icon: MapPin, category: 'logistics' },
+    { key: 'collect_preferred_time', label: 'Preferred Contact Time', desc: 'Best time to call', icon: ClockIcon, category: 'logistics' },
+    { key: 'collect_urgency', label: 'Urgency Level', desc: 'How urgent', icon: AlertCircle, category: 'logistics' },
+    { key: 'collect_reference', label: 'Reference/Order ID', desc: 'Existing reference', icon: Hash, category: 'logistics' },
+    { key: 'collect_notes', label: 'Additional Notes', desc: 'Special requests', icon: FileText, category: 'logistics' },
+  ];
+
+  const CATEGORY_LABELS = {
+    essential: 'Essential',
+    purchase: 'Purchase Intent',
+    qualification: 'Qualification',
+    logistics: 'Logistics'
+  };
+
+  const MAX_ACTIVE_FIELDS = 5;
+
   const [config, setConfig] = useState({
     business_name: '',
     business_description: '',
@@ -64,9 +116,23 @@ const AgentSettingsPage = () => {
     collect_phone: true,
     collect_product: true,
     collect_budget: false,
+    collect_email: false,
+    collect_timeline: false,
+    collect_quantity: false,
+    collect_company: false,
+    collect_job_title: false,
+    collect_team_size: false,
     collect_location: false,
+    collect_preferred_time: false,
+    collect_urgency: false,
+    collect_reference: false,
+    collect_notes: false,
     vertical: 'default'
   });
+
+  // Count active collection fields
+  const activeFieldCount = DATA_COLLECTION_FIELDS.filter(f => config[f.key]).length;
+  const isAtLimit = activeFieldCount >= MAX_ACTIVE_FIELDS;
 
   useEffect(() => {
     fetchConfig();
@@ -420,37 +486,110 @@ const AgentSettingsPage = () => {
             </CardContent>
           </Card>
 
-          {/* Data Collection */}
+          {/* Data Collection - Clean Chip + Dropdown Design */}
           <Card className="bg-white border-slate-200/80 shadow-sm">
             <CardContent className="p-5">
-              <SectionHeader
-                icon={User}
-                title="Data Collection"
-                description="What information to collect from customers"
-              />
-              <div className="space-y-1">
-                {[
-                  { key: 'collect_name', label: 'Customer Name', desc: 'Full name' },
-                  { key: 'collect_phone', label: 'Phone Number', desc: 'Contact number' },
-                  { key: 'collect_product', label: 'Product Interest', desc: 'What they want' },
-                  { key: 'collect_budget', label: 'Budget Range', desc: 'Price range' },
-                  { key: 'collect_location', label: 'Location', desc: 'Delivery address' },
-                ].map(({ key, label, desc }) => (
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <User className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+                  </div>
+                  <div>
+                    <h3 className="text-[14px] font-semibold text-slate-900">Data Collection</h3>
+                    <p className="text-[12px] text-slate-500 mt-0.5">Fields the AI will collect from customers</p>
+                  </div>
+                </div>
+                <div className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                  isAtLimit
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {activeFieldCount}/{MAX_ACTIVE_FIELDS} selected
+                </div>
+              </div>
+
+              {/* Active Fields as Chips */}
+              <div className="flex flex-wrap gap-2 mb-4 min-h-[36px]">
+                {DATA_COLLECTION_FIELDS.filter(f => config[f.key]).map(({ key, label, icon: FieldIcon }) => (
                   <div
                     key={key}
-                    className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-slate-50 transition-colors -mx-1"
+                    className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-full bg-slate-100 border border-slate-200 group hover:border-slate-300 transition-colors"
                   >
-                    <div>
-                      <span className="text-[13px] font-medium text-slate-900">{label}</span>
-                      <span className="text-[11px] text-slate-400 ml-2">{desc}</span>
-                    </div>
-                    <Switch
-                      checked={config[key] || false}
-                      onCheckedChange={(checked) => handleChange(key, checked)}
-                    />
+                    <FieldIcon className="w-3.5 h-3.5 text-slate-500" strokeWidth={1.75} />
+                    <span className="text-[12px] font-medium text-slate-700">{label}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleChange(key, false)}
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors ml-0.5"
+                      aria-label={`Remove ${label}`}
+                    >
+                      <X className="w-3 h-3" strokeWidth={2} />
+                    </button>
                   </div>
                 ))}
+                {activeFieldCount === 0 && (
+                  <p className="text-[12px] text-slate-400 italic py-1.5">No fields selected. Add fields below.</p>
+                )}
               </div>
+
+              {/* Add Field Dropdown */}
+              <div className="relative">
+                <Select
+                  value=""
+                  onValueChange={(key) => {
+                    if (key && !isAtLimit) {
+                      handleChange(key, true);
+                    }
+                  }}
+                  disabled={isAtLimit}
+                >
+                  <SelectTrigger
+                    className={`h-10 text-[13px] border-slate-200 ${
+                      isAtLimit
+                        ? 'bg-slate-50 text-slate-400 cursor-not-allowed'
+                        : 'bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Plus className="w-4 h-4" strokeWidth={1.75} />
+                      <span>{isAtLimit ? 'Maximum fields selected' : 'Add a field to collect...'}</span>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[280px]">
+                    {Object.entries(CATEGORY_LABELS).map(([category, categoryLabel]) => {
+                      const availableFields = DATA_COLLECTION_FIELDS.filter(
+                        f => f.category === category && !config[f.key]
+                      );
+                      if (availableFields.length === 0) return null;
+                      return (
+                        <div key={category}>
+                          <div className="px-2 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                            {categoryLabel}
+                          </div>
+                          {availableFields.map(({ key, label, desc, icon: FieldIcon }) => (
+                            <SelectItem
+                              key={key}
+                              value={key}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <FieldIcon className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                                <span className="text-[13px]">{label}</span>
+                                <span className="text-[11px] text-slate-400">— {desc}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Helper text */}
+              <p className="text-[11px] text-slate-400 mt-2">
+                Select up to {MAX_ACTIVE_FIELDS} fields. The AI will naturally collect this information during conversations.
+              </p>
             </CardContent>
           </Card>
         </div>

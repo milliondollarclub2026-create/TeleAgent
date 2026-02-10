@@ -42,7 +42,8 @@ import {
   Smile,
   Clock,
   Shield,
-  User
+  User,
+  CreditCard
 } from 'lucide-react';
 import {
   Tooltip,
@@ -119,6 +120,20 @@ const AgentOnboarding = () => {
   const [showBitrixUrl, setShowBitrixUrl] = useState(false);
   const [connectingBitrix, setConnectingBitrix] = useState(false);
   const [bitrixConnected, setBitrixConnected] = useState(false);
+
+  // Step 5: Connect - Payme
+  const [paymeMerchantId, setPaymeMerchantId] = useState('');
+  const [paymeSecretKey, setPaymeSecretKey] = useState('');
+  const [showPaymeSecret, setShowPaymeSecret] = useState(false);
+  const [connectingPayme, setConnectingPayme] = useState(false);
+  const [paymeConnected, setPaymeConnected] = useState(false);
+
+  // Step 5: Connect - Click
+  const [clickServiceId, setClickServiceId] = useState('');
+  const [clickSecretKey, setClickSecretKey] = useState('');
+  const [showClickSecret, setShowClickSecret] = useState(false);
+  const [connectingClick, setConnectingClick] = useState(false);
+  const [clickConnected, setClickConnected] = useState(false);
 
   const progress = (currentStep / STEPS.length) * 100;
 
@@ -340,6 +355,48 @@ const AgentOnboarding = () => {
       toast.error(error.response?.data?.detail || 'Failed to connect Bitrix24');
     } finally {
       setConnectingBitrix(false);
+    }
+  };
+
+  const connectPayme = async () => {
+    if (!paymeMerchantId.trim() || !paymeSecretKey.trim()) {
+      toast.error('Please enter both Merchant ID and Secret Key');
+      return;
+    }
+
+    setConnectingPayme(true);
+    try {
+      const response = await axios.post(`${API}/payme/connect`, {
+        merchant_id: paymeMerchantId,
+        secret_key: paymeSecretKey
+      });
+      setPaymeConnected(true);
+      toast.success(response.data.message || 'Payme connected successfully!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to connect Payme');
+    } finally {
+      setConnectingPayme(false);
+    }
+  };
+
+  const connectClick = async () => {
+    if (!clickServiceId.trim() || !clickSecretKey.trim()) {
+      toast.error('Please enter both Service ID and Secret Key');
+      return;
+    }
+
+    setConnectingClick(true);
+    try {
+      const response = await axios.post(`${API}/click/connect`, {
+        service_id: clickServiceId,
+        secret_key: clickSecretKey
+      });
+      setClickConnected(true);
+      toast.success(response.data.message || 'Click connected successfully!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to connect Click');
+    } finally {
+      setConnectingClick(false);
     }
   };
 
@@ -1153,6 +1210,203 @@ const AgentOnboarding = () => {
                       >
                         {connectingBitrix && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         Connect Bitrix24
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Payment Gateways Section */}
+              <div className="pt-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Payment Gateways</span>
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+              </div>
+
+              {/* Payme Connection */}
+              <Card className="bg-white border-slate-200/60 shadow-sm">
+                <CardContent className="p-5">
+                  {paymeConnected ? (
+                    <div className="text-center py-4">
+                      <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 flex items-center justify-center mb-3">
+                        <Check className="w-6 h-6 text-emerald-600" strokeWidth={2} />
+                      </div>
+                      <h3 className="font-semibold text-slate-900 mb-0.5">Payme Connected!</h3>
+                      <p className="text-slate-500 text-[13px]">
+                        AI can generate payment links for customers
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-[#00CCCC]/10 flex items-center justify-center">
+                            <CreditCard className="w-5 h-5 text-[#00CCCC]" strokeWidth={1.75} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-slate-900 text-[13px]">Payme</h3>
+                              <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200 px-1.5 py-0">Optional</Badge>
+                            </div>
+                            <p className="text-[11px] text-slate-500">Accept payments via UzCard, Humo</p>
+                          </div>
+                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button className="w-7 h-7 rounded-md hover:bg-slate-100 flex items-center justify-center transition-colors">
+                              <HelpCircle className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-[280px] p-3 bg-slate-900 text-white">
+                            <p className="text-[12px] font-semibold mb-2 text-white">How to get your credentials:</p>
+                            <ol className="text-[11px] text-slate-300 space-y-1 list-decimal list-inside">
+                              <li>Register at business.payme.uz</li>
+                              <li>Complete merchant verification</li>
+                              <li>Go to merchant.payme.uz → Developer Tools</li>
+                              <li>Copy Merchant ID and Secret Key</li>
+                            </ol>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-slate-600 text-[12px] font-medium">Merchant ID</Label>
+                          <Input
+                            type="text"
+                            placeholder="5e730e8e0b852a417aa49ceb"
+                            value={paymeMerchantId}
+                            onChange={(e) => setPaymeMerchantId(e.target.value)}
+                            className="h-9 text-[13px] border-slate-200"
+                            data-testid="payme-merchant-input"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-slate-600 text-[12px] font-medium">Secret Key</Label>
+                          <div className="relative">
+                            <Input
+                              type={showPaymeSecret ? "text" : "password"}
+                              placeholder="Your Payme secret key"
+                              value={paymeSecretKey}
+                              onChange={(e) => setPaymeSecretKey(e.target.value)}
+                              className="h-9 text-[13px] border-slate-200 pr-10"
+                              data-testid="payme-secret-input"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPaymeSecret(!showPaymeSecret)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            >
+                              {showPaymeSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button
+                        className="w-full bg-slate-900 hover:bg-slate-800 h-9 text-[13px]"
+                        onClick={connectPayme}
+                        disabled={connectingPayme}
+                        data-testid="connect-payme-btn"
+                      >
+                        {connectingPayme && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Connect Payme
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Click Connection */}
+              <Card className="bg-white border-slate-200/60 shadow-sm">
+                <CardContent className="p-5">
+                  {clickConnected ? (
+                    <div className="text-center py-4">
+                      <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 flex items-center justify-center mb-3">
+                        <Check className="w-6 h-6 text-emerald-600" strokeWidth={2} />
+                      </div>
+                      <h3 className="font-semibold text-slate-900 mb-0.5">Click Connected!</h3>
+                      <p className="text-slate-500 text-[13px]">
+                        AI can generate payment links for customers
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-[#00B2FF]/10 flex items-center justify-center">
+                            <CreditCard className="w-5 h-5 text-[#00B2FF]" strokeWidth={1.75} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-slate-900 text-[13px]">Click</h3>
+                              <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200 px-1.5 py-0">Optional</Badge>
+                            </div>
+                            <p className="text-[11px] text-slate-500">Accept payments via Click wallet</p>
+                          </div>
+                        </div>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button className="w-7 h-7 rounded-md hover:bg-slate-100 flex items-center justify-center transition-colors">
+                              <HelpCircle className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-[280px] p-3 bg-slate-900 text-white">
+                            <p className="text-[12px] font-semibold mb-2 text-white">How to get your credentials:</p>
+                            <ol className="text-[11px] text-slate-300 space-y-1 list-decimal list-inside">
+                              <li>Register at my.click.uz</li>
+                              <li>Create a merchant account</li>
+                              <li>Go to Settings → API</li>
+                              <li>Copy Service ID and Secret Key</li>
+                            </ol>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-slate-600 text-[12px] font-medium">Service ID</Label>
+                          <Input
+                            type="text"
+                            placeholder="12345"
+                            value={clickServiceId}
+                            onChange={(e) => setClickServiceId(e.target.value)}
+                            className="h-9 text-[13px] border-slate-200"
+                            data-testid="click-service-input"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-slate-600 text-[12px] font-medium">Secret Key</Label>
+                          <div className="relative">
+                            <Input
+                              type={showClickSecret ? "text" : "password"}
+                              placeholder="Your Click secret key"
+                              value={clickSecretKey}
+                              onChange={(e) => setClickSecretKey(e.target.value)}
+                              className="h-9 text-[13px] border-slate-200 pr-10"
+                              data-testid="click-secret-input"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowClickSecret(!showClickSecret)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            >
+                              {showClickSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button
+                        className="w-full bg-slate-900 hover:bg-slate-800 h-9 text-[13px]"
+                        onClick={connectClick}
+                        disabled={connectingClick}
+                        data-testid="connect-click-btn"
+                      >
+                        {connectingClick && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Connect Click
                       </Button>
                     </div>
                   )}
