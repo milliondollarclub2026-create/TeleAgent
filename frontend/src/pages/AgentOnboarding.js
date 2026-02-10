@@ -43,7 +43,8 @@ import {
   Clock,
   Shield,
   User,
-  CreditCard
+  CreditCard,
+  ShieldCheck
 } from 'lucide-react';
 import {
   Tooltip,
@@ -1107,7 +1108,17 @@ const AgentOnboarding = () => {
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label className="text-slate-600 text-[12px] font-medium">Bot Token</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Label className="text-slate-600 text-[12px] font-medium">Bot Token</Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                              Encrypted & secured
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                         <Input
                           type="password"
                           placeholder="Paste your bot token from @BotFather"
@@ -1182,7 +1193,17 @@ const AgentOnboarding = () => {
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label className="text-slate-600 text-[12px] font-medium">Webhook URL</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Label className="text-slate-600 text-[12px] font-medium">Webhook URL</Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                              Encrypted & secured
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                         <div className="relative">
                           <Input
                             type={showBitrixUrl ? "text" : "password"}
@@ -1273,7 +1294,17 @@ const AgentOnboarding = () => {
 
                       <div className="space-y-3">
                         <div className="space-y-1.5">
-                          <Label className="text-slate-600 text-[12px] font-medium">Merchant ID</Label>
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-slate-600 text-[12px] font-medium">Merchant ID</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                                Encrypted & secured
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
                           <Input
                             type="text"
                             placeholder="5e730e8e0b852a417aa49ceb"
@@ -1284,7 +1315,17 @@ const AgentOnboarding = () => {
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-slate-600 text-[12px] font-medium">Secret Key</Label>
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-slate-600 text-[12px] font-medium">Secret Key</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                                Encrypted & secured
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
                           <div className="relative">
                             <Input
                               type={showPaymeSecret ? "text" : "password"}
@@ -1367,7 +1408,17 @@ const AgentOnboarding = () => {
 
                       <div className="space-y-3">
                         <div className="space-y-1.5">
-                          <Label className="text-slate-600 text-[12px] font-medium">Service ID</Label>
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-slate-600 text-[12px] font-medium">Service ID</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                                Encrypted & secured
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
                           <Input
                             type="text"
                             placeholder="12345"
@@ -1378,7 +1429,17 @@ const AgentOnboarding = () => {
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-slate-600 text-[12px] font-medium">Secret Key</Label>
+                          <div className="flex items-center gap-1.5">
+                            <Label className="text-slate-600 text-[12px] font-medium">Secret Key</Label>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                                Encrypted & secured
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
                           <div className="relative">
                             <Input
                               type={showClickSecret ? "text" : "password"}

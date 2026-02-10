@@ -15,7 +15,8 @@ import {
   ChevronUp,
   CircleDot,
   Info,
-  CreditCard
+  CreditCard,
+  ShieldCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -29,6 +30,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../components/ui/alert-dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../components/ui/tooltip';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -340,6 +347,7 @@ const ConnectionsPage = () => {
   }
 
   return (
+    <TooltipProvider delayDuration={100}>
     <div className="space-y-6 animate-fade-in" data-testid="connections-page">
       {/* Header */}
       <div>
@@ -433,7 +441,17 @@ const ConnectionsPage = () => {
               <div className="space-y-4">
                 {/* Token Input */}
                 <div className="space-y-1.5">
-                  <Label className="text-slate-700 text-xs font-medium">Bot Token</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-slate-700 text-xs font-medium">Bot Token</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                        Encrypted & secured
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <div className="relative">
                     <Input
                       type={showToken ? "text" : "password"}
@@ -562,7 +580,17 @@ const ConnectionsPage = () => {
               <div className="space-y-4">
                 {/* Webhook Input */}
                 <div className="space-y-1.5">
-                  <Label className="text-slate-700 text-xs font-medium">Webhook URL</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-slate-700 text-xs font-medium">Webhook URL</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                        Encrypted & secured
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <div className="relative">
                     <Input
                       type={showBitrixUrl ? "text" : "password"}
@@ -702,7 +730,17 @@ const ConnectionsPage = () => {
               <div className="space-y-4">
                 {/* Merchant ID Input */}
                 <div className="space-y-1.5">
-                  <Label className="text-slate-700 text-xs font-medium">Merchant ID</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-slate-700 text-xs font-medium">Merchant ID</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                        Encrypted & secured
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Input
                     type="text"
                     placeholder="5e730e8e0b852a417aa49ceb"
@@ -715,7 +753,17 @@ const ConnectionsPage = () => {
 
                 {/* Secret Key Input */}
                 <div className="space-y-1.5">
-                  <Label className="text-slate-700 text-xs font-medium">Secret Key</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-slate-700 text-xs font-medium">Secret Key</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                        Encrypted & secured
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <div className="relative">
                     <Input
                       type={showPaymeSecret ? "text" : "password"}
@@ -845,7 +893,17 @@ const ConnectionsPage = () => {
               <div className="space-y-4">
                 {/* Service ID Input */}
                 <div className="space-y-1.5">
-                  <Label className="text-slate-700 text-xs font-medium">Service ID</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-slate-700 text-xs font-medium">Service ID</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                        Encrypted & secured
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Input
                     type="text"
                     placeholder="12345"
@@ -858,7 +916,17 @@ const ConnectionsPage = () => {
 
                 {/* Secret Key Input */}
                 <div className="space-y-1.5">
-                  <Label className="text-slate-700 text-xs font-medium">Secret Key</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-slate-700 text-xs font-medium">Secret Key</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                        Encrypted & secured
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <div className="relative">
                     <Input
                       type={showClickSecret ? "text" : "password"}
@@ -918,6 +986,7 @@ const ConnectionsPage = () => {
         </div>
       </div>
     </div>
+    </TooltipProvider>
   );
 };
 
