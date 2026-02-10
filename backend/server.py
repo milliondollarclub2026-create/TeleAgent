@@ -1264,6 +1264,250 @@ _bitrix_webhooks_cache = {}
 _payme_credentials_cache = {}
 _click_credentials_cache = {}
 
+# Product catalog cache for CRM pricing queries {tenant_id: {"products": [...], "cached_at": timestamp}}
+_product_catalog_cache = {}
+PRODUCT_CACHE_TTL = 1800  # 30 minutes
+
+# CRM realtime query timeout
+BITRIX_REALTIME_TIMEOUT = 5.0
+
+# VIP customer threshold in UZS
+VIP_THRESHOLD_UZS = 10_000_000
+
+
+def normalize_phone(phone: str) -> str:
+    """
+    Normalize phone number for Bitrix matching.
+    Converts: +998-90-123-45-67 → 998901234567
+    Handles various formats: +998 90 123 45 67, 998901234567, etc.
+    """
+    if not phone:
+        return ""
+    # Remove all non-digit characters (including +)
+    return re.sub(r'\D', '', phone)
+
+
+async def get_cached_products(tenant_id: str) -> List[Dict]:
+    """
+    Get product catalog with 30-min caching.
+    Returns list of products with pricing info from Bitrix CRM.
+    """
+    import time
+
+    now = time.time()
+
+    # Check cache
+    if tenant_id in _product_catalog_cache:
+        cache_entry = _product_catalog_cache[tenant_id]
+        if now - cache_entry.get("cached_at", 0) < PRODUCT_CACHE_TTL:
+            logger.debug(f"Product catalog cache hit for tenant {tenant_id}")
+            return cache_entry.get("products", [])
+
+    # Fetch from Bitrix with timeout
+    try:
+        bitrix_client = await get_bitrix_client(tenant_id)
+        if not bitrix_client:
+            return []
+
+        products = await asyncio.wait_for(
+            bitrix_client.list_products(limit=100),
+            timeout=BITRIX_REALTIME_TIMEOUT
+        )
+
+        # Cache the result
+        _product_catalog_cache[tenant_id] = {
+            "products": products,
+            "cached_at": now
+        }
+        logger.info(f"Cached {len(products)} products for tenant {tenant_id}")
+        return products
+
+    except asyncio.TimeoutError:
+        logger.warning(f"Product catalog fetch timed out for tenant {tenant_id}")
+        return _product_catalog_cache.get(tenant_id, {}).get("products", [])
+    except Exception as e:
+        logger.warning(f"Could not fetch product catalog: {e}")
+        return _product_catalog_cache.get(tenant_id, {}).get("products", [])
+
+
+async def match_customer_to_bitrix(tenant_id: str, customer_data: Dict) -> Optional[Dict]:
+    """
+    Match customer phone to Bitrix contact/lead and return CRM context.
+
+    Returns:
+        - is_returning_customer: bool
+        - total_purchases: int (number of won deals)
+        - total_value: float (lifetime spend)
+        - recent_products: list (last 3 purchased products)
+        - vip_status: bool (> 10M UZS threshold)
+        - customer_since: date (first deal date)
+
+    Non-blocking: Returns None on failure, conversation continues.
+    """
+    phone = customer_data.get("phone")
+    if not phone:
+        return None
+
+    normalized_phone = normalize_phone(phone)
+    if not normalized_phone:
+        return None
+
+    try:
+        bitrix_client = await get_bitrix_client(tenant_id)
+        if not bitrix_client:
+            return None
+
+        # Find contact by phone with timeout
+        contact = await asyncio.wait_for(
+            bitrix_client.find_contact_by_phone(normalized_phone),
+            timeout=BITRIX_REALTIME_TIMEOUT
+        )
+
+        if not contact:
+            # Try with + prefix
+            contact = await asyncio.wait_for(
+                bitrix_client.find_contact_by_phone(f"+{normalized_phone}"),
+                timeout=BITRIX_REALTIME_TIMEOUT
+            )
+
+        if not contact:
+            return None
+
+        contact_id = contact.get("ID")
+        if not contact_id:
+            return None
+
+        # Get contact's purchase history
+        history = await asyncio.wait_for(
+            bitrix_client.get_contact_history(contact_id),
+            timeout=BITRIX_REALTIME_TIMEOUT
+        )
+
+        if not history.get("is_returning_customer"):
+            return None
+
+        # Extract recent product names from deals
+        recent_products = []
+        recent_deals = history.get("recent_deals", [])
+        for deal in recent_deals[:3]:
+            deal_title = deal.get("TITLE", "")
+            if deal_title:
+                recent_products.append(deal_title)
+
+        # Get customer_since date from oldest deal or contact creation
+        customer_since = None
+        if recent_deals:
+            # Get oldest deal date
+            dates = [d.get("DATE_CREATE") for d in recent_deals if d.get("DATE_CREATE")]
+            if dates:
+                customer_since = min(dates)[:10]  # Just the date part
+        if not customer_since:
+            customer_since = contact.get("DATE_CREATE", "")[:10] if contact.get("DATE_CREATE") else None
+
+        total_value = float(history.get("total_value", 0))
+
+        crm_context = {
+            "is_returning_customer": True,
+            "total_purchases": history.get("won_deals", 0),
+            "total_value": total_value,
+            "recent_products": recent_products,
+            "vip_status": total_value >= VIP_THRESHOLD_UZS,
+            "customer_since": customer_since,
+            "contact_name": f"{contact.get('NAME', '')} {contact.get('LAST_NAME', '')}".strip()
+        }
+
+        logger.info(f"Matched returning customer: {crm_context['contact_name']}, {crm_context['total_purchases']} purchases, VIP={crm_context['vip_status']}")
+        return crm_context
+
+    except asyncio.TimeoutError:
+        logger.warning(f"CRM customer matching timed out for tenant {tenant_id}")
+        return None
+    except Exception as e:
+        logger.warning(f"Could not match customer to CRM: {e}")
+        return None
+
+
+async def get_crm_context_for_query(tenant_id: str, user_message: str, customer_phone: str = None) -> Optional[str]:
+    """
+    Detect keywords and pre-fetch relevant CRM data for the query.
+
+    Keywords detected:
+    - price, cost, narx, цена → fetch product catalog with prices
+    - product, catalog, товар → fetch product catalog
+    - my order, previous, заказ → fetch customer's recent orders
+
+    Returns formatted string for LLM context, or None if no relevant data.
+    Non-blocking: Returns None on failure, conversation continues.
+    """
+    message_lower = user_message.lower()
+
+    # Price/cost keywords (UZ, RU, EN)
+    price_keywords = ["price", "cost", "how much", "narx", "qancha", "цена", "стоимость", "сколько стоит"]
+
+    # Product/catalog keywords
+    product_keywords = ["product", "catalog", "товар", "каталог", "mahsulot", "katalog", "item", "what do you sell", "nima sotasiz"]
+
+    # Order history keywords
+    order_keywords = ["my order", "previous order", "last order", "order history", "заказ", "мой заказ",
+                      "buyurtma", "oldingi", "what did i buy", "что я заказывал"]
+
+    context_parts = []
+
+    try:
+        # Check for price/product queries → fetch product catalog
+        if any(kw in message_lower for kw in price_keywords + product_keywords):
+            products = await get_cached_products(tenant_id)
+            if products:
+                product_lines = []
+                for p in products[:20]:  # Limit to 20 products
+                    name = p.get("NAME", "Unknown")
+                    price = float(p.get("PRICE", 0))
+                    currency = p.get("CURRENCY_ID", "UZS")
+                    desc = p.get("DESCRIPTION", "")[:50] if p.get("DESCRIPTION") else ""
+                    product_lines.append(f"- {name}: {price:,.0f} {currency}" + (f" ({desc}...)" if desc else ""))
+
+                context_parts.append(f"## PRODUCT CATALOG FROM CRM (Use these exact prices)\n" + "\n".join(product_lines))
+
+        # Check for order history queries → fetch customer's orders
+        if any(kw in message_lower for kw in order_keywords) and customer_phone:
+            normalized_phone = normalize_phone(customer_phone)
+            if normalized_phone:
+                bitrix_client = await get_bitrix_client(tenant_id)
+                if bitrix_client:
+                    try:
+                        contact = await asyncio.wait_for(
+                            bitrix_client.find_contact_by_phone(normalized_phone),
+                            timeout=BITRIX_REALTIME_TIMEOUT
+                        )
+                        if contact and contact.get("ID"):
+                            history = await asyncio.wait_for(
+                                bitrix_client.get_contact_history(contact["ID"]),
+                                timeout=BITRIX_REALTIME_TIMEOUT
+                            )
+                            if history.get("recent_deals"):
+                                order_lines = []
+                                for deal in history["recent_deals"][:5]:
+                                    title = deal.get("TITLE", "Order")
+                                    value = float(deal.get("OPPORTUNITY", 0))
+                                    date = deal.get("DATE_CREATE", "")[:10] if deal.get("DATE_CREATE") else "N/A"
+                                    stage = deal.get("STAGE_ID", "")
+                                    status = "✓ Completed" if "WON" in stage else "In Progress"
+                                    order_lines.append(f"- {title}: {value:,.0f} UZS ({date}) - {status}")
+
+                                context_parts.append(f"## CUSTOMER'S ORDER HISTORY\n" + "\n".join(order_lines))
+                    except asyncio.TimeoutError:
+                        logger.debug("Order history fetch timed out")
+                    except Exception as e:
+                        logger.debug(f"Could not fetch order history: {e}")
+
+        if context_parts:
+            return "\n\n".join(context_parts)
+        return None
+
+    except Exception as e:
+        logger.warning(f"Could not get CRM context for query: {e}")
+        return None
+
 
 async def get_bitrix_client(tenant_id: str) -> Optional[BitrixCRMClient]:
     """Get Bitrix24 client for tenant if configured"""
@@ -1870,8 +2114,45 @@ async def disconnect_click(current_user: Dict = Depends(get_current_user)):
 
 
 # ============ Enhanced LLM Service ============
-def get_enhanced_system_prompt(config: Dict, lead_context: Dict = None) -> str:
-    """Generate comprehensive system prompt with sales pipeline awareness"""
+
+def _build_crm_context_section(crm_context: Optional[Dict]) -> str:
+    """Build the CRM context section for the system prompt."""
+    if not crm_context or not crm_context.get("is_returning_customer"):
+        return ""
+
+    total_purchases = crm_context.get("total_purchases", 0)
+    total_value = crm_context.get("total_value", 0)
+    vip_status = "YES - VIP CUSTOMER" if crm_context.get("vip_status") else "No"
+    customer_since = crm_context.get("customer_since", "N/A")
+    contact_name = crm_context.get("contact_name", "")
+    recent_products = crm_context.get("recent_products", [])
+
+    recent_products_text = ""
+    if recent_products:
+        recent_products_text = f"\n- Recent Purchases: {', '.join(recent_products[:3])}"
+
+    return f"""## 🌟 RETURNING CUSTOMER ALERT
+This is a RETURNING CUSTOMER with purchase history in our CRM!
+
+**Customer Profile:**
+- Name in CRM: {contact_name if contact_name else 'Not available'}
+- Customer Since: {customer_since}
+- Total Purchases: {total_purchases} orders
+- Lifetime Value: {total_value:,.0f} UZS
+- VIP Status: {vip_status}{recent_products_text}
+
+**SPECIAL INSTRUCTIONS FOR RETURNING CUSTOMERS:**
+1. Acknowledge them as a valued customer ("Welcome back!" / "Xush kelibsiz!" / "Рады видеть вас снова!")
+2. Reference their past purchases if relevant to current conversation
+3. Offer loyalty benefits or personalized recommendations
+4. Be extra attentive - they know our products and expect premium service
+5. If VIP: Prioritize their requests, offer exclusive deals if appropriate
+
+"""
+
+
+def get_enhanced_system_prompt(config: Dict, lead_context: Dict = None, crm_context: Dict = None) -> str:
+    """Generate comprehensive system prompt with sales pipeline and CRM awareness"""
 
     business_name = config.get('business_name', 'our company')
     business_description = config.get('business_description', '')
@@ -1980,7 +2261,7 @@ You must track and advance customers through these stages:
 - Fields Collected: {json.dumps(fields_collected)}
 - Missing Required Fields: {', '.join(missing_required) if missing_required else 'None'}
 
-## REQUIRED INFORMATION TO COLLECT
+{_build_crm_context_section(crm_context)}## REQUIRED INFORMATION TO COLLECT
 {required_text}
 
 ## OBJECTION HANDLING PLAYBOOK
@@ -2186,15 +2467,28 @@ def validate_llm_output(result: Dict, current_stage: str = 'awareness') -> Dict:
     return validated
 
 
-async def call_sales_agent(messages: List[Dict], config: Dict, lead_context: Dict = None, business_context: List[str] = None, tenant_id: str = None, user_query: str = None) -> Dict:
-    """Call LLM with enhanced sales pipeline awareness"""
+async def call_sales_agent(
+    messages: List[Dict],
+    config: Dict,
+    lead_context: Dict = None,
+    business_context: List[str] = None,
+    tenant_id: str = None,
+    user_query: str = None,
+    crm_context: Dict = None,
+    crm_query_context: str = None
+) -> Dict:
+    """Call LLM with enhanced sales pipeline and CRM awareness"""
     current_stage = lead_context.get('sales_stage', 'awareness') if lead_context else 'awareness'
 
     try:
-        system_prompt = get_enhanced_system_prompt(config, lead_context)
+        system_prompt = get_enhanced_system_prompt(config, lead_context, crm_context)
 
         if business_context:
             system_prompt += "\n\n## RELEVANT BUSINESS INFORMATION\n" + "\n".join(business_context)
+
+        # Add CRM query context (product pricing, order history) if available
+        if crm_query_context:
+            system_prompt += "\n\n" + crm_query_context
 
         api_messages = [{"role": "system", "content": system_prompt}]
         for msg in messages:
@@ -2396,19 +2690,42 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
         # Get existing lead context
         lead_result = supabase.table('leads').select('*').eq('tenant_id', tenant_id).eq('customer_id', customer['id']).execute()
         existing_lead = lead_result.data[0] if lead_result.data else None
-        
+
         lead_context = {
             "sales_stage": existing_lead.get("sales_stage", "awareness") if existing_lead else "awareness",
             "fields_collected": existing_lead.get("fields_collected", {}) if existing_lead else {}
         }
-        
+
+        # Get customer phone for CRM matching
+        # Try from: customer record, existing lead, or collected fields
+        customer_phone = (
+            customer.get("phone") or
+            (existing_lead.get("customer_phone") if existing_lead else None) or
+            (existing_lead.get("fields_collected", {}).get("phone") if existing_lead else None)
+        )
+
+        # CRM Integration: Match customer to Bitrix at conversation start
+        crm_context = None
+        if customer_phone:
+            crm_context = await match_customer_to_bitrix(tenant_id, {"phone": customer_phone})
+            if crm_context:
+                logger.info(f"CRM matched returning customer: VIP={crm_context.get('vip_status')}, purchases={crm_context.get('total_purchases')}")
+
+        # CRM Integration: Get on-demand CRM data based on query keywords
+        crm_query_context = await get_crm_context_for_query(tenant_id, text, customer_phone)
+        if crm_query_context:
+            logger.info(f"CRM query context fetched: {len(crm_query_context)} chars")
+
         # Get business context (Semantic RAG)
         logger.info(f"Fetching RAG context for: '{text[:50]}...'")
         business_context = await get_business_context_semantic(tenant_id, text)
         logger.info(f"RAG returned {len(business_context)} context chunks")
-        
-        # Call enhanced LLM
-        llm_result = await call_sales_agent(messages_for_llm, config, lead_context, business_context, tenant_id, text)
+
+        # Call enhanced LLM with CRM context
+        llm_result = await call_sales_agent(
+            messages_for_llm, config, lead_context, business_context,
+            tenant_id, text, crm_context, crm_query_context
+        )
         
         # Update or create lead with enhanced data
         await update_lead_from_llm(tenant_id, customer, existing_lead, llm_result)
@@ -2436,7 +2753,10 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
                     "sales_stage": llm_result.get("sales_stage"), "hotness": llm_result.get("hotness"),
                     "objection_detected": llm_result.get("objection_detected"),
                     "closing_used": llm_result.get("closing_technique_used"),
-                    "rag_context_used": len(business_context) > 0
+                    "rag_context_used": len(business_context) > 0,
+                    "crm_returning_customer": crm_context.get("is_returning_customer") if crm_context else False,
+                    "crm_vip_customer": crm_context.get("vip_status") if crm_context else False,
+                    "crm_query_context_used": bool(crm_query_context)
                 },
                 "created_at": now_iso()
             }).execute()
@@ -3665,10 +3985,19 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
         logger.info(f"Test chat: Getting RAG context for '{request.message[:50]}...'")
         business_context = await get_business_context_semantic(tenant_id, request.message)
         logger.info(f"Test chat: Found {len(business_context)} RAG context chunks")
-        
-        # Call LLM
-        llm_result = await call_sales_agent(messages_for_llm, config, lead_context, business_context, tenant_id, request.message)
-        
+
+        # CRM Integration: Get on-demand CRM data based on query keywords
+        # (Customer matching not available in test mode - no phone)
+        crm_query_context = await get_crm_context_for_query(tenant_id, request.message, None)
+        if crm_query_context:
+            logger.info(f"Test chat: CRM query context fetched: {len(crm_query_context)} chars")
+
+        # Call LLM with CRM context
+        llm_result = await call_sales_agent(
+            messages_for_llm, config, lead_context, business_context,
+            tenant_id, request.message, None, crm_query_context
+        )
+
         return {
             "reply": llm_result.get("reply_text", "I'm here to help! What would you like to know?"),
             "sales_stage": llm_result.get("sales_stage", "awareness"),
@@ -3676,7 +4005,8 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
             "score": llm_result.get("score", 50),
             "fields_collected": llm_result.get("fields_collected", {}),
             "rag_context_used": len(business_context) > 0,
-            "rag_context_count": len(business_context)
+            "rag_context_count": len(business_context),
+            "crm_context_used": bool(crm_query_context)
         }
         
     except Exception as e:
