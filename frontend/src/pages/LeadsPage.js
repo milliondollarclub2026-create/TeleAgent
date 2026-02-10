@@ -49,113 +49,7 @@ const hotnessColors = {
   cold: 'bg-blue-100 text-blue-700 border-blue-200'
 };
 
-// Demo data for development/preview
-const DEMO_LEADS = [
-  {
-    id: 'demo-1',
-    customer_name: 'Ahmad Karimov',
-    customer_phone: '+998 90 123 4567',
-    intent: 'Interested in premium web development package',
-    sales_stage: 'consideration',
-    final_hotness: 'hot',
-    score: 85,
-    status: 'qualified',
-    created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    llm_explanation: 'Customer showed strong buying signals, asked about pricing and timeline. Ready for proposal.',
-    agent_name: 'TechSolutions Bot'
-  },
-  {
-    id: 'demo-2',
-    customer_name: 'Malika Tosheva',
-    customer_phone: '+998 91 234 5678',
-    intent: 'Looking for e-commerce website solution',
-    sales_stage: 'intent',
-    final_hotness: 'hot',
-    score: 92,
-    status: 'new',
-    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    llm_explanation: 'High intent buyer, mentioned budget and urgent timeline. Priority follow-up needed.',
-    agent_name: 'TechSolutions Bot'
-  },
-  {
-    id: 'demo-3',
-    customer_name: 'Bekzod Aliyev',
-    customer_phone: '+998 93 345 6789',
-    intent: 'Asking about mobile app development',
-    sales_stage: 'interest',
-    final_hotness: 'warm',
-    score: 65,
-    status: 'new',
-    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    llm_explanation: 'Early stage inquiry. Customer is comparing options. Needs more education on our services.',
-    agent_name: 'AppDev Assistant'
-  },
-  {
-    id: 'demo-4',
-    customer_name: 'Dilnoza Rahimova',
-    customer_phone: '+998 94 456 7890',
-    intent: 'General inquiry about SEO services',
-    sales_stage: 'awareness',
-    final_hotness: 'cold',
-    score: 30,
-    status: 'new',
-    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    llm_explanation: 'Initial contact. Customer is in research phase, no immediate buying intent.',
-    agent_name: 'Marketing Bot'
-  },
-  {
-    id: 'demo-5',
-    customer_name: 'Sardor Umarov',
-    customer_phone: '+998 95 567 8901',
-    intent: 'Wants CRM integration for his business',
-    sales_stage: 'evaluation',
-    final_hotness: 'hot',
-    score: 88,
-    status: 'qualified',
-    created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    llm_explanation: 'Ready to buy. Comparing us with 2 competitors. Needs demo call scheduled.',
-    agent_name: 'TechSolutions Bot'
-  },
-  {
-    id: 'demo-6',
-    customer_name: 'Nodira Yusupova',
-    customer_phone: '+998 97 678 9012',
-    intent: 'Interested in social media management',
-    sales_stage: 'consideration',
-    final_hotness: 'warm',
-    score: 72,
-    status: 'new',
-    created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-    llm_explanation: 'Medium intent. Has budget but not urgent. Good candidate for nurturing.',
-    agent_name: 'Marketing Bot'
-  },
-  {
-    id: 'demo-7',
-    customer_name: 'Jamshid Tursunov',
-    customer_phone: '+998 90 789 0123',
-    intent: 'Enterprise software solution inquiry',
-    sales_stage: 'purchase',
-    final_hotness: 'hot',
-    score: 95,
-    status: 'won',
-    created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    llm_explanation: 'Deal closed! Customer signed contract for enterprise package.',
-    agent_name: 'TechSolutions Bot'
-  },
-  {
-    id: 'demo-8',
-    customer_name: 'Gulnora Azimova',
-    customer_phone: '+998 91 890 1234',
-    intent: 'Basic website maintenance',
-    sales_stage: 'interest',
-    final_hotness: 'cold',
-    score: 40,
-    status: 'lost',
-    created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    llm_explanation: 'Lost to competitor on price. Customer chose cheaper option.',
-    agent_name: 'AppDev Assistant'
-  }
-];
+// REMOVED: Demo data was causing multi-tenancy issues - all users saw same fake leads
 
 const stageColors = {
   awareness: 'bg-slate-100 text-slate-600',
@@ -190,43 +84,18 @@ const LeadsPage = () => {
         url += `&status=${statusFilter}`;
       }
       const response = await axios.get(url);
-      // Use demo data if no real leads exist
-      if (response.data && response.data.length > 0) {
-        setLeads(response.data);
-      } else {
-        // Filter demo data based on filters
-        let demoData = [...DEMO_LEADS];
-        if (hotnessFilter !== 'all') {
-          demoData = demoData.filter(l => l.final_hotness === hotnessFilter);
-        }
-        if (statusFilter !== 'all') {
-          demoData = demoData.filter(l => l.status === statusFilter);
-        }
-        setLeads(demoData);
-      }
+      // Only show real leads from API - no demo data (multi-tenancy security)
+      setLeads(response.data || []);
     } catch (error) {
       console.error('Failed to fetch leads:', error);
-      // On error, show demo data
-      let demoData = [...DEMO_LEADS];
-      if (hotnessFilter !== 'all') {
-        demoData = demoData.filter(l => l.final_hotness === hotnessFilter);
-      }
-      if (statusFilter !== 'all') {
-        demoData = demoData.filter(l => l.status === statusFilter);
-      }
-      setLeads(demoData);
+      // On error, show empty state - never show demo data
+      setLeads([]);
     } finally {
       setLoading(false);
     }
   };
 
   const updateLeadStatus = async (leadId, newStatus) => {
-    // Handle demo leads locally (they have IDs like 'demo-1')
-    if (leadId.startsWith('demo-')) {
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
-      toast.success('Lead status updated');
-      return;
-    }
     try {
       await axios.put(`${API}/leads/${leadId}/status?status=${newStatus}`);
       toast.success('Lead status updated');
@@ -243,15 +112,6 @@ const LeadsPage = () => {
 
   const deleteLead = async () => {
     if (!leadToDelete) return;
-
-    // Handle demo leads locally
-    if (leadToDelete.id.startsWith('demo-')) {
-      setLeads(prev => prev.filter(l => l.id !== leadToDelete.id));
-      toast.success('Lead deleted');
-      setDeleteDialogOpen(false);
-      setLeadToDelete(null);
-      return;
-    }
 
     try {
       await axios.delete(`${API}/leads/${leadToDelete.id}`);
