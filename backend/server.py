@@ -7,7 +7,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import uuid
 from datetime import datetime, timezone, timedelta
 import hashlib
@@ -235,6 +235,42 @@ DEFAULT_REQUIRED_FIELDS = {
     "product": {"required": True, "label": "Product Interest", "ask_prompt": "Which product are you interested in?"},
     "budget": {"required": False, "label": "Budget", "ask_prompt": "What budget range are you working with?"},
     "timeline": {"required": False, "label": "Timeline", "ask_prompt": "When are you looking to make this purchase?"}
+}
+
+# ============ Hard Constraints Defaults (Anti-Hallucination) ============
+DEFAULT_HARD_CONSTRAINTS = {
+    "promo_codes": [],  # [{"code": "SUMMER20", "discount_percent": 20, "valid_until": "2026-03-01"}]
+    "payment_plans_enabled": False,
+    "discount_authority": "none",  # "none" | "manager_only" | "agent_can_offer"
+}
+
+# Multilingual objection keywords for detection
+OBJECTION_KEYWORDS = {
+    "too_expensive": {
+        "en": ["too expensive", "costly", "pricey", "can't afford", "out of budget", "too much", "high price"],
+        "uz": ["qimmat", "narx baland", "pul yetmaydi", "byudjet yetmaydi"],
+        "ru": ["дорого", "слишком дорого", "не по карману", "дороговато", "цена высокая"]
+    },
+    "need_to_think": {
+        "en": ["need to think", "let me think", "think about it", "not sure yet", "need time", "consider it"],
+        "uz": ["o'ylab ko'raman", "o'ylanib qolaman", "vaqt kerak", "qaror qilishim kerak"],
+        "ru": ["подумаю", "надо подумать", "нужно время", "дайте время подумать"]
+    },
+    "need_approval": {
+        "en": ["ask my boss", "check with", "need approval", "need to consult", "talk to my"],
+        "uz": ["rahbarimga so'rayman", "tekshirib ko'rishim kerak", "maslahatlashishim kerak"],
+        "ru": ["спросить начальника", "согласовать", "нужно одобрение", "посоветоваться"]
+    },
+    "bad_timing": {
+        "en": ["not now", "bad time", "not ready", "maybe later", "next month", "not today"],
+        "uz": ["hozir emas", "keyinroq", "tayyor emasman", "keyingi oyda"],
+        "ru": ["не сейчас", "позже", "не готов", "в следующем месяце", "не сегодня"]
+    },
+    "competitor": {
+        "en": ["other options", "looking elsewhere", "competitor", "found cheaper", "better deal"],
+        "uz": ["boshqa variantlar", "boshqa joyda ko'raman", "raqobatchi"],
+        "ru": ["другие варианты", "конкурент", "нашёл дешевле", "смотрю другие"]
+    }
 }
 
 # Valid values for validation
@@ -521,6 +557,10 @@ class TenantConfigUpdate(BaseModel):
     collect_urgency: Optional[bool] = None
     collect_reference: Optional[bool] = None
     collect_notes: Optional[bool] = None
+    # Hard constraints for AI anti-hallucination
+    promo_codes: Optional[List[Dict]] = None  # [{"code": "SUMMER20", "discount_percent": 20, "valid_until": "2026-03-01"}]
+    payment_plans_enabled: Optional[bool] = None
+    discount_authority: Optional[str] = None  # "none" | "manager_only" | "agent_can_offer"
 
 class DocumentCreate(BaseModel):
     title: str
@@ -2115,6 +2155,54 @@ async def disconnect_click(current_user: Dict = Depends(get_current_user)):
 
 # ============ Enhanced LLM Service ============
 
+def _build_dynamic_context_sections(
+    detected_objection: Optional[Dict],
+    closing_script: Optional[Dict],
+    contact_urgency: Optional[str],
+    product_context: Optional[str]
+) -> str:
+    """Build dynamic context sections for objection handling, closing, and contact collection."""
+    sections = []
+
+    # Objection enforcement section
+    if detected_objection and detected_objection.get('response_strategy'):
+        sections.append(f"""## ⚠️ ACTIVE OBJECTION DETECTED: {detected_objection.get('objection', 'Unknown')}
+
+Detected keyword: "{detected_objection.get('detected_keyword', '')}"
+
+You MUST:
+1. Acknowledge their concern empathetically - show you understand
+2. Use this EXACT strategy: {detected_objection.get('response_strategy')}
+3. After addressing objection, guide conversation back toward the sale
+4. If objection persists, attempt to collect contact info for follow-up
+5. Do NOT apologize for prices or offer unauthorized discounts""")
+
+    # Closing script trigger section
+    if closing_script:
+        sections.append(f"""## 🎯 CLOSING OPPORTUNITY DETECTED
+
+Reason: {closing_script.get('reason', 'Customer shows buying signals')}
+Recommended closing technique: **{closing_script.get('script_key', 'soft_close')}**
+
+Adapt this script to the conversation:
+"{closing_script.get('script_text', '')}"
+
+CRITICAL: NEVER end a high-score conversation without:
+1. Completing the sale, OR
+2. Collecting phone number for follow-up, OR
+3. Scheduling a specific follow-up time""")
+
+    # Contact collection urgency section
+    if contact_urgency:
+        sections.append(contact_urgency)
+
+    # Product context section
+    if product_context:
+        sections.append(product_context)
+
+    return "\n\n".join(sections)
+
+
 def _build_crm_context_section(crm_context: Optional[Dict]) -> str:
     """Build the CRM context section for the system prompt."""
     if not crm_context or not crm_context.get("is_returning_customer"):
@@ -2151,8 +2239,16 @@ This is a RETURNING CUSTOMER with purchase history in our CRM!
 """
 
 
-def get_enhanced_system_prompt(config: Dict, lead_context: Dict = None, crm_context: Dict = None) -> str:
-    """Generate comprehensive system prompt with sales pipeline and CRM awareness"""
+def get_enhanced_system_prompt(
+    config: Dict,
+    lead_context: Dict = None,
+    crm_context: Dict = None,
+    detected_objection: Dict = None,
+    closing_script: Dict = None,
+    contact_urgency: str = None,
+    product_context: str = None
+) -> str:
+    """Generate comprehensive system prompt with sales pipeline, CRM awareness, and enforcement layers"""
 
     business_name = config.get('business_name', 'our company')
     business_description = config.get('business_description', '')
@@ -2261,6 +2357,12 @@ You must track and advance customers through these stages:
 - Fields Collected: {json.dumps(fields_collected)}
 - Missing Required Fields: {', '.join(missing_required) if missing_required else 'None'}
 
+{get_hard_constraints_section(config)}
+
+{get_handoff_instructions(config)}
+
+{_build_dynamic_context_sections(detected_objection, closing_script, contact_urgency, product_context)}
+
 {_build_crm_context_section(crm_context)}## REQUIRED INFORMATION TO COLLECT
 {required_text}
 
@@ -2285,12 +2387,14 @@ You MUST respond with valid JSON in this exact format:
     "closing_technique_used": "Name of closing technique if used, or null",
     "fields_collected": {{
         "name": "value or null",
-        "phone": "value or null", 
+        "phone": "value or null",
         "product": "value or null",
         "budget": "value or null",
         "timeline": "value or null"
     }},
-    "next_action": "What AI should focus on next turn"
+    "next_action": "What AI should focus on next turn",
+    "needs_human_handoff": false,
+    "handoff_reason": "null or reason for escalation"
 }}
 
 ## CRITICAL RULES
@@ -2464,7 +2568,386 @@ def validate_llm_output(result: Dict, current_stage: str = 'awareness') -> Dict:
         logger.warning(f"Invalid fields_collected type, defaulting to empty dict")
         validated['fields_collected'] = {}
 
+    # Validate human handoff fields (Phase 5)
+    needs_handoff = result.get('needs_human_handoff')
+    validated['needs_human_handoff'] = bool(needs_handoff) if needs_handoff is not None else False
+
+    handoff_reason = result.get('handoff_reason')
+    validated['handoff_reason'] = str(handoff_reason) if handoff_reason and validated['needs_human_handoff'] else None
+
     return validated
+
+
+# ============ Phase 2: Objection Detection ============
+def detect_objection(message: str, objection_playbook: List[Dict]) -> Optional[Dict]:
+    """
+    Detect objection type from message using multilingual keywords.
+    Returns the matched objection with its response strategy, or None.
+    """
+    if not message:
+        return None
+
+    message_lower = message.lower()
+
+    # First check against OBJECTION_KEYWORDS for type detection
+    for objection_type, lang_keywords in OBJECTION_KEYWORDS.items():
+        for lang, keywords in lang_keywords.items():
+            for keyword in keywords:
+                if keyword in message_lower:
+                    # Found objection type, now get strategy from playbook
+                    for playbook_item in objection_playbook:
+                        playbook_keywords = playbook_item.get('keywords', [])
+                        # Match if any playbook keyword matches or objection type matches
+                        if any(pk.lower() in message_lower for pk in playbook_keywords):
+                            return {
+                                "type": objection_type,
+                                "objection": playbook_item.get('objection'),
+                                "response_strategy": playbook_item.get('response_strategy'),
+                                "detected_keyword": keyword
+                            }
+                    # If no playbook match, return basic info
+                    return {
+                        "type": objection_type,
+                        "objection": objection_type.replace('_', ' ').title(),
+                        "response_strategy": None,
+                        "detected_keyword": keyword
+                    }
+
+    # Also check playbook keywords directly
+    for playbook_item in objection_playbook:
+        playbook_keywords = playbook_item.get('keywords', [])
+        for keyword in playbook_keywords:
+            if keyword.lower() in message_lower:
+                return {
+                    "type": "custom",
+                    "objection": playbook_item.get('objection'),
+                    "response_strategy": playbook_item.get('response_strategy'),
+                    "detected_keyword": keyword
+                }
+
+    return None
+
+
+# ============ Phase 3: Closing Script Triggers ============
+def get_closing_script_for_context(
+    score: int,
+    stage: str,
+    fields_collected: Dict,
+    closing_scripts: Dict
+) -> Optional[Dict]:
+    """
+    Select appropriate closing script based on score, stage, and collected fields.
+    Returns the script to use or None if not appropriate to close.
+    """
+    if not closing_scripts:
+        closing_scripts = DEFAULT_CLOSING_SCRIPTS
+
+    has_phone = bool(fields_collected.get('phone'))
+    has_name = bool(fields_collected.get('name'))
+    has_product = bool(fields_collected.get('product'))
+    has_budget = bool(fields_collected.get('budget'))
+
+    # High score at evaluation/intent stage = time to close
+    if score >= 70 and stage in ["intent", "evaluation", "purchase"]:
+        # Customer ready to buy - use assumptive close
+        if score >= 85 and has_product:
+            script = closing_scripts.get('assumptive_close', DEFAULT_CLOSING_SCRIPTS['assumptive_close'])
+            return {
+                "script_key": "assumptive_close",
+                "script_text": script['script'],
+                "reason": f"Score {score}+ with product interest indicates high buying intent"
+            }
+
+        # Customer interested but hesitating - use summary close
+        if has_product and has_budget:
+            script = closing_scripts.get('summary_close', DEFAULT_CLOSING_SCRIPTS['summary_close'])
+            return {
+                "script_key": "summary_close",
+                "script_text": script['script'],
+                "reason": f"Customer has shared product interest and budget, ready to summarize value"
+            }
+
+        # Customer showing interest but not committed - soft close
+        if score >= 60:
+            script = closing_scripts.get('soft_close', DEFAULT_CLOSING_SCRIPTS['soft_close'])
+            return {
+                "script_key": "soft_close",
+                "script_text": script['script'],
+                "reason": f"Score {score} shows interest, attempt soft close"
+            }
+
+    # Multiple options discussed - use alternative close
+    if stage == "consideration" and has_product and score >= 50:
+        script = closing_scripts.get('alternative_close', DEFAULT_CLOSING_SCRIPTS['alternative_close'])
+        return {
+            "script_key": "alternative_close",
+            "script_text": script['script'],
+            "reason": "Customer in consideration stage with product interest"
+        }
+
+    return None
+
+
+# ============ Phase 4: Contact Collection Triggers ============
+def get_contact_collection_urgency(score: int, fields_collected: Dict, stage: str) -> Optional[str]:
+    """
+    Generate contact collection instructions based on score and collected fields.
+    Returns urgency instruction string or None.
+    """
+    has_phone = bool(fields_collected.get('phone'))
+    has_name = bool(fields_collected.get('name'))
+
+    if has_phone:
+        return None  # Already have contact
+
+    # Critical: Score 80+ without phone
+    if score >= 80:
+        return """## CRITICAL: COLLECT CONTACT NOW
+
+Score is 80+. This is a HOT lead. You MUST collect phone number in this response.
+Use assumptive language: "I'll process this for you. What's the best number to confirm your order?"
+Do NOT let this conversation end without phone number."""
+
+    # High priority: Score 60-79
+    if score >= 60:
+        priority = "HIGH" if score >= 70 else "MEDIUM"
+        return f"""## {priority} PRIORITY: Request Contact
+
+Score is {score}. This customer is engaged and showing buying interest.
+Naturally request phone number: "To provide you with the best service, may I have your phone number?"
+If they hesitate, explain benefit: "This helps us process your order faster and keep you updated." """
+
+    # Moderate: Score 40-59 at consideration+ stage
+    if score >= 40 and stage in ["consideration", "intent", "evaluation", "purchase"]:
+        return """## Contact Collection Reminder
+
+Customer is engaged. When appropriate, ask for contact information to follow up.
+Keep it natural and value-focused: "Would you like me to send you more details? I can reach you at..."  """
+
+    return None
+
+
+# ============ Phase 5: Human Handoff ============
+async def log_handoff_request(
+    tenant_id: str,
+    conversation_id: str,
+    customer_phone: Optional[str],
+    customer_name: Optional[str],
+    reason: str
+):
+    """Log a human handoff request for manager follow-up."""
+    try:
+        handoff_data = {
+            "id": str(uuid.uuid4()),
+            "tenant_id": tenant_id,
+            "event_type": "human_handoff_requested",
+            "event_data": {
+                "conversation_id": conversation_id,
+                "customer_phone": customer_phone,
+                "customer_name": customer_name,
+                "reason": reason,
+                "status": "pending"
+            },
+            "created_at": now_iso()
+        }
+        supabase.table('event_logs').insert(handoff_data).execute()
+        logger.info(f"Human handoff logged for tenant {tenant_id}: {reason}")
+    except Exception as e:
+        logger.error(f"Failed to log handoff request: {e}")
+
+
+def get_handoff_instructions(config: Dict) -> str:
+    """Generate human handoff protocol instructions for system prompt."""
+    discount_authority = config.get('discount_authority', 'none')
+
+    return f"""## HUMAN HANDOFF PROTOCOL
+
+Set needs_human_handoff: true and provide handoff_reason when:
+1. Customer explicitly asks for human/manager ("I want to talk to a real person")
+2. Customer requests discount you cannot authorize (discount_authority: {discount_authority})
+3. Customer has complaint about past service or product quality
+4. Technical questions not covered in your knowledge base
+5. Legal questions, contract concerns, or warranty disputes
+6. Customer becomes frustrated or angry
+7. Complex custom requirements beyond standard offerings
+
+When setting handoff=true:
+- STILL attempt to collect phone number if not already collected
+- Reassure customer: "I'll have our manager contact you shortly"
+- Provide expected response time if known
+
+IMPORTANT: Handoff is NOT failure - it's professional escalation."""
+
+
+# ============ Phase 6: Response Validation ============
+def validate_response_promises(
+    response: str,
+    config: Dict,
+    crm_products: List[str] = None,
+    kb_products: List[str] = None
+) -> Tuple[bool, List[str]]:
+    """
+    Validate response doesn't promise unauthorized things.
+    Returns (is_valid, list_of_violations).
+    """
+    violations = []
+    response_lower = response.lower()
+
+    # Check 1: Discount promises when not authorized
+    discount_authority = config.get('discount_authority', 'none')
+    promo_codes = config.get('promo_codes', [])
+
+    discount_keywords = ['discount', 'скидка', 'chegirma', '% off', 'reduced price', 'special price']
+    has_discount_mention = any(kw in response_lower for kw in discount_keywords)
+
+    if has_discount_mention:
+        # Check if it's an authorized promo code
+        promo_mentioned = any(promo.get('code', '').lower() in response_lower for promo in promo_codes)
+        if not promo_mentioned and discount_authority == 'none':
+            violations.append('unauthorized_discount')
+
+    # Check 2: Payment plan promises when not enabled
+    payment_plans_enabled = config.get('payment_plans_enabled', False)
+    payment_keywords = ['payment plan', 'installment', 'to\'lov rejasi', 'рассрочка', 'bo\'lib to\'lash']
+
+    if any(kw in response_lower for kw in payment_keywords) and not payment_plans_enabled:
+        violations.append('unauthorized_payment_plan')
+
+    # Check 3: Product hallucinations (if we have product lists)
+    all_known_products = set()
+    if crm_products:
+        all_known_products.update(p.lower() for p in crm_products if p)
+    if kb_products:
+        all_known_products.update(p.lower() for p in kb_products if p)
+
+    # Common hallucination patterns to check
+    hallucination_patterns = ['iphone', 'samsung', 'apple watch', 'airpods', 'macbook']
+    for pattern in hallucination_patterns:
+        if pattern in response_lower and pattern not in ' '.join(all_known_products).lower():
+            # Only flag if we have a product list and this isn't in it
+            if all_known_products:
+                violations.append(f'possible_hallucination:{pattern}')
+
+    return (len(violations) == 0, violations)
+
+
+def correct_response_if_needed(response: str, violations: List[str], config: Dict) -> str:
+    """
+    Add disclaimer or correction if problematic content detected.
+    Returns corrected response.
+    """
+    if not violations:
+        return response
+
+    corrections = []
+
+    if 'unauthorized_discount' in violations:
+        corrections.append("Regarding pricing, for any special discounts please speak with our manager who can assist you further.")
+
+    if 'unauthorized_payment_plan' in violations:
+        corrections.append("Payment options would need to be discussed with our sales manager.")
+
+    # For hallucinations, we just log - don't modify as it might break flow
+    hallucination_violations = [v for v in violations if v.startswith('possible_hallucination:')]
+    if hallucination_violations:
+        logger.warning(f"Possible product hallucinations detected: {hallucination_violations}")
+
+    if corrections:
+        # Append corrections to response
+        correction_text = "\n\n" + " ".join(corrections)
+        return response + correction_text
+
+    return response
+
+
+# ============ Phase 7: Product Context Builder ============
+def build_product_context(crm_products: List[Dict], kb_products: List[str], config: Dict) -> str:
+    """
+    Combine CRM and knowledge base product info into authoritative context.
+    This ensures AI only mentions real products with correct pricing.
+    """
+    context_parts = []
+    context_parts.append("## AUTHORITATIVE PRODUCT CATALOG")
+    context_parts.append("These are the ONLY products you can mention. DO NOT invent products not listed here.\n")
+
+    # CRM products (with pricing)
+    if crm_products:
+        context_parts.append("### Products from CRM (Authoritative Pricing):")
+        for product in crm_products[:20]:  # Limit to 20 products
+            name = product.get('name', product.get('NAME', 'Unknown'))
+            price = product.get('price', product.get('PRICE', 'Contact for price'))
+            currency = product.get('currency', product.get('CURRENCY_ID', 'UZS'))
+            description = product.get('description', product.get('DESCRIPTION', ''))[:100]
+            context_parts.append(f"- **{name}**: {price} {currency}")
+            if description:
+                context_parts.append(f"  {description}")
+
+    # KB products (from documents)
+    if kb_products:
+        context_parts.append("\n### Products from Knowledge Base:")
+        for product in kb_products[:10]:
+            context_parts.append(f"- {product}")
+
+    # Hard constraints
+    context_parts.append("\n### PRICING RULES:")
+    context_parts.append("- CRM prices are FINAL and AUTHORITATIVE")
+    context_parts.append("- NEVER apologize for prices - they are fair and justified")
+    context_parts.append("- If asked about a product not listed above, say 'I don't have information about that specific product, but I'd be happy to check with our team.'")
+
+    # Discount rules
+    discount_authority = config.get('discount_authority', 'none')
+    promo_codes = config.get('promo_codes', [])
+
+    if discount_authority == 'none':
+        context_parts.append("- You CANNOT offer discounts. If asked, refer to manager.")
+    elif discount_authority == 'manager_only':
+        context_parts.append("- Only managers can authorize discounts. You may say 'Let me connect you with our manager for special pricing.'")
+
+    if promo_codes:
+        context_parts.append("\n### ACTIVE PROMO CODES (You CAN mention these):")
+        for promo in promo_codes:
+            valid_until = promo.get('valid_until', 'Limited time')
+            context_parts.append(f"- Code: {promo.get('code')} - {promo.get('discount_percent')}% off (valid until {valid_until})")
+
+    payment_plans = config.get('payment_plans_enabled', False)
+    if payment_plans:
+        context_parts.append("\n- Payment plans ARE available. You can offer installment options.")
+    else:
+        context_parts.append("\n- Payment plans are NOT available. Do not offer or mention installments.")
+
+    return "\n".join(context_parts)
+
+
+def get_hard_constraints_section(config: Dict) -> str:
+    """Generate the hard constraints section for system prompt."""
+    discount_authority = config.get('discount_authority', 'none')
+    payment_plans = config.get('payment_plans_enabled', False)
+    promo_codes = config.get('promo_codes', [])
+
+    constraints = []
+    constraints.append("## HARD CONSTRAINTS - NEVER VIOLATE\n")
+    constraints.append("You MUST NEVER:")
+    constraints.append("1. Invent products - Only mention products from CRM or knowledge base")
+    constraints.append("2. Make up business services not in your context")
+    constraints.append("3. Apologize for correct prices - CRM prices are FINAL and justified")
+    constraints.append("4. Give wrong business identity - You represent ONLY this specific business")
+
+    if discount_authority == 'none':
+        constraints.append("5. Promise ANY discounts - You have NO discount authority")
+        constraints.append("   → If customer asks for discount: 'I understand budget is important. Let me connect you with our manager who may be able to help.'")
+    elif discount_authority == 'manager_only':
+        constraints.append("5. Promise discounts without manager - Only mention promo codes if configured")
+
+    if not payment_plans:
+        constraints.append("6. Offer payment plans or installments - This is NOT configured")
+        constraints.append("   → If asked: 'Currently we accept full payment. I can check with management for options.'")
+
+    if promo_codes:
+        constraints.append(f"\nACTIVE PROMO CODES you CAN mention: {', '.join(p['code'] for p in promo_codes)}")
+
+    constraints.append("\nWhen you cannot fulfill a request, set needs_human_handoff: true")
+
+    return "\n".join(constraints)
 
 
 async def call_sales_agent(
@@ -2475,13 +2958,26 @@ async def call_sales_agent(
     tenant_id: str = None,
     user_query: str = None,
     crm_context: Dict = None,
-    crm_query_context: str = None
+    crm_query_context: str = None,
+    detected_objection: Dict = None,
+    closing_script: Dict = None,
+    contact_urgency: str = None,
+    product_context: str = None
 ) -> Dict:
-    """Call LLM with enhanced sales pipeline and CRM awareness"""
+    """Call LLM with enhanced sales pipeline, CRM awareness, and enforcement layers"""
     current_stage = lead_context.get('sales_stage', 'awareness') if lead_context else 'awareness'
 
     try:
-        system_prompt = get_enhanced_system_prompt(config, lead_context, crm_context)
+        # Generate system prompt with all dynamic enforcement sections
+        system_prompt = get_enhanced_system_prompt(
+            config,
+            lead_context,
+            crm_context,
+            detected_objection,
+            closing_script,
+            contact_urgency,
+            product_context
+        )
 
         if business_context:
             system_prompt += "\n\n## RELEVANT BUSINESS INFORMATION\n" + "\n".join(business_context)
@@ -2721,17 +3217,72 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
         business_context = await get_business_context_semantic(tenant_id, text)
         logger.info(f"RAG returned {len(business_context)} context chunks")
 
-        # Call enhanced LLM with CRM context
+        # ============ NEW: Phase 2 - Objection Detection ============
+        objection_playbook = config.get('objection_playbook') or DEFAULT_OBJECTION_PLAYBOOK
+        detected_objection = detect_objection(text, objection_playbook)
+        if detected_objection:
+            logger.info(f"Objection detected: {detected_objection.get('type')} - keyword: {detected_objection.get('detected_keyword')}")
+
+        # ============ NEW: Phase 3 - Closing Script Trigger ============
+        current_score = existing_lead.get('score', 50) if existing_lead else 50
+        current_stage = lead_context.get('sales_stage', 'awareness')
+        fields_collected = lead_context.get('fields_collected', {})
+        closing_scripts = config.get('closing_scripts') or DEFAULT_CLOSING_SCRIPTS
+        closing_script = get_closing_script_for_context(current_score, current_stage, fields_collected, closing_scripts)
+        if closing_script:
+            logger.info(f"Closing script triggered: {closing_script.get('script_key')} - {closing_script.get('reason')}")
+
+        # ============ NEW: Phase 4 - Contact Collection Urgency ============
+        contact_urgency = get_contact_collection_urgency(current_score, fields_collected, current_stage)
+        if contact_urgency:
+            logger.info(f"Contact collection urgency: score={current_score}, has_phone={bool(fields_collected.get('phone'))}")
+
+        # ============ NEW: Phase 7 - Product Context Builder ============
+        # Get CRM products if available
+        crm_products = []
+        if crm_query_context:
+            # Extract product names from CRM context (simplified)
+            crm_products = [p.get('name', p.get('NAME', '')) for p in (crm_context or {}).get('recent_products', []) if p]
+
+        # Get KB products from business context
+        kb_products = []
+        for ctx in business_context:
+            if 'product' in ctx.lower() or 'mahsulot' in ctx.lower():
+                kb_products.append(ctx[:100])  # First 100 chars as product context
+
+        product_context = build_product_context(crm_products, kb_products, config) if (crm_products or kb_products) else None
+
+        # Call enhanced LLM with all enforcement layers
         llm_result = await call_sales_agent(
             messages_for_llm, config, lead_context, business_context,
-            tenant_id, text, crm_context, crm_query_context
+            tenant_id, text, crm_context, crm_query_context,
+            detected_objection, closing_script, contact_urgency, product_context
         )
-        
+
+        # ============ NEW: Phase 6 - Response Validation ============
+        reply_text = llm_result.get("reply_text", "I'm here to help!")
+        is_valid, violations = validate_response_promises(reply_text, config, crm_products, kb_products)
+        if not is_valid:
+            logger.warning(f"Response validation violations: {violations}")
+            reply_text = correct_response_if_needed(reply_text, violations, config)
+            llm_result["reply_text"] = reply_text
+
+        # ============ NEW: Phase 5 - Human Handoff Handling ============
+        if llm_result.get("needs_human_handoff"):
+            customer_name = fields_collected.get('name') or customer.get('name') or first_name
+            handoff_phone = fields_collected.get('phone') or customer_phone
+            handoff_reason = llm_result.get("handoff_reason", "Customer requested human assistance")
+            await log_handoff_request(
+                tenant_id,
+                conversation['id'],
+                handoff_phone,
+                customer_name,
+                handoff_reason
+            )
+            logger.info(f"Human handoff requested: {handoff_reason}")
+
         # Update or create lead with enhanced data
         await update_lead_from_llm(tenant_id, customer, existing_lead, llm_result)
-        
-        # Save agent response
-        reply_text = llm_result.get("reply_text", "I'm here to help!")
         supabase.table('messages').insert({"id": str(uuid.uuid4()), "conversation_id": conversation['id'], "sender_type": "agent", "text": reply_text, "created_at": now_iso()}).execute()
         
         # Update conversation
@@ -2744,19 +3295,29 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
         else:
             logger.error(f"Failed to send Telegram message to chat {chat_id}")
         
-        # Log event (ignore errors)
+        # Log event with enhanced enforcement metrics (ignore errors)
         try:
             supabase.table('event_logs').insert({
                 "id": str(uuid.uuid4()), "tenant_id": tenant_id, "event_type": "message_processed",
                 "event_data": {
                     "customer_id": customer['id'], "conversation_id": conversation['id'],
                     "sales_stage": llm_result.get("sales_stage"), "hotness": llm_result.get("hotness"),
+                    "score": llm_result.get("score"),
                     "objection_detected": llm_result.get("objection_detected"),
                     "closing_used": llm_result.get("closing_technique_used"),
                     "rag_context_used": len(business_context) > 0,
                     "crm_returning_customer": crm_context.get("is_returning_customer") if crm_context else False,
                     "crm_vip_customer": crm_context.get("vip_status") if crm_context else False,
-                    "crm_query_context_used": bool(crm_query_context)
+                    "crm_query_context_used": bool(crm_query_context),
+                    # New enforcement layer metrics
+                    "objection_playbook_triggered": bool(detected_objection),
+                    "objection_type": detected_objection.get("type") if detected_objection else None,
+                    "closing_script_triggered": bool(closing_script),
+                    "closing_script_type": closing_script.get("script_key") if closing_script else None,
+                    "contact_urgency_active": bool(contact_urgency),
+                    "response_validation_violations": violations if not is_valid else [],
+                    "human_handoff_requested": llm_result.get("needs_human_handoff", False),
+                    "handoff_reason": llm_result.get("handoff_reason")
                 },
                 "created_at": now_iso()
             }).execute()
@@ -3277,7 +3838,14 @@ async def delete_lead(lead_id: str, current_user: Dict = Depends(get_current_use
 async def get_tenant_config(current_user: Dict = Depends(get_current_user)):
     result = supabase.table('tenant_configs').select('*').eq('tenant_id', current_user["tenant_id"]).execute()
     if not result.data:
-        return {"objection_playbook": DEFAULT_OBJECTION_PLAYBOOK, "closing_scripts": DEFAULT_CLOSING_SCRIPTS, "required_fields": DEFAULT_REQUIRED_FIELDS}
+        return {
+            "objection_playbook": DEFAULT_OBJECTION_PLAYBOOK,
+            "closing_scripts": DEFAULT_CLOSING_SCRIPTS,
+            "required_fields": DEFAULT_REQUIRED_FIELDS,
+            "promo_codes": [],
+            "payment_plans_enabled": False,
+            "discount_authority": "none"
+        }
     
     config = result.data[0]
     return {
@@ -3318,7 +3886,11 @@ async def get_tenant_config(current_user: Dict = Depends(get_current_user)):
         "objection_playbook": config.get("objection_playbook") or DEFAULT_OBJECTION_PLAYBOOK,
         "closing_scripts": config.get("closing_scripts") or DEFAULT_CLOSING_SCRIPTS,
         "required_fields": config.get("required_fields") or DEFAULT_REQUIRED_FIELDS,
-        "active_promotions": config.get("active_promotions") or []
+        "active_promotions": config.get("active_promotions") or [],
+        # Hard constraints (anti-hallucination)
+        "promo_codes": config.get("promo_codes") or [],
+        "payment_plans_enabled": config.get("payment_plans_enabled", False),
+        "discount_authority": config.get("discount_authority", "none")
     }
 
 
@@ -3337,7 +3909,9 @@ async def update_tenant_config(request: TenantConfigUpdate, current_user: Dict =
         'collect_budget', 'collect_timeline', 'collect_quantity',
         'collect_company', 'collect_job_title', 'collect_team_size',
         'collect_location', 'collect_preferred_time', 'collect_urgency',
-        'collect_reference', 'collect_notes'
+        'collect_reference', 'collect_notes',
+        # Hard constraints (anti-hallucination)
+        'promo_codes', 'payment_plans_enabled', 'discount_authority'
     }
 
     # Filter to only include valid database columns and non-None values

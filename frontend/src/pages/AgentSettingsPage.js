@@ -39,7 +39,11 @@ import {
   FileText,
   X,
   Plus,
-  ChevronDown
+  ChevronDown,
+  Shield,
+  Percent,
+  CreditCard,
+  Tag
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -127,7 +131,18 @@ const AgentSettingsPage = () => {
     collect_urgency: false,
     collect_reference: false,
     collect_notes: false,
-    vertical: 'default'
+    vertical: 'default',
+    // Sales Constraints (Anti-Hallucination)
+    discount_authority: 'none',
+    payment_plans_enabled: false,
+    promo_codes: []
+  });
+
+  // New promo code form state
+  const [newPromoCode, setNewPromoCode] = useState({
+    code: '',
+    discount_percent: '',
+    valid_until: ''
   });
 
   // Count active collection fields
@@ -145,7 +160,11 @@ const AgentSettingsPage = () => {
         setConfig(prev => ({
           ...prev,
           ...response.data,
-          secondary_languages: response.data.secondary_languages || ['ru', 'en']
+          secondary_languages: response.data.secondary_languages || ['ru', 'en'],
+          // Ensure new constraint fields have defaults
+          discount_authority: response.data.discount_authority || 'none',
+          payment_plans_enabled: response.data.payment_plans_enabled || false,
+          promo_codes: response.data.promo_codes || []
         }));
       }
     } catch (error) {
@@ -179,6 +198,30 @@ const AgentSettingsPage = () => {
         ? config.secondary_languages.filter(l => l !== lang)
         : [...config.secondary_languages, lang]
     );
+  };
+
+  // Promo code management
+  const addPromoCode = () => {
+    if (!newPromoCode.code || !newPromoCode.discount_percent) {
+      toast.error('Please enter code and discount percentage');
+      return;
+    }
+    const promoToAdd = {
+      code: newPromoCode.code.toUpperCase(),
+      discount_percent: parseInt(newPromoCode.discount_percent),
+      valid_until: newPromoCode.valid_until || null
+    };
+    // Check for duplicate
+    if ((config.promo_codes || []).some(p => p.code === promoToAdd.code)) {
+      toast.error('This promo code already exists');
+      return;
+    }
+    handleChange('promo_codes', [...(config.promo_codes || []), promoToAdd]);
+    setNewPromoCode({ code: '', discount_percent: '', valid_until: '' });
+  };
+
+  const removePromoCode = (codeToRemove) => {
+    handleChange('promo_codes', (config.promo_codes || []).filter(p => p.code !== codeToRemove));
   };
 
   if (loading) {
@@ -481,6 +524,155 @@ const AgentSettingsPage = () => {
                       <SelectItem value="0">Unlimited</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sales Constraints - Anti-Hallucination */}
+          <Card className="bg-white border-slate-200/80 shadow-sm">
+            <CardContent className="p-5">
+              <SectionHeader
+                icon={Shield}
+                title="Sales Constraints"
+                description="Prevent AI from making unauthorized promises"
+              />
+              <div className="space-y-4">
+                {/* Discount Authority */}
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-[12px] font-medium">Discount Authority</Label>
+                  <Select
+                    value={config.discount_authority || 'none'}
+                    onValueChange={(v) => handleChange('discount_authority', v)}
+                  >
+                    <SelectTrigger className="h-9 text-[13px] border-slate-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        <div className="flex items-center gap-2">
+                          <span>No discounts</span>
+                          <span className="text-[11px] text-slate-400">— Agent cannot offer any discounts</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="manager_only">
+                        <div className="flex items-center gap-2">
+                          <span>Manager only</span>
+                          <span className="text-[11px] text-slate-400">— Refers to manager for pricing</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="agent_can_offer">
+                        <div className="flex items-center gap-2">
+                          <span>Agent can offer</span>
+                          <span className="text-[11px] text-slate-400">— Can offer configured promos</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-slate-400">Controls whether AI can mention discounts or special pricing</p>
+                </div>
+
+                {/* Payment Plans Toggle */}
+                <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-50 border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                    <div>
+                      <p className="text-[13px] font-medium text-slate-700">Payment Plans</p>
+                      <p className="text-[11px] text-slate-400">Allow AI to offer installment options</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={config.payment_plans_enabled || false}
+                    onCheckedChange={(checked) => handleChange('payment_plans_enabled', checked)}
+                  />
+                </div>
+
+                {/* Promo Codes */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-slate-700 text-[12px] font-medium">Active Promo Codes</Label>
+                    <span className="text-[11px] text-slate-400">
+                      {(config.promo_codes || []).length} active
+                    </span>
+                  </div>
+
+                  {/* Promo Code Chips */}
+                  {(config.promo_codes || []).length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {(config.promo_codes || []).map((promo) => (
+                        <div
+                          key={promo.code}
+                          className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 group hover:border-emerald-300 transition-colors"
+                        >
+                          <Tag className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />
+                          <span className="text-[12px] font-semibold text-emerald-700">{promo.code}</span>
+                          <span className="text-[11px] text-emerald-600">({promo.discount_percent}% off)</span>
+                          {promo.valid_until && (
+                            <span className="text-[10px] text-emerald-500">until {promo.valid_until}</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removePromoCode(promo.code)}
+                            className="w-5 h-5 rounded-full flex items-center justify-center text-emerald-400 hover:text-emerald-600 hover:bg-emerald-100 transition-colors ml-0.5"
+                            aria-label={`Remove ${promo.code}`}
+                          >
+                            <X className="w-3 h-3" strokeWidth={2} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add Promo Code Form */}
+                  <div className="p-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
+                    <div className="grid grid-cols-3 gap-2 mb-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-slate-500">Code</Label>
+                        <Input
+                          value={newPromoCode.code}
+                          onChange={(e) => setNewPromoCode(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                          placeholder="SAVE20"
+                          className="h-8 text-[12px] border-slate-200 uppercase"
+                          maxLength={20}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-slate-500">Discount %</Label>
+                        <Input
+                          type="number"
+                          value={newPromoCode.discount_percent}
+                          onChange={(e) => setNewPromoCode(prev => ({ ...prev, discount_percent: e.target.value }))}
+                          placeholder="20"
+                          className="h-8 text-[12px] border-slate-200"
+                          min={1}
+                          max={100}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-slate-500">Valid Until</Label>
+                        <Input
+                          type="date"
+                          value={newPromoCode.valid_until}
+                          onChange={(e) => setNewPromoCode(prev => ({ ...prev, valid_until: e.target.value }))}
+                          className="h-8 text-[12px] border-slate-200"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addPromoCode}
+                      className="w-full h-8 text-[12px] border-slate-200 hover:bg-slate-100"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1.5" strokeWidth={2} />
+                      Add Promo Code
+                    </Button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400">
+                    The AI will only mention these promo codes when discount_authority allows it.
+                  </p>
                 </div>
               </div>
             </CardContent>
