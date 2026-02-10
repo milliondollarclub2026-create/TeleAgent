@@ -87,6 +87,13 @@ resend.api_key = (os.environ.get('RESEND_API_KEY') or '').strip()
 SENDER_EMAIL = (os.environ.get('SENDER_EMAIL') or 'onboarding@resend.dev').strip()
 FRONTEND_URL = (os.environ.get('FRONTEND_URL') or 'http://localhost:3000').strip()
 
+# Log Resend configuration status (without exposing key)
+if resend.api_key:
+    logger.info(f"Resend API configured with key starting: {resend.api_key[:8]}...")
+    logger.info(f"Sender email: {SENDER_EMAIL}")
+else:
+    logger.warning("RESEND_API_KEY not configured - email sending will fail!")
+
 app = FastAPI(title="TeleAgent - AI Sales Agent")
 api_router = APIRouter(prefix="/api")
 
@@ -703,6 +710,7 @@ async def register(request: RegisterRequest):
             confirm_url = f"{frontend_url}/confirm-email?token={confirmation_token}"
 
             logger.info(f"Sending confirmation email from '{SENDER_EMAIL}' to '{request.email}'")
+            logger.info(f"Resend API key configured: {bool(resend.api_key)}")
             email_response = resend.emails.send({
                 "from": SENDER_EMAIL,
                 "to": request.email,
@@ -725,7 +733,8 @@ async def register(request: RegisterRequest):
             })
             logger.info(f"Resend response: {email_response}")
         except Exception as e:
-            logger.error(f"Failed to send confirmation email: {e}", exc_info=True)
+            logger.error(f"Failed to send confirmation email: {type(e).__name__}: {e}", exc_info=True)
+            logger.error(f"Resend config - API key set: {bool(resend.api_key)}, Sender: {SENDER_EMAIL}")
             # Don't fail registration if email fails - user can request resend
 
         return AuthResponse(
@@ -822,7 +831,8 @@ async def resend_confirmation(email: EmailStr):
             })
         return {"message": "If this email is registered, a confirmation link will be sent."}
     except Exception as e:
-        logger.warning(f"Resend confirmation error: {e}")
+        logger.error(f"Resend confirmation error: {type(e).__name__}: {e}", exc_info=True)
+        logger.error(f"Resend config - API key set: {bool(resend.api_key)}, Sender: {SENDER_EMAIL}")
         return {"message": "If this email is registered, a confirmation link will be sent."}
 
 
