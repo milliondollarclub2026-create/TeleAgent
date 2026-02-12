@@ -3883,62 +3883,241 @@ async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Op
         # Don't re-raise - we don't want to break message flow for DB errors
 
 
+def _get_hotness_from_score(score: int) -> str:
+    """Calculate hotness tier from score"""
+    if score >= 70:
+        return "hot"
+    elif score >= 40:
+        return "warm"
+    return "cold"
+
+
+def _get_hotness_label(hotness: str) -> str:
+    """Get label for hotness level (ASCII-safe for Bitrix API)"""
+    # Note: Bitrix API has encoding issues with emoji - use ASCII labels
+    return "[HOT]" if hotness == "hot" else "[WARM]" if hotness == "warm" else "[COLD]"
+
+
+def _build_bitrix_lead_summary(fields: Dict, hotness: str, score: int) -> str:
+    """Build concise summary for Bitrix COMMENTS field"""
+    emoji = _get_hotness_label(hotness)
+
+    lines = [
+        f"{emoji} {hotness.upper()} LEAD (Score: {score}/100)",
+        ""
+    ]
+
+    # Only include fields that have values
+    field_map = {
+        "product": "Product Interest",
+        "budget": "Budget",
+        "timeline": "Timeline",
+        "quantity": "Quantity",
+        "company": "Company",
+        "job_title": "Job Title",
+        "team_size": "Team Size",
+        "location": "Location",
+        "urgency": "Urgency",
+        "preferred_time": "Preferred Time",
+        "reference": "Reference",
+        "notes": "Notes",
+    }
+
+    has_fields = False
+    for key, label in field_map.items():
+        if fields.get(key):
+            lines.append(f"• {label}: {fields[key]}")
+            has_fields = True
+
+    if not has_fields:
+        lines.append("• No additional details collected yet")
+
+    lines.append("")
+    lines.append("Source: Telegram Bot (TeleAgent)")
+
+    return "\n".join(lines)
+
+
+def _should_sync_to_bitrix(
+    fields_collected: Dict,
+    previous_fields: Dict,
+    current_score: int,
+    previous_score: int,
+    crm_lead_id: Optional[str]
+) -> tuple[bool, str]:
+    """
+    Determine if we should sync to Bitrix based on meaningful changes.
+
+    Returns: (should_sync: bool, reason: str)
+
+    Sync triggers:
+    - New lead (no crm_lead_id)
+    - New contact info collected (name, phone, email, company, location)
+    - New purchase intent info (product, budget, timeline)
+    - Hotness tier transition (cold→warm, warm→hot, etc.)
+
+    Skip if:
+    - No new info collected
+    - Score changed but same hotness tier
+    """
+    # Always create new leads
+    if not crm_lead_id:
+        return True, "new_lead"
+
+    # Check for new contact info
+    contact_fields = ["name", "phone", "email", "company", "location"]
+    for field in contact_fields:
+        new_val = fields_collected.get(field)
+        old_val = previous_fields.get(field)
+        if new_val and new_val != old_val:
+            return True, f"new_{field}"
+
+    # Check for new purchase intent info
+    intent_fields = ["product", "budget", "timeline", "quantity", "urgency"]
+    for field in intent_fields:
+        new_val = fields_collected.get(field)
+        old_val = previous_fields.get(field)
+        if new_val and new_val != old_val:
+            return True, f"new_{field}"
+
+    # Check for hotness transition
+    current_hotness = _get_hotness_from_score(current_score)
+    previous_hotness = _get_hotness_from_score(previous_score)
+
+    if current_hotness != previous_hotness:
+        return True, f"hotness_{previous_hotness}_to_{current_hotness}"
+
+    # No meaningful change
+    return False, "no_change"
+
+
 async def sync_lead_to_bitrix(tenant_id: str, customer: Dict, lead_data: Dict, existing_lead: Optional[Dict] = None):
-    """Sync lead to Bitrix24 CRM if connected"""
+    """
+    Sync lead to Bitrix24 CRM with efficient update triggers.
+
+    Only syncs when meaningful changes occur:
+    - New lead creation
+    - New contact info (name, phone, email, company, location)
+    - New purchase intent (product, budget, timeline)
+    - Hotness tier transition (cold↔warm↔hot)
+
+    Skips sync when:
+    - No new information collected
+    - Score changes within same tier (e.g., 45→55 both "warm")
+    """
     try:
         client = await get_bitrix_client(tenant_id)
         if not client:
             # Bitrix not connected, skip silently
             return
 
-        # Prepare lead data for Bitrix24
+        # Get current and previous state
         fields_collected = lead_data.get("fields_collected", {}) or {}
-        bitrix_lead_data = {
-            "title": f"Telegram Lead: {fields_collected.get('name') or customer.get('name') or customer.get('telegram_username') or 'Unknown'}",
-            "name": fields_collected.get("name") or customer.get("name"),
-            "phone": fields_collected.get("phone") or customer.get("phone"),
-            "product": fields_collected.get("product") or lead_data.get("product"),
-            "budget": fields_collected.get("budget") or lead_data.get("budget"),
-            "timeline": fields_collected.get("timeline") or lead_data.get("timeline"),
-            "intent": lead_data.get("intent"),
-            "hotness": lead_data.get("final_hotness") or lead_data.get("llm_hotness_suggestion") or "warm",
-            "score": lead_data.get("score", 50),
-            "notes": f"Sales Stage: {lead_data.get('sales_stage', 'awareness')}\nIntent: {lead_data.get('intent', 'N/A')}\nSource: Telegram"
-        }
+        previous_fields = existing_lead.get("fields_collected", {}) if existing_lead else {}
 
-        # Check if we have a Bitrix lead ID to update
+        current_score = lead_data.get("score", 30)
+        previous_score = existing_lead.get("score", 30) if existing_lead else 30
+
         crm_lead_id = existing_lead.get("crm_lead_id") if existing_lead else None
 
+        # ========== DECISION: Should we sync? ==========
+        should_sync, sync_reason = _should_sync_to_bitrix(
+            fields_collected, previous_fields, current_score, previous_score, crm_lead_id
+        )
+
+        if not should_sync:
+            logger.debug(f"Skipping Bitrix sync for tenant {tenant_id} - {sync_reason}")
+            return
+
+        logger.info(f"Syncing to Bitrix24 for tenant {tenant_id}: {sync_reason}")
+
+        # ========== BUILD BITRIX DATA ==========
+        current_hotness = _get_hotness_from_score(current_score)
+        emoji = _get_hotness_label(current_hotness)
+
+        # Build title with hotness emoji
+        name = fields_collected.get("name") or customer.get("telegram_username") or "Unknown"
+        product = fields_collected.get("product") or "General Inquiry"
+        title = f"{emoji} {name} - {product}"
+
+        # Build Bitrix lead data
+        bitrix_lead_data = {
+            "title": title,
+            "source": "TELEGRAM",
+            "hotness": current_hotness,
+            "score": current_score,
+            "notes": _build_bitrix_lead_summary(fields_collected, current_hotness, current_score)
+        }
+
+        # Direct field mappings (only if collected)
+        if fields_collected.get("name"):
+            # Split name if space exists
+            name_parts = fields_collected["name"].split(" ", 1)
+            bitrix_lead_data["name"] = name_parts[0]
+            if len(name_parts) > 1:
+                bitrix_lead_data["last_name"] = name_parts[1]
+
+        if fields_collected.get("phone"):
+            bitrix_lead_data["phone"] = fields_collected["phone"]
+
+        if fields_collected.get("email"):
+            bitrix_lead_data["email"] = fields_collected["email"]
+
+        if fields_collected.get("company"):
+            bitrix_lead_data["company"] = fields_collected["company"]
+
+        # Budget → try to extract numeric value for OPPORTUNITY
+        if fields_collected.get("budget"):
+            bitrix_lead_data["budget"] = fields_collected["budget"]
+
+        if fields_collected.get("timeline"):
+            bitrix_lead_data["timeline"] = fields_collected["timeline"]
+
+        # ========== CREATE or UPDATE ==========
         if crm_lead_id:
-            # Update existing lead in Bitrix
+            # Update existing lead
             await client.update_lead(crm_lead_id, bitrix_lead_data)
-            logger.info(f"Updated Bitrix24 lead {crm_lead_id} for tenant {tenant_id}")
+            logger.info(f"Updated Bitrix24 lead {crm_lead_id} ({sync_reason})")
         else:
+            # Check for duplicate by phone before creating
+            if bitrix_lead_data.get("phone"):
+                try:
+                    existing_bitrix_leads = await client.find_leads_by_phone(bitrix_lead_data["phone"])
+                    if existing_bitrix_leads:
+                        # Update existing Bitrix lead instead of creating duplicate
+                        crm_lead_id = str(existing_bitrix_leads[0].get("ID"))
+                        await client.update_lead(crm_lead_id, bitrix_lead_data)
+                        logger.info(f"Found existing Bitrix lead by phone, updated {crm_lead_id}")
+
+                        # Save Bitrix ID to our DB
+                        if existing_lead:
+                            try:
+                                supabase.table('leads').update({
+                                    "crm_lead_id": crm_lead_id
+                                }).eq('id', existing_lead['id']).execute()
+                            except Exception as e:
+                                logger.warning(f"Failed to save Bitrix lead ID: {e}")
+                        return
+                except Exception as e:
+                    logger.warning(f"Failed to check for duplicate lead by phone: {e}")
+
             # Create new lead in Bitrix
-            # Only create if lead has meaningful data (phone or high-stage)
-            sales_stage = lead_data.get("sales_stage", "awareness")
-            has_phone = bool(bitrix_lead_data.get("phone"))
-            is_high_intent = sales_stage in ["intent", "evaluation", "purchase"]
-            score = lead_data.get("score", 0)
-            is_hot = lead_data.get("final_hotness") == "hot" or score >= 70
+            new_lead_id = await client.create_lead(bitrix_lead_data)
+            logger.info(f"Created Bitrix24 lead {new_lead_id} ({sync_reason})")
 
-            if has_phone or is_high_intent or is_hot:
-                new_lead_id = await client.create_lead(bitrix_lead_data)
-                logger.info(f"Created Bitrix24 lead {new_lead_id} for tenant {tenant_id}")
-
-                # Store the Bitrix lead ID in our database for future updates
-                if existing_lead:
-                    try:
-                        supabase.table('leads').update({
-                            "crm_lead_id": new_lead_id
-                        }).eq('id', existing_lead['id']).execute()
-                    except Exception as e:
-                        logger.warning(f"Failed to save Bitrix lead ID: {e}")
-            else:
-                logger.debug(f"Skipping Bitrix sync - lead not qualified enough (stage: {sales_stage}, score: {score})")
+            # Store the Bitrix lead ID in our database for future updates
+            if existing_lead:
+                try:
+                    supabase.table('leads').update({
+                        "crm_lead_id": new_lead_id
+                    }).eq('id', existing_lead['id']).execute()
+                except Exception as e:
+                    logger.warning(f"Failed to save Bitrix lead ID: {e}")
 
     except Exception as e:
         logger.warning(f"Bitrix24 sync failed (non-blocking): {e}")
+        import traceback
+        traceback.print_exc()
         # Don't re-raise - Bitrix sync failure shouldn't break message flow
 
 

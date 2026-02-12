@@ -156,64 +156,95 @@ class BitrixCRMClient:
     async def create_lead(self, data: Dict[str, Any]) -> str:
         """
         Create a new lead in Bitrix24.
-        
+
+        All leads go to "NEW" status (Yangi lead) regardless of hotness.
+        Hotness is tracked via emoji in title and details in COMMENTS.
+
         Args:
-            data: Lead data with keys: name, phone, email, product, budget, 
-                  timeline, notes, source, hotness, score
-        
+            data: Lead data with keys: title, name, last_name, phone, email,
+                  company, notes, source, hotness, score
+
         Returns:
             Lead ID
         """
         fields = {
             "TITLE": data.get("title") or f"Lead: {data.get('name', 'Unknown')}",
-            "NAME": data.get("name"),
-            "SOURCE_ID": data.get("source", "TELEGRAM"),
+            "STATUS_ID": "NEW",  # Always "Yangi lead" - hotness shown in title emoji
+            "SOURCE_ID": "REPEAT_SALE",  # "Telegram" in Bitrix (or fallback to source param)
             "SOURCE_DESCRIPTION": "TeleAgent AI Sales Bot",
+            "OPENED": "Y",  # Visible to all employees
         }
-        
-        if data.get("phone"):
-            fields["PHONE"] = [{"VALUE": data["phone"], "VALUE_TYPE": "WORK"}]
-        
-        if data.get("email"):
-            fields["EMAIL"] = [{"VALUE": data["email"], "VALUE_TYPE": "WORK"}]
-        
-        # Build comments with all available info
-        comments = self._build_lead_comments(data)
-        if comments:
-            fields["COMMENTS"] = comments
-        
-        # Map hotness to status
-        hotness_status_map = {
-            "hot": "IN_PROCESS",  # High priority
-            "warm": "NEW",
-            "cold": "UC_AWAITING"  # Low priority
-        }
-        if data.get("hotness") in hotness_status_map:
-            fields["STATUS_ID"] = hotness_status_map[data["hotness"]]
-        
-        result = await self._call("crm.lead.add", {"fields": fields})
-        lead_id = str(result) if isinstance(result, int) else str(result.get("ID", result))
-        
-        logger.info(f"Created Bitrix24 lead: {lead_id}")
-        return lead_id
-    
-    async def update_lead(self, lead_id: str, data: Dict[str, Any]) -> bool:
-        """Update an existing lead"""
-        fields = {}
-        
+
+        # Override source if specified and not TELEGRAM
+        if data.get("source") and data["source"] not in ["TELEGRAM", "REPEAT_SALE"]:
+            fields["SOURCE_ID"] = data["source"]
+
+        # Name fields
         if data.get("name"):
             fields["NAME"] = data["name"]
+        if data.get("last_name"):
+            fields["LAST_NAME"] = data["last_name"]
+
+        # Contact fields
         if data.get("phone"):
             fields["PHONE"] = [{"VALUE": data["phone"], "VALUE_TYPE": "WORK"}]
-        if data.get("status"):
-            fields["STATUS_ID"] = self._map_status(data["status"])
+        if data.get("email"):
+            fields["EMAIL"] = [{"VALUE": data["email"], "VALUE_TYPE": "WORK"}]
+
+        # Company
+        if data.get("company"):
+            fields["COMPANY_TITLE"] = data["company"]
+
+        # Use notes directly for COMMENTS (built by server.py with full summary)
         if data.get("notes"):
             fields["COMMENTS"] = data["notes"]
-        
+        else:
+            # Fallback to building comments from data
+            fields["COMMENTS"] = self._build_lead_comments(data)
+
+        result = await self._call("crm.lead.add", {"fields": fields})
+        lead_id = str(result) if isinstance(result, int) else str(result.get("ID", result))
+
+        logger.info(f"Created Bitrix24 lead: {lead_id}")
+        return lead_id
+
+    async def update_lead(self, lead_id: str, data: Dict[str, Any]) -> bool:
+        """
+        Update an existing lead in Bitrix24.
+
+        Updates title (with hotness emoji), contact info, and COMMENTS summary.
+        Does NOT change STATUS_ID - all leads stay in "Yangi lead".
+        """
+        fields = {}
+
+        # Title with hotness emoji
+        if data.get("title"):
+            fields["TITLE"] = data["title"]
+
+        # Name fields
+        if data.get("name"):
+            fields["NAME"] = data["name"]
+        if data.get("last_name"):
+            fields["LAST_NAME"] = data["last_name"]
+
+        # Contact fields
+        if data.get("phone"):
+            fields["PHONE"] = [{"VALUE": data["phone"], "VALUE_TYPE": "WORK"}]
+        if data.get("email"):
+            fields["EMAIL"] = [{"VALUE": data["email"], "VALUE_TYPE": "WORK"}]
+
+        # Company
+        if data.get("company"):
+            fields["COMPANY_TITLE"] = data["company"]
+
+        # Comments/Notes (full summary from server.py)
+        if data.get("notes"):
+            fields["COMMENTS"] = data["notes"]
+
         if fields:
             await self._call("crm.lead.update", {"id": lead_id, "fields": fields})
             logger.info(f"Updated Bitrix24 lead: {lead_id}")
-        
+
         return True
     
     async def get_lead(self, lead_id: str) -> Optional[Dict]:
