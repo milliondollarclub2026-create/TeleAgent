@@ -16,7 +16,11 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import PremiumHero from '../components/PremiumHero';
+// import PremiumHero from '../components/PremiumHero'; // Kept for potential rollback
+import GyldStyleHero from '../components/GyldStyleHero';
+import MatrixBackground from '../components/MatrixBackground';
+import FAQSection from '../components/FAQSection';
+import PricingSection from '../components/PricingSection';
 
 // ============================================================================
 // PREMIUM CRM CHAT SECTION COMPONENT
@@ -670,13 +674,14 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Premium Hero Section */}
-      <PremiumHero
-        heroVisible={heroVisible}
-        handleCTA={handleCTA}
-        scrollToSection={scrollToSection}
-        heroRef={heroRef}
-      />
+      {/* Gyld-Style Hero Section with Matrix Background */}
+      <div className="relative" ref={heroRef}>
+        <MatrixBackground />
+        <GyldStyleHero
+          onGetStarted={handleCTA}
+          onBookDemo={handleCTA}
+        />
+      </div>
 
 
       {/* Features Section - Premium Bento Grid */}
@@ -1039,7 +1044,13 @@ export default function LandingPage() {
       {/* CRM Chat Feature Section - Premium Interactive Demo */}
       <CRMChatSection />
 
-      {/* Final CTA Section - Premium 2026 Design */}
+      {/* Pricing Section */}
+      <PricingSection onGetStarted={handleCTA} />
+
+      {/* FAQ Section */}
+      <FAQSection />
+
+      {/* Final CTA Section - Premium 2026 Design - Last section before footer */}
       <section className="py-40 relative overflow-hidden">
         {/* Animated mesh gradient background */}
         <div className="absolute inset-0 bg-[#0a0f1a]" />
@@ -1091,9 +1102,9 @@ export default function LandingPage() {
               <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 opacity-0 group-hover:opacity-20 blur-2xl transition-opacity duration-500" />
             </button>
 
-            {/* Secondary link with hover animation */}
-            <Link
-              to="/pricing"
+            {/* Secondary link - scroll to pricing section instead of /pricing page */}
+            <button
+              onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
               className="group text-slate-300 hover:text-white transition-all duration-300 text-lg font-medium flex items-center gap-2 py-5 px-6"
             >
               <span className="relative">
@@ -1101,7 +1112,7 @@ export default function LandingPage() {
                 <span className="absolute bottom-0 left-0 w-0 h-px bg-gradient-to-r from-emerald-400 to-teal-400 group-hover:w-full transition-all duration-300" />
               </span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={2} />
-            </Link>
+            </button>
           </div>
 
           {/* Premium trust indicators */}
