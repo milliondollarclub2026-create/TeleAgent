@@ -1333,6 +1333,156 @@ BITRIX_REALTIME_TIMEOUT = 5.0
 # VIP customer threshold in UZS
 VIP_THRESHOLD_UZS = 10_000_000
 
+# Google Sheets data cache for product/pricing queries {tenant_id: {"headers": [...], "rows": [...], "cached_at": timestamp}}
+_google_sheets_data_cache = {}
+GOOGLE_SHEETS_DATA_CACHE_TTL = 600  # 10 minutes
+GOOGLE_SHEETS_FETCH_TIMEOUT = 10.0  # 10 second timeout
+
+
+async def fetch_google_sheet_csv(sheet_id: str) -> Optional[Dict]:
+    """
+    Fetch first sheet as CSV and parse into rows.
+    Returns {"headers": [...], "rows": [{col: val}, ...]} or None on error.
+    """
+    import httpx
+    import csv
+    from io import StringIO
+
+    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+
+    try:
+        async with httpx.AsyncClient(timeout=GOOGLE_SHEETS_FETCH_TIMEOUT, follow_redirects=True) as client:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                logger.warning(f"Google Sheets fetch failed with status {resp.status_code}")
+                return None
+
+            # Check for HTML error page (non-public sheet)
+            content_type = resp.headers.get('content-type', '')
+            if 'text/html' in content_type or '<html' in resp.text[:200].lower():
+                logger.warning("Google Sheets returned HTML (sheet may not be public)")
+                return None
+
+            # Parse CSV
+            reader = csv.reader(StringIO(resp.text))
+            rows_list = list(reader)
+
+            if not rows_list:
+                return {"headers": [], "rows": []}
+
+            # Find first non-empty row to use as headers (skip blank rows at top)
+            header_idx = 0
+            for idx, row in enumerate(rows_list):
+                if any(cell.strip() for cell in row):
+                    header_idx = idx
+                    break
+
+            headers = rows_list[header_idx] if header_idx < len(rows_list) else []
+            rows = []
+            for row in rows_list[header_idx + 1:]:
+                if any(cell.strip() for cell in row):  # Skip completely empty rows
+                    row_dict = {}
+                    for i, header in enumerate(headers):
+                        if header.strip() and i < len(row):
+                            row_dict[header.strip()] = row[i].strip()
+                    if row_dict:  # Only add if we have at least one value
+                        rows.append(row_dict)
+
+            clean_headers = [h.strip() for h in headers if h.strip()]
+            logger.info(f"Fetched Google Sheet: {len(clean_headers)} columns, {len(rows)} rows")
+            return {"headers": clean_headers, "rows": rows}
+
+    except httpx.TimeoutException:
+        logger.warning("Google Sheets fetch timed out")
+        return None
+    except Exception as e:
+        logger.warning(f"Error fetching Google Sheet: {e}")
+        return None
+
+
+async def get_cached_sheets_data(tenant_id: str) -> Optional[Dict]:
+    """
+    Get Google Sheets data with 10-min caching.
+    Returns {"headers": [...], "rows": [...]} or None if not connected.
+    """
+    import time
+
+    now = time.time()
+
+    # Check data cache
+    if tenant_id in _google_sheets_data_cache:
+        cache_entry = _google_sheets_data_cache[tenant_id]
+        if now - cache_entry.get("cached_at", 0) < GOOGLE_SHEETS_DATA_CACHE_TTL:
+            logger.debug(f"Google Sheets data cache hit for tenant {tenant_id}")
+            return {"headers": cache_entry.get("headers", []), "rows": cache_entry.get("rows", [])}
+
+    # Get sheet_id from connection cache or database
+    sheet_id = None
+
+    # Check memory cache first
+    if tenant_id in _google_sheets_cache:
+        sheet_id = _google_sheets_cache[tenant_id].get('sheet_id')
+
+    # Try database if not in memory
+    if not sheet_id:
+        try:
+            result = supabase.table('tenant_configs').select('google_sheet_id').eq('tenant_id', tenant_id).execute()
+            if result.data and result.data[0].get('google_sheet_id'):
+                sheet_id = result.data[0]['google_sheet_id']
+                # Populate connection cache from DB
+                _google_sheets_cache[tenant_id] = {
+                    'sheet_id': sheet_id,
+                    'sheet_url': result.data[0].get('google_sheet_url', ''),
+                    'connected_at': result.data[0].get('google_sheet_connected_at', '')
+                }
+        except Exception as e:
+            logger.debug(f"Could not check Google Sheets from database: {e}")
+
+    if not sheet_id:
+        return None  # Not connected
+
+    # Fetch fresh data
+    data = await fetch_google_sheet_csv(sheet_id)
+
+    if data:
+        # Cache the result
+        _google_sheets_data_cache[tenant_id] = {
+            "headers": data["headers"],
+            "rows": data["rows"],
+            "cached_at": now
+        }
+        logger.info(f"Cached {len(data['rows'])} Google Sheets rows for tenant {tenant_id}")
+        return data
+
+    # On error, return stale cache if available (graceful degradation)
+    if tenant_id in _google_sheets_data_cache:
+        logger.info(f"Returning stale Google Sheets cache for tenant {tenant_id}")
+        cache_entry = _google_sheets_data_cache[tenant_id]
+        return {"headers": cache_entry.get("headers", []), "rows": cache_entry.get("rows", [])}
+
+    return None
+
+
+def format_sheets_for_prompt(sheets_data: Dict, max_rows: int = 30) -> str:
+    """Format Google Sheets data for LLM prompt."""
+    headers = sheets_data.get("headers", [])
+    rows = sheets_data.get("rows", [])[:max_rows]
+
+    if not rows:
+        return ""
+
+    lines = ["(Data from connected Google Sheet)"]
+    for row in rows:
+        # Format: "- Col1: Val1 | Col2: Val2 | ..."
+        parts = [f"{h}: {row.get(h, '')}" for h in headers if row.get(h)]
+        if parts:
+            lines.append(f"- {' | '.join(parts)}")
+
+    if len(sheets_data.get("rows", [])) > max_rows:
+        lines.append(f"... and {len(sheets_data['rows']) - max_rows} more rows")
+
+    return "\n".join(lines)
+
 
 def normalize_phone(phone: str) -> str:
     """
@@ -1526,6 +1676,14 @@ async def get_crm_context_for_query(tenant_id: str, user_message: str, customer_
                     product_lines.append(f"- {name}: {price:,.0f} {currency}" + (f" ({desc}...)" if desc else ""))
 
                 context_parts.append(f"## PRODUCT CATALOG FROM CRM (Use these exact prices)\n" + "\n".join(product_lines))
+
+            # Also fetch Google Sheets data if connected
+            sheets_data = await get_cached_sheets_data(tenant_id)
+            if sheets_data and sheets_data.get("rows"):
+                sheets_context = format_sheets_for_prompt(sheets_data)
+                if sheets_context:
+                    context_parts.append(f"## PRODUCT/PRICING DATA FROM GOOGLE SHEETS\n{sheets_context}")
+                    logger.info(f"Google Sheets context fetched: {len(sheets_context)} chars")
 
         # Check for order history queries → fetch customer's orders
         if any(kw in message_lower for kw in order_keywords) and customer_phone:
@@ -2265,15 +2423,27 @@ async def get_google_sheets_status(current_user: Dict = Depends(get_current_user
             "source": "cache"
         }
 
-    # Try database
+    # Try database and populate memory cache on hit
     try:
         result = supabase.table('tenant_configs').select('google_sheet_url, google_sheet_id, google_sheet_connected_at').eq('tenant_id', tenant_id).execute()
         if result.data and result.data[0].get('google_sheet_id'):
+            sheet_url = result.data[0].get('google_sheet_url')
+            sheet_id = result.data[0].get('google_sheet_id')
+            connected_at = result.data[0].get('google_sheet_connected_at')
+
+            # Populate memory cache from DB for future use (e.g., Telegram bot context)
+            _google_sheets_cache[tenant_id] = {
+                'sheet_url': sheet_url,
+                'sheet_id': sheet_id,
+                'connected_at': connected_at
+            }
+            logger.info(f"Loaded Google Sheets config from database for tenant {tenant_id}")
+
             return {
                 "connected": True,
-                "sheet_url": result.data[0].get('google_sheet_url'),
-                "sheet_id": result.data[0].get('google_sheet_id'),
-                "connected_at": result.data[0].get('google_sheet_connected_at'),
+                "sheet_url": sheet_url,
+                "sheet_id": sheet_id,
+                "connected_at": connected_at,
                 "source": "database"
             }
     except Exception as e:
@@ -2292,9 +2462,15 @@ async def test_google_sheets_connection(current_user: Dict = Depends(get_current
         sheet_id = _google_sheets_cache[tenant_id].get('sheet_id')
     else:
         try:
-            result = supabase.table('tenant_configs').select('google_sheet_id').eq('tenant_id', tenant_id).execute()
+            result = supabase.table('tenant_configs').select('google_sheet_url, google_sheet_id, google_sheet_connected_at').eq('tenant_id', tenant_id).execute()
             if result.data and result.data[0].get('google_sheet_id'):
                 sheet_id = result.data[0]['google_sheet_id']
+                # Populate memory cache from DB
+                _google_sheets_cache[tenant_id] = {
+                    'sheet_url': result.data[0].get('google_sheet_url', ''),
+                    'sheet_id': sheet_id,
+                    'connected_at': result.data[0].get('google_sheet_connected_at', '')
+                }
         except Exception:
             pass
 
@@ -2323,10 +2499,13 @@ async def disconnect_google_sheets(current_user: Dict = Depends(get_current_user
     """Disconnect Google Sheets"""
     tenant_id = current_user["tenant_id"]
 
-    # Clear from memory cache
+    # Clear from memory caches (both connection and data cache)
     if tenant_id in _google_sheets_cache:
         del _google_sheets_cache[tenant_id]
-        logger.info(f"Cleared Google Sheets from cache for tenant {tenant_id}")
+        logger.info(f"Cleared Google Sheets connection from cache for tenant {tenant_id}")
+    if tenant_id in _google_sheets_data_cache:
+        del _google_sheets_data_cache[tenant_id]
+        logger.info(f"Cleared Google Sheets data from cache for tenant {tenant_id}")
 
     # Try to clear from database
     try:
