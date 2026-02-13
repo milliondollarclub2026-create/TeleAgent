@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -43,6 +43,8 @@ const API = `${BACKEND_URL}/api`;
 const BitrixSetupPage = () => {
   const { agentId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = location.state?.returnTo;
 
   // State
   const [webhookUrl, setWebhookUrl] = useState('');
@@ -80,7 +82,13 @@ const BitrixSetupPage = () => {
       });
       toast.success(response.data.message || 'Bitrix24 connected successfully!');
       setWebhookUrl('');
-      fetchStatus();
+
+      // If there's a return URL, navigate back with connection state
+      if (returnTo) {
+        navigate(returnTo, { state: { fromConnection: true } });
+      } else {
+        fetchStatus();
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to connect. Please check your webhook URL.');
     } finally {
@@ -127,11 +135,11 @@ const BitrixSetupPage = () => {
       <div className="max-w-2xl mx-auto py-2">
         {/* Back Navigation */}
         <button
-          onClick={() => navigate(agentId ? `/app/agents/${agentId}/connections` : '/app/connections')}
+          onClick={() => navigate(returnTo || (agentId ? `/app/agents/${agentId}/connections` : '/app/connections'))}
           className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors mb-6 group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" strokeWidth={1.75} />
-          Back to Connections
+          {returnTo ? 'Back' : 'Back to Connections'}
         </button>
 
         {/* Page Header */}
