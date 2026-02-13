@@ -143,49 +143,24 @@ const AgentDashboard = () => {
     fetchData();
   }, [agentId, period]);
 
-  // Dummy data for visualization
-  const dummyAnalytics = {
+  // Empty analytics structure for new agents
+  const emptyAnalytics = {
     summary: {
-      conversations: { value: 847, change: 12 },
-      leads: { value: 156, change: 8 },
-      conversion_rate: { value: 18.4, change: 3 },
-      avg_response_time: { value: 2.3, change: -15 }
+      conversations: { value: 0, change: 0 },
+      leads: { value: 0, change: 0 },
+      conversion_rate: { value: 0, change: 0 },
+      avg_response_time: { value: 0, change: 0 }
     },
-    hotness_distribution: [
-      { name: 'Hot', value: 42, color: '#ef4444' },
-      { name: 'Warm', value: 67, color: '#f59e0b' },
-      { name: 'Cold', value: 47, color: '#3b82f6' }
-    ],
+    hotness_distribution: [],
     score_distribution: {
-      "76-100": 38,
-      "51-75": 52,
-      "26-50": 41,
-      "0-25": 25
+      "76-100": 0,
+      "51-75": 0,
+      "26-50": 0,
+      "0-25": 0
     },
-    top_products: [
-      { name: 'Premium Subscription', count: 45, percentage: 29 },
-      { name: 'Enterprise Plan', count: 38, percentage: 24 },
-      { name: 'Starter Package', count: 31, percentage: 20 },
-      { name: 'API Access', count: 24, percentage: 15 },
-      { name: 'Custom Integration', count: 18, percentage: 12 }
-    ],
-    leads_by_stage: {
-      'new': 42,
-      'contacted': 35,
-      'qualified': 28,
-      'proposal': 22,
-      'negotiation': 16,
-      'closed': 13
-    },
-    daily_trend: [
-      { date: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(), leads: 18 },
-      { date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), leads: 24 },
-      { date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), leads: 15 },
-      { date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), leads: 32 },
-      { date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), leads: 28 },
-      { date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), leads: 21 },
-      { date: new Date().toISOString(), leads: 18 }
-    ]
+    top_products: [],
+    leads_by_stage: {},
+    daily_trend: []
   };
 
   const fetchData = async () => {
@@ -197,11 +172,8 @@ const AgentDashboard = () => {
         axios.get(`${API}/integrations/status`)
       ]);
 
-      // Use real data if available, otherwise use dummy data
-      const realData = analyticsRes.data;
-      const hasRealData = realData?.summary?.leads?.value > 0;
-
-      setAnalytics(hasRealData ? realData : dummyAnalytics);
+      // Use real data from API - no fake fallback
+      setAnalytics(analyticsRes.data || emptyAnalytics);
       setAgentInfo({
         name: configRes.data.business_name || 'My Agent',
         telegram_connected: integrationsRes.data.telegram?.connected || false,
@@ -209,12 +181,12 @@ const AgentDashboard = () => {
       });
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
-      // Use dummy data on error for visualization
-      setAnalytics(dummyAnalytics);
+      // Show empty state on error, not fake data
+      setAnalytics(emptyAnalytics);
       setAgentInfo({
-        name: 'Sales Agent',
-        telegram_connected: true,
-        bot_username: 'leadrelay_bot'
+        name: 'My Agent',
+        telegram_connected: false,
+        bot_username: null
       });
     } finally {
       setLoading(false);
