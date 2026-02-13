@@ -104,7 +104,7 @@ export default function PricingSection({ onGetStarted }) {
             Simple, per-channel <span className="text-emerald-600">pricing</span>
           </h2>
           <p className="text-lg text-slate-500 max-w-xl mx-auto">
-            Pay only for the channels you use. Everything included with every channel.
+            Activate a channel. Your entire AI team works across it. Everything included.
           </p>
         </div>
 
@@ -193,7 +193,7 @@ export default function PricingSection({ onGetStarted }) {
             onClick={onGetStarted}
             className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-10 py-4 text-lg font-semibold transition-all duration-200 shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-200"
           >
-            Get Started
+            Hire Your Team
           </button>
           <p className="text-slate-400 text-sm mt-4">
             10-minute setup &middot; Cancel anytime

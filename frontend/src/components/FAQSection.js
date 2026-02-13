@@ -13,7 +13,7 @@ const faqData = [
     id: 'faq-1',
     question: 'How does the AI sales agent work?',
     answer:
-      "Our AI agent connects to your Telegram bot and automatically responds to customer inquiries. It is trained on your product information, pricing, and sales scripts to have natural conversations that convert leads into customers.",
+      "LeadRelay gives you a team of AI employees, each specialized for a different role. Your Sales Agent handles customer conversations and qualifies leads on Telegram. Your Knowledge Specialist answers product questions from your uploaded materials. Your CRM Analyst gives you conversational access to your Bitrix24 data. Each one is trained on your specific business information and speaks Uzbek, Russian, and English.",
   },
   {
     id: 'faq-2',
@@ -37,13 +37,13 @@ const faqData = [
     id: 'faq-5',
     question: 'How does billing work?',
     answer:
-      'LeadRelay uses simple per-channel pricing at $30/month per channel. You only pay for the channels you activate. Cancel anytime with no long-term contracts.',
+      '$30 per month per active channel. You only pay for what you use. No setup fees, no annual contracts. Cancel from your dashboard at any time.',
   },
   {
     id: 'faq-6',
     question: 'How long does setup take?',
     answer:
-      'Most businesses are up and running in under 10 minutes. The onboarding wizard walks you through each step, from connecting your Telegram bot to configuring your AI agent.',
+      'Under ten minutes. The onboarding wizard walks you through every step: connecting Telegram, linking your CRM, uploading product docs, and configuring your agents. No technical skills required.',
   },
   {
     id: 'faq-7',

@@ -370,8 +370,8 @@ const LoginPage = () => {
       <div className="hidden lg:flex lg:w-1/2 bg-white border-r border-slate-100 flex-col justify-center items-center px-12 xl:px-16 relative overflow-hidden">
         <div className="max-w-md w-full relative z-10">
           <h1 className={`text-3xl xl:text-4xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-3 leading-tight tracking-tight transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            See your AI sales agent{' '}
-            <span className="text-emerald-600">in action</span>
+            Watch your AI team{' '}
+            <span className="text-emerald-600">sell</span>
           </h1>
 
           <p className={`text-slate-500 mb-6 transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
@@ -389,7 +389,7 @@ const LoginPage = () => {
           <CardContent className="pt-8 pb-8 px-6">
             {/* Mobile tagline */}
             <p className="lg:hidden text-sm text-slate-500 mb-6 text-center">
-              AI-powered sales agent for Telegram
+              Your AI sales team, ready to work
             </p>
 
             <div className="mb-6">

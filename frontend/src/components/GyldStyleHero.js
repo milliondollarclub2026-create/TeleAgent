@@ -1,12 +1,12 @@
 import React from 'react';
-import { ArrowRight, MessageSquare, Globe, Clock, Database } from 'lucide-react';
+import { ArrowRight, Users, MessageSquare, Globe, Clock } from 'lucide-react';
 
 export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
   const capabilities = [
-    { icon: MessageSquare, label: 'Telegram' },
-    { icon: Database, label: 'Bitrix24' },
-    { icon: Globe, label: 'Multi-Language' },
-    { icon: Clock, label: '24/7 Support' },
+    { icon: Users, label: '3 AI Employees' },
+    { icon: MessageSquare, label: 'Telegram + CRM' },
+    { icon: Globe, label: 'UZ / RU / EN' },
+    { icon: Clock, label: 'Always On' },
   ];
 
   return (
@@ -39,7 +39,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
           <span className="text-sm font-medium text-slate-300">
-            AI-Powered Sales Automation
+            Now hiring AI sales agents
           </span>
         </div>
 
@@ -47,15 +47,15 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
         <h1
           className="animate-fadeUp opacity-0 delay-100 text-[40px] sm:text-[56px] md:text-[72px] font-bold tracking-[-1.8px] leading-[1] font-['Plus_Jakarta_Sans'] mb-6"
         >
-          <span className="text-white block">AI Sales Agents</span>
-          <span className="bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-400 bg-clip-text text-transparent block">for Telegram</span>
+          <span className="text-white block">Hire an AI that sells</span>
+          <span className="bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-400 bg-clip-text text-transparent block">while you sleep</span>
         </h1>
 
         {/* Subheadline */}
         <p
           className="animate-fadeUp opacity-0 delay-200 text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed"
         >
-          Deploy intelligent AI agents that qualify leads, answer product questions, and close deals directly on Telegram. Always on, fluent in Uzbek, Russian, and English.
+          Your AI sales team qualifies leads, answers product questions, and closes deals on Telegram — in Uzbek, Russian, or English. It works nights, weekends, and holidays.
         </p>
 
         {/* CTAs */}
@@ -66,7 +66,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
             onClick={onGetStarted}
             className="group bg-emerald-500 hover:bg-emerald-400 text-slate-900 px-8 py-4 rounded-full font-semibold text-lg transition-all duration-200 inline-flex items-center gap-2 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-400/30"
           >
-            Get Started
+            Hire Your AI Team
             <ArrowRight
               className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-1"
               strokeWidth={2}
@@ -76,7 +76,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
             onClick={onBookDemo}
             className="border border-white/20 hover:border-white/40 hover:bg-white/5 text-white px-8 py-4 rounded-full font-semibold text-lg transition-all duration-200"
           >
-            See how it works
+            Meet the team
           </button>
         </div>
 

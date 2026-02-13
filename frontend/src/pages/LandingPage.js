@@ -168,8 +168,7 @@ function CRMChatSection() {
             </h2>
 
             <p className="text-slate-500 text-lg leading-relaxed mb-8">
-              Type a question in plain language and get instant answers from your Bitrix24 data.
-              Top leads, weekly revenue, product performance, all from a single chat window.
+              Revenue this week? Top-selling product? Best leads? Type it in plain language — Uzbek, Russian, or English — and get answers from your Bitrix24 data instantly.
             </p>
 
             <ul className="space-y-4">
@@ -632,7 +631,7 @@ export default function LandingPage() {
         <MatrixBackground />
         <GyldStyleHero
           onGetStarted={handleCTA}
-          onBookDemo={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+          onBookDemo={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
         />
       </div>
 
@@ -642,36 +641,28 @@ export default function LandingPage() {
       <section className="py-12 bg-white border-b border-slate-100 relative overflow-hidden">
         <div className="max-w-5xl mx-auto px-6 md:px-12">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-4 scroll-reveal">
-            {/* Integrations */}
+            {/* AI Employees */}
             <div className="text-center">
-              <div className="flex items-center justify-center gap-3 mb-2">
-                <svg className="w-5 h-5 text-slate-400" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
-                </svg>
-                <svg className="w-5 h-5 text-slate-400" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/>
-                </svg>
-              </div>
-              <p className="text-sm font-semibold text-slate-900">Telegram + Bitrix24</p>
-              <p className="text-xs text-slate-400 mt-0.5">Native integrations</p>
+              <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">3 AI Employees</p>
+              <p className="text-xs text-slate-400">Sales, FAQ & CRM</p>
             </div>
 
             {/* Setup time */}
             <div className="text-center">
               <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">10 min</p>
-              <p className="text-xs text-slate-400">Average setup time</p>
+              <p className="text-xs text-slate-400">Average hire time</p>
             </div>
 
             {/* Availability */}
             <div className="text-center">
               <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">24/7</p>
-              <p className="text-xs text-slate-400">AI availability</p>
+              <p className="text-xs text-slate-400">Always working</p>
             </div>
 
             {/* Languages */}
             <div className="text-center">
-              <p className="text-sm font-semibold text-slate-900 mb-1">UZ / RU / EN</p>
-              <p className="text-xs text-slate-400">3 languages supported</p>
+              <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">UZ / RU / EN</p>
+              <p className="text-xs text-slate-400">3 languages fluent</p>
             </div>
           </div>
         </div>
@@ -693,19 +684,19 @@ export default function LandingPage() {
           {/* Section Header */}
           <div className="text-center mb-20 scroll-reveal">
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-6">
-              Built for how
+              Meet your
               <br />
-              <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 bg-clip-text text-transparent">Telegram sales work</span>
+              <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 bg-clip-text text-transparent">AI sales team</span>
             </h2>
             <p className="text-slate-500 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-              Your customers are already on Telegram. Your AI agent meets them there, qualifies every lead, and routes the best ones straight into your CRM.
+              Three specialists. Each trained on your business. Working every channel, every hour.
             </p>
           </div>
 
           {/* Bento Grid */}
           <div className="grid grid-cols-12 gap-4 md:gap-5 auto-rows-[minmax(200px,auto)] scroll-reveal" style={{ transitionDelay: '100ms' }}>
 
-            {/* Telegram Native (Large Card) */}
+            {/* Jasur, Sales Agent (Large Card) */}
             <div className="col-span-12 md:col-span-7 row-span-2 bento-card bento-card-1">
               <div className="group relative h-full bento-glass rounded-[28px] p-8 md:p-10 overflow-hidden transition-all duration-500 hover:scale-[1.012]">
                 <div className="absolute inset-0 rounded-[28px] bento-border-gradient opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -720,14 +711,14 @@ export default function LandingPage() {
                   </div>
 
                   <h3 className="text-2xl md:text-3xl font-bold text-slate-900 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
-                    Telegram Native
+                    Jasur, Sales Agent
                   </h3>
                   <p className="text-slate-500 text-base md:text-lg leading-relaxed mb-8 max-w-md">
-                    Your AI agent lives inside Telegram, right where your customers spend their time. No extra app to download, no link to click. Customers message your bot and get instant, intelligent replies around the clock.
+                    Jasur handles customer conversations on Telegram around the clock. He qualifies leads, answers product questions from your knowledge base, collects contact details, and moves qualified prospects into your CRM. Fluent in Uzbek, Russian, and English.
                   </p>
 
                   <div className="flex flex-wrap gap-2.5">
-                    {['Instant Replies', '24/7 Active', 'Rich Media Support'].map((tag, i) => (
+                    {['Telegram', 'Lead Qualification', 'Multi-Language'].map((tag, i) => (
                       <span
                         key={tag}
                         className="bento-pill bg-slate-100/80 text-slate-600 px-4 py-2 rounded-full text-sm font-medium border border-slate-200/60 backdrop-blur-sm hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200/80 transition-all duration-300 cursor-default"
@@ -743,7 +734,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Multi-Language (Tall Card) */}
+            {/* Nilufar, Knowledge Specialist (Tall Card) */}
             <div className="col-span-12 md:col-span-5 row-span-2 bento-card bento-card-2">
               <div className="group relative h-full bento-glass rounded-[28px] p-8 overflow-hidden transition-all duration-500 hover:scale-[1.012]">
                 <div className="absolute inset-0 rounded-[28px] bento-border-gradient-purple opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -757,9 +748,9 @@ export default function LandingPage() {
                     <div className="absolute inset-0 rounded-2xl bg-purple-400/20 blur-xl opacity-0 group-hover:opacity-50 transition-opacity duration-500 -z-10" />
                   </div>
 
-                  <h3 className="text-2xl font-bold text-slate-900 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">Multi-Language</h3>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">Nilufar, Knowledge Specialist</h3>
                   <p className="text-slate-500 leading-relaxed mb-8 flex-grow text-base">
-                    Speaks Uzbek, Russian, and English fluently. The AI detects your customer's language from the first message and responds naturally, every time.
+                    Nilufar answers customer questions instantly using your uploaded product docs, pricing sheets, and FAQs. She handles the repetitive inquiries so your human team focuses on high-value conversations.
                   </p>
 
                   <div className="flex gap-3">
@@ -784,7 +775,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Bitrix24 Sync */}
+            {/* Bobur, CRM Analyst */}
             <div className="col-span-12 md:col-span-6 bento-card bento-card-3">
               <div className="group relative h-full bento-glass rounded-[28px] p-7 overflow-hidden transition-all duration-500 hover:scale-[1.015]">
                 <div className="absolute inset-0 rounded-[28px] bento-border-gradient-emerald opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -800,14 +791,14 @@ export default function LandingPage() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">Bitrix24 Sync</h3>
+                      <h3 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">Bobur, CRM Analyst</h3>
                       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 bento-pulse-dot" />
                         <span className="text-xs font-medium text-emerald-600">Live</span>
                       </div>
                     </div>
                     <p className="text-slate-500 leading-relaxed text-sm">
-                      Every qualified lead flows into Bitrix24 automatically. Contacts, deal stages, and conversation history stay in sync both ways.
+                      Bobur connects to your Bitrix24 and gives you conversational access to your sales data. Qualified leads, deal stages, and conversation history stay in sync — both ways, in real time.
                     </p>
                   </div>
                 </div>
@@ -816,7 +807,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Knowledge Base Training */}
+            {/* Trained on your business */}
             <div className="col-span-12 md:col-span-6 bento-card bento-card-4">
               <div className="group relative h-full bento-glass rounded-[28px] p-7 overflow-hidden transition-all duration-500 hover:scale-[1.015]">
                 <div className="absolute inset-0 rounded-[28px] bento-border-gradient-amber opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -831,9 +822,9 @@ export default function LandingPage() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-xl font-bold text-slate-900 mb-2 font-['Plus_Jakarta_Sans'] tracking-tight">Knowledge Base Training</h3>
+                    <h3 className="text-xl font-bold text-slate-900 mb-2 font-['Plus_Jakarta_Sans'] tracking-tight">Trained on your business</h3>
                     <p className="text-slate-500 leading-relaxed text-sm">
-                      Upload your product catalog, pricing, and FAQs. The AI learns your business and gives accurate, on-brand answers to every customer question.
+                      Upload product catalogs, pricing sheets, or FAQ documents. Your AI team studies your materials and answers customer questions with the accuracy of your best salesperson.
                     </p>
                   </div>
                 </div>
@@ -842,7 +833,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Smart Analytics (Full Width) */}
+            {/* See what's working (Full Width) */}
             <div className="col-span-12 bento-card bento-card-5">
               <div className="group relative h-full bento-glass rounded-[28px] p-7 md:p-8 overflow-hidden transition-all duration-500 hover:scale-[1.008]">
                 <div className="absolute inset-0 rounded-[28px] bento-border-gradient-cyan opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -857,9 +848,9 @@ export default function LandingPage() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-xl font-bold text-slate-900 mb-2 font-['Plus_Jakarta_Sans'] tracking-tight">Smart Analytics</h3>
+                    <h3 className="text-xl font-bold text-slate-900 mb-2 font-['Plus_Jakarta_Sans'] tracking-tight">See what's working</h3>
                     <p className="text-slate-500 leading-relaxed text-sm max-w-lg">
-                      See which agents convert best, which products get the most interest, and where leads drop off. All in real time.
+                      Track agent performance, product interest, and conversion rates in real time. Know exactly where leads drop off and which conversations close.
                     </p>
                   </div>
 
@@ -900,12 +891,12 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 md:px-12 relative">
           <div className="text-center mb-20 scroll-reveal">
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-6">
-              Live in
+              Hire in
               <br className="hidden sm:block" />
               <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 bg-clip-text text-transparent"> three steps</span>
             </h2>
             <p className="text-slate-500 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-              Connect your Telegram bot, train your AI agent, and start receiving qualified leads. The entire setup takes under 10 minutes.
+              From signup to your first qualified lead in under ten minutes. No code. No consultants.
             </p>
           </div>
 
@@ -924,22 +915,22 @@ export default function LandingPage() {
                 {
                   step: 1,
                   icon: Bot,
-                  title: 'Create Your Agent',
-                  description: 'Walk through the guided setup wizard to define your business, products, and sales approach. Choose your agent\'s tone and language preferences.',
+                  title: 'Define your business',
+                  description: 'Tell us about your products, pricing, and how you sell. The setup wizard configures your AI team\'s tone, language, and sales approach.',
                   delay: '0ms'
                 },
                 {
                   step: 2,
                   icon: Database,
-                  title: 'Connect and Train',
-                  description: 'Link your Telegram bot token and Bitrix24 account. Upload product docs, pricing sheets, or FAQs to train the AI on your business.',
+                  title: 'Connect your tools',
+                  description: 'Paste your Telegram bot token, link Bitrix24, and upload your product docs. Your AI team reads everything and starts learning your business.',
                   delay: '150ms'
                 },
                 {
                   step: 3,
                   icon: Zap,
-                  title: 'Go Live',
-                  description: 'Activate your agent and let it work. It handles Telegram conversations around the clock, qualifies leads, collects contact details, and logs everything to your CRM.',
+                  title: 'Start selling',
+                  description: 'Flip the switch. Your AI team handles conversations, qualifies leads, collects contacts, and logs every deal to your CRM. You focus on closing.',
                   delay: '300ms'
                 }
               ].map((item) => (
@@ -995,17 +986,17 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-8 scroll-reveal">
             <div>
               <h3 className="text-2xl md:text-3xl font-bold text-white font-['Plus_Jakarta_Sans'] mb-2">
-                Ready to automate your Telegram sales?
+                Your next sales hire costs $30/month
               </h3>
               <p className="text-emerald-100/80 text-lg">
-                Set up in under 10 minutes. No long-term contracts.
+                Live in 10 minutes. Cancel anytime.
               </p>
             </div>
             <button
               onClick={handleCTA}
               className="group flex-shrink-0 bg-white text-emerald-700 hover:bg-emerald-50 rounded-full px-8 py-4 text-base font-semibold transition-all duration-300 shadow-lg shadow-emerald-700/20 hover:shadow-xl hover:shadow-emerald-700/30 flex items-center gap-2"
             >
-              Get Started Now
+              Start Hiring
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={2.5} />
             </button>
           </div>
@@ -1039,13 +1030,13 @@ export default function LandingPage() {
 
         <div className="max-w-5xl mx-auto px-6 md:px-12 text-center relative z-10 scroll-reveal">
           <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] mb-8 leading-[1.1]">
-            <span className="text-white">Your Telegram.</span>
+            <span className="text-white">Your AI sales team</span>
             <br />
-            <span className="cta-gradient-text">Your AI Sales Team.</span>
+            <span className="cta-gradient-text">starts tonight.</span>
           </h2>
 
           <p className="text-slate-300/90 text-lg md:text-xl mb-14 max-w-2xl mx-auto leading-relaxed font-light">
-            Set up in 10 minutes. Start qualifying leads tonight. Cancel anytime.
+            Three AI employees. Trained on your business. Working every channel. Hire your team in ten minutes.
           </p>
 
           {/* CTA Buttons */}
@@ -1056,7 +1047,7 @@ export default function LandingPage() {
               data-testid="final-cta-btn"
             >
               <span className="relative z-10 inline-flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all duration-300 group-hover:shadow-2xl group-hover:shadow-emerald-500/30">
-                Get Started
+                Hire Your Team
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform duration-300" strokeWidth={2.5} />
               </span>
             </button>
@@ -1078,7 +1069,7 @@ export default function LandingPage() {
             <div className="flex flex-wrap justify-center items-center gap-10 md:gap-16">
               {[
                 { icon: <Zap className="w-4 h-4" strokeWidth={2.5} />, text: '10-minute setup' },
-                { icon: <Shield className="w-4 h-4" strokeWidth={2.5} />, text: 'Enterprise-grade security' },
+                { icon: <Shield className="w-4 h-4" strokeWidth={2.5} />, text: 'Bank-grade encryption' },
                 { icon: <Sparkles className="w-4 h-4" strokeWidth={2.5} />, text: 'Cancel anytime' }
               ].map((item, i) => (
                 <div key={i} className="group flex items-center gap-3 cursor-default">
@@ -1117,7 +1108,7 @@ export default function LandingPage() {
                   </span>
                 </Link>
                 <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-8">
-                  AI-powered Telegram sales agents for businesses in Uzbekistan and the CIS region. Qualify leads, close deals, and keep your CRM in sync around the clock.
+                  AI sales agents that qualify leads, close deals, and keep your CRM accurate — 24 hours a day, 7 days a week. Built for businesses across Uzbekistan and the CIS.
                 </p>
 
                 {/* Social */}

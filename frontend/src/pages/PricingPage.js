@@ -224,7 +224,7 @@ export default function PricingPage() {
               Simple, per-channel <span className="text-emerald-600">pricing</span>
             </h1>
             <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto">
-              No hidden fees, no tiers. Pay per channel, get everything included.
+              No hidden fees. No tiers. Activate a channel, get your full AI sales team.
             </p>
           </div>
         </div>
@@ -328,7 +328,7 @@ export default function PricingPage() {
               onClick={handleCTA}
               className="group inline-flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/30"
             >
-              Get Started
+              Hire Your Team
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform duration-300" strokeWidth={2.5} />
             </button>
           </div>
@@ -372,7 +372,7 @@ export default function PricingPage() {
                   </span>
                 </Link>
                 <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-8">
-                  AI-powered Telegram sales agents for businesses in Uzbekistan and the CIS region. Qualify leads, close deals, and keep your CRM in sync around the clock.
+                  AI sales agents that qualify leads, close deals, and keep your CRM accurate — 24 hours a day, 7 days a week. Built for businesses across Uzbekistan and the CIS.
                 </p>
 
                 <div className="flex items-center gap-4">
