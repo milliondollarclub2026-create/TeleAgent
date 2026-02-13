@@ -233,7 +233,7 @@ export default function PricingSection({ onGetStarted }) {
                   Hire all 3 and save ${BUNDLE_DISCOUNT}/month
                 </button>
               ) : (
-                <div className="mt-3 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-900 border-l-4 border-emerald-500 text-white text-sm font-medium">
+                <div className="mt-3 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium">
                   <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
                   Full team hired. ${BUNDLE_DISCOUNT}/month bundle discount applied.
                 </div>
