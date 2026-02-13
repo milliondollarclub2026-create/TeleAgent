@@ -16,6 +16,7 @@ import {
 import GyldStyleHero from '../components/GyldStyleHero';
 import FAQSection from '../components/FAQSection';
 import PricingSection from '../components/PricingSection';
+import AiOrb from '../components/Orb/AiOrb';
 
 // ============================================================================
 // CRM CHAT SECTION - Interactive demo with typing effects
@@ -611,12 +612,15 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-5 mb-5 scroll-reveal" style={{ transitionDelay: '100ms' }}>
             {/* Jasur, Sales Agent */}
             <div className="h-full flex flex-col bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
-              <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Sales Agent</span>
-              <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
-                Jasur
-              </h3>
+              <div className="flex items-center gap-4 mb-4">
+                <AiOrb size={44} colors={['#10b981', '#059669', '#14b8a6']} />
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">Jasur</h3>
+                  <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Sales Agent</span>
+                </div>
+              </div>
               <p className="text-slate-500 leading-relaxed mb-6 flex-1">
-                Handles customer conversations on Telegram around the clock. Qualifies leads, answers product questions from your knowledge base, collects contact details, and moves qualified prospects into your CRM.
+                Handles customer conversations on Telegram, qualifies leads based on purchase intent, collects contact information, and never misses a sales opportunity. Speaks Uzbek and Russian fluently.
               </p>
               <div className="flex flex-wrap gap-2">
                 {['Telegram', 'Lead Qualification', 'Multi-Language'].map((tag) => (
@@ -630,17 +634,20 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Nilufar, Knowledge Specialist */}
+            {/* Nilufar, Onboarding Agent */}
             <div className="h-full flex flex-col bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
-              <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Knowledge Specialist</span>
-              <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
-                Nilufar
-              </h3>
+              <div className="flex items-center gap-4 mb-4">
+                <AiOrb size={44} colors={['#6366f1', '#8b5cf6', '#3b82f6']} />
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">Nilufar</h3>
+                  <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Onboarding Agent</span>
+                </div>
+              </div>
               <p className="text-slate-500 leading-relaxed mb-6 flex-1">
-                Answers customer questions instantly using your uploaded product docs, pricing sheets, and FAQs. Handles repetitive inquiries so your human team focuses on high-value conversations.
+                Streamlines your hiring process by creating detailed application forms with personality assessments and IQ tests. Helps you find the best candidates for your sales department automatically.
               </p>
               <div className="flex flex-wrap gap-2">
-                {['Multilingual', 'Knowledge Base', 'FAQ Expert'].map((tag) => (
+                {['HR Forms', 'Assessments', 'Auto-Screening'].map((tag) => (
                   <span
                     key={tag}
                     className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
@@ -651,17 +658,20 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Bobur, CRM Analyst */}
+            {/* Bobur, Analytics Engineer */}
             <div className="h-full flex flex-col bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
-              <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">CRM Analyst</span>
-              <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
-                Bobur
-              </h3>
+              <div className="flex items-center gap-4 mb-4">
+                <AiOrb size={44} colors={['#f97316', '#ea580c', '#f59e0b']} />
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">Bobur</h3>
+                  <span className="text-xs font-semibold text-orange-600 uppercase tracking-wider">Analytics Engineer</span>
+                </div>
+              </div>
               <p className="text-slate-500 leading-relaxed mb-6 flex-1">
-                Connects to your Bitrix24 and gives you conversational access to your sales data. Qualified leads, deal stages, and conversation history stay in sync — both ways, in real time.
+                Connects to your Bitrix24 CRM to analyze leads, visualize conversion rates, and generate insightful charts. Turns your raw sales data into actionable intelligence.
               </p>
               <div className="flex flex-wrap gap-2">
-                {['Bitrix24', 'Real-time Sync', 'Analytics'].map((tag) => (
+                {['Bitrix24', 'Charts', 'Analytics'].map((tag) => (
                   <span
                     key={tag}
                     className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
