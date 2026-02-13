@@ -108,10 +108,26 @@ const BitrixIcon = ({ size = 'sm' }) => {
   );
 };
 
-// Telegram icon for prebuilt cards
+// Telegram icon for prebuilt cards (paper plane only, no circle) - centered
 const TelegramIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1.01.54-1.45.53-.48-.01-1.39-.27-2.07-.49-.84-.27-1.51-.42-1.45-.89.03-.25.38-.51 1.07-.78 4.18-1.82 6.97-3.02 8.38-3.61 3.99-1.66 4.83-1.95 5.37-1.96.12 0 .38.03.55.17.14.12.18.28.2.45-.01.06.01.24 0 .38z"/>
+    <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+  </svg>
+);
+
+// Google Sheets icon (table/spreadsheet style)
+const GoogleSheetsIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm2-7h8v2H8v-2zm0 3h8v2H8v-2zm0-6h4v2H8V10z"/>
+  </svg>
+);
+
+// Bitrix CRM icon (layers/database style)
+const BitrixCRMIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+    <path d="M2 17l10 5 10-5"/>
+    <path d="M2 12l10 5 10-5"/>
   </svg>
 );
 
@@ -134,8 +150,7 @@ const prebuiltEmployees = [
     name: 'Jasur',
     role: 'the Sales Agent',
     description: 'Jasur handles customer conversations on Telegram, qualifies leads based on purchase intent, collects contact information, and never misses a sales opportunity. He speaks Uzbek and Russian fluently.',
-    integration: 'telegram',
-    integrationName: 'Telegram',
+    integrations: ['telegram', 'bitrix', 'sheets'], // Multiple integrations
     type: 'sales',
     // Emerald/teal gradient - sales = growth = green
     orbColors: ['#10b981', '#059669', '#14b8a6']
@@ -145,8 +160,7 @@ const prebuiltEmployees = [
     name: 'Nilufar',
     role: 'the Onboarding Agent',
     description: 'Nilufar streamlines your hiring process by creating detailed application forms with personality assessments and IQ tests. She helps you find the best candidates for your sales department automatically.',
-    integration: 'telegram',
-    integrationName: 'Telegram',
+    integrations: [], // No integrations shown
     type: 'onboarding',
     // Blue/violet gradient - HR = professional = blue
     orbColors: ['#6366f1', '#8b5cf6', '#3b82f6']
@@ -156,8 +170,7 @@ const prebuiltEmployees = [
     name: 'Bobur',
     role: 'the Analytics Engineer',
     description: 'Bobur connects to your Bitrix24 CRM to analyze leads, visualize conversion rates, and generate insightful charts. He turns your raw sales data into actionable intelligence with beautiful plots.',
-    integration: 'bitrix',
-    integrationName: 'Bitrix24',
+    integrations: ['bitrix', 'sheets'], // Bitrix + Google Sheets
     type: 'analytics',
     // Orange/amber gradient - matches Bitrix24 brand
     orbColors: ['#f97316', '#ea580c', '#f59e0b']
@@ -190,6 +203,24 @@ const AgentsPage = () => {
       }
     }
   }, []);
+
+  // Sync localStorage when agents have prebuilt types (cleanup stale state)
+  useEffect(() => {
+    if (agents.length > 0 && hiredPrebuilt.length > 0) {
+      // Find prebuilt IDs that now have real agents
+      const prebuiltIdsToRemove = prebuiltEmployees
+        .filter(emp => agents.some(agent => agent.prebuilt_type === emp.type))
+        .map(emp => emp.id);
+
+      if (prebuiltIdsToRemove.length > 0) {
+        const updatedHired = hiredPrebuilt.filter(id => !prebuiltIdsToRemove.includes(id));
+        if (updatedHired.length !== hiredPrebuilt.length) {
+          setHiredPrebuilt(updatedHired);
+          localStorage.setItem(HIRED_PREBUILT_KEY, JSON.stringify(updatedHired));
+        }
+      }
+    }
+  }, [agents, hiredPrebuilt]);
 
   const fetchAgents = async () => {
     try {
@@ -298,9 +329,25 @@ const AgentsPage = () => {
     toast.success(`${prebuilt.name} has been removed from your team`);
   };
 
-  // Get hired prebuilt employee objects
-  const hiredPrebuiltEmployees = prebuiltEmployees.filter(emp => hiredPrebuilt.includes(emp.id));
-  const availablePrebuiltEmployees = prebuiltEmployees.filter(emp => !hiredPrebuilt.includes(emp.id));
+  // Get prebuilt types that are already associated with real agents
+  const prebuiltTypesInUse = new Set(
+    agents
+      .filter(agent => agent.prebuilt_type)
+      .map(agent => agent.prebuilt_type)
+  );
+
+  // Get hired prebuilt employee objects - exclude those that are now real agents
+  const hiredPrebuiltEmployees = prebuiltEmployees.filter(emp =>
+    hiredPrebuilt.includes(emp.id) && !prebuiltTypesInUse.has(emp.type)
+  );
+
+  // Available prebuilts - exclude hired AND those that are real agents
+  const availablePrebuiltEmployees = prebuiltEmployees.filter(emp =>
+    !hiredPrebuilt.includes(emp.id) && !prebuiltTypesInUse.has(emp.type)
+  );
+
+  // Helper to get prebuilt config by type
+  const getPrebuiltByType = (type) => prebuiltEmployees.find(emp => emp.type === type);
 
   // Filter available (not hired) prebuilt employees based on search
   const filteredPrebuilt = availablePrebuiltEmployees.filter(emp =>
@@ -357,18 +404,10 @@ const AgentsPage = () => {
   }
 
   return (
-    <div className="space-y-8" data-testid="agents-page">
+    <div className="space-y-6" data-testid="agents-page">
       {/* Header - Your AI Employees */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-slate-900 tracking-tight">Your AI Employees</h1>
-        <Button
-          className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm text-white"
-          onClick={() => navigate('/app/agents/new')}
-          data-testid="create-agent-btn"
-        >
-          <Plus className="w-4 h-4 mr-1.5" strokeWidth={2.5} />
-          Create AI Employee
-        </Button>
       </div>
 
       {/* Your AI Employees Section */}
@@ -380,7 +419,7 @@ const AgentsPage = () => {
           </div>
           <h2 className="text-[15px] font-medium text-slate-900 mb-1">No AI employees yet</h2>
           <p className="text-[13px] text-slate-500 text-center max-w-sm">
-            Create your first AI employee or hire a prebuilt one below
+            Hire a prebuilt AI employee from the selection below to get started
           </p>
         </div>
       ) : (
@@ -446,7 +485,7 @@ const AgentsPage = () => {
                   {/* Header - Animated Orb with hover glow */}
                   <div className="mb-4">
                     <AiOrb
-                      size={48}
+                      size={56}
                       colors={employee.orbColors}
                       state="idle"
                       className="group-hover:ai-orb--hover"
@@ -483,116 +522,185 @@ const AgentsPage = () => {
             );
           })}
 
-          {/* User-created Agents */}
-          {agents.map((agent, index) => (
-            <Card
-              key={agent.id}
-              className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group"
-              onClick={() => navigate(`/app/agents/${agent.id}`)}
-              data-testid={`agent-card-${agent.id}`}
-              style={{ animationDelay: `${(hiredPrebuiltEmployees.length + index) * 50}ms` }}
-            >
-              <CardContent className="p-5">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${getAgentGradient(agent.name)} flex items-center justify-center shadow-sm`}>
-                    <span className="text-[15px] font-semibold text-white tracking-wide">
-                      {getInitials(agent.name)}
-                    </span>
-                  </div>
-                  <AgentDropdownMenu agent={agent} />
-                </div>
+          {/* User-created Agents (including prebuilt-type agents like Jasur) */}
+          {agents.map((agent, index) => {
+            // Check if this agent is a prebuilt type (e.g., Jasur)
+            const prebuiltConfig = agent.prebuilt_type ? getPrebuiltByType(agent.prebuilt_type) : null;
 
-                {/* Name & Status */}
-                <div className="mb-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-slate-900 text-[15px] truncate group-hover:text-slate-700 transition-colors">
-                      {agent.name}
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {agent.status === 'active' ? (
-                      <Badge className="bg-emerald-50 text-emerald-600 border-0 text-[10px] font-medium px-1.5 py-0 gap-1 hover:bg-emerald-50 cursor-default">
-                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                        Active
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-slate-100 text-slate-500 border-0 text-[10px] font-medium px-1.5 py-0 hover:bg-slate-100 cursor-default">
-                        Inactive
-                      </Badge>
-                    )}
-                    {agent.channel && (
-                      <Badge className={`${getChannelInfo(agent.channel).color} border-0 text-[10px] font-medium px-1.5 py-0 gap-1`}>
-                        <ChannelIcon channel={agent.channel} size="sm" />
-                        {getChannelInfo(agent.channel).name}
-                      </Badge>
-                    )}
-                    {agent.bitrix_connected && (
-                      <Badge className="bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
-                        <BitrixIcon size="sm" />
-                        Bitrix24
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
-                  <div>
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <MessageSquare className="w-3 h-3 text-slate-400" strokeWidth={2} />
-                      <span className="text-[10px] text-slate-400 font-medium uppercase">Chats</span>
-                    </div>
-                    <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
-                      {agent.conversations_count || 0}
-                    </p>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <Users className="w-3 h-3 text-slate-400" strokeWidth={2} />
-                      <span className="text-[10px] text-slate-400 font-medium uppercase">Leads</span>
-                    </div>
-                    <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
-                      {agent.leads_count || 0}
-                    </p>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <TrendingUp className="w-3 h-3 text-slate-400" strokeWidth={2} />
-                      <span className="text-[10px] text-slate-400 font-medium uppercase">Conv.</span>
-                    </div>
-                    <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
-                      {agent.conversion_rate || 0}%
-                    </p>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <Clock className="w-3 h-3 text-slate-400" strokeWidth={2} />
-                      <span className="text-[10px] text-slate-400 font-medium uppercase">Resp.</span>
-                    </div>
-                    <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
-                      {agent.avg_response_time ? `${agent.avg_response_time}s` : '-'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Footer */}
-                {agent.created_at && (
-                  <div className="flex items-center gap-1 mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-400">
-                    <Calendar className="w-3 h-3" strokeWidth={2} />
-                    <span>Created {formatDate(agent.created_at)}</span>
-                  </div>
+            return (
+              <Card
+                key={agent.id}
+                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group relative overflow-hidden"
+                onClick={() => navigate(`/app/agents/${agent.id}`)}
+                data-testid={`agent-card-${agent.id}`}
+                style={{ animationDelay: `${(hiredPrebuiltEmployees.length + index) * 50}ms` }}
+              >
+                {/* Subtle gradient overlay for prebuilt agents */}
+                {prebuiltConfig && (
+                  <div
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                    style={{
+                      background: `radial-gradient(circle at 15% 15%, ${prebuiltConfig.orbColors[0]}25 0%, ${prebuiltConfig.orbColors[0]}10 40%, transparent 70%)`
+                    }}
+                  />
                 )}
-              </CardContent>
-            </Card>
-          ))}
+
+                {/* Top Right: Status Badge (default) / Menu (on hover) */}
+                <div className="absolute top-4 right-4 z-10">
+                  {/* Status Badge - visible by default, hidden on hover */}
+                  {agent.status === 'active' ? (
+                    <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-medium px-2 py-0.5 gap-1 hover:bg-emerald-50 cursor-default opacity-100 group-hover:opacity-0 transition-opacity duration-150">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Active
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-medium px-2 py-0.5 hover:bg-slate-100 cursor-default opacity-100 group-hover:opacity-0 transition-opacity duration-150">
+                      Inactive
+                    </Badge>
+                  )}
+                  {/* Menu Button - hidden by default, visible on hover */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:bg-slate-200/50 absolute top-0 right-0"
+                      >
+                        <MoreVertical className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem
+                        onClick={(e) => { e.stopPropagation(); navigate(`/app/agents/${agent.id}`); }}
+                        className="gap-2.5 text-[13px]"
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                        Dashboard
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => { e.stopPropagation(); navigate(`/app/agents/${agent.id}/settings`); }}
+                        className="gap-2.5 text-[13px]"
+                      >
+                        <Settings className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                        Settings
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="gap-2.5 text-[13px] text-red-600 focus:text-red-600 focus:bg-red-50"
+                        onClick={(e) => { e.stopPropagation(); confirmDelete(agent); }}
+                      >
+                        <Trash2 className="w-4 h-4" strokeWidth={1.75} />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <CardContent className="p-5 relative z-[1]">
+                  {/* Header */}
+                  <div className="mb-4">
+                    {prebuiltConfig ? (
+                      /* Prebuilt agent - show orb */
+                      <AiOrb
+                        size={56}
+                        colors={prebuiltConfig.orbColors}
+                        state="idle"
+                        className="group-hover:ai-orb--hover"
+                      />
+                    ) : (
+                      /* Regular agent - show initials */
+                      <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${getAgentGradient(agent.name)} flex items-center justify-center shadow-sm`}>
+                        <span className="text-[17px] font-semibold text-white tracking-wide">
+                          {getInitials(agent.name)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Name & Status */}
+                  <div className="mb-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-slate-900 text-[15px] truncate group-hover:text-slate-700 transition-colors">
+                        {prebuiltConfig ? prebuiltConfig.name : agent.name}
+                      </h3>
+                    </div>
+                    {prebuiltConfig && (
+                      <p className="text-[12px] text-slate-500 mb-2">{prebuiltConfig.role}</p>
+                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {agent.channel && (
+                        <Badge className={`${getChannelInfo(agent.channel).color} border-0 text-[10px] font-medium px-1.5 py-0 gap-1`}>
+                          <ChannelIcon channel={agent.channel} size="sm" />
+                          {getChannelInfo(agent.channel).name}
+                        </Badge>
+                      )}
+                      {agent.bitrix_connected && (
+                        <Badge className="bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                          <BitrixIcon size="sm" />
+                          Bitrix24
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+                    <div>
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <MessageSquare className="w-3 h-3 text-slate-400" strokeWidth={2} />
+                        <span className="text-[10px] text-slate-400 font-medium uppercase">Chats</span>
+                      </div>
+                      <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
+                        {agent.conversations_count || 0}
+                      </p>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <Users className="w-3 h-3 text-slate-400" strokeWidth={2} />
+                        <span className="text-[10px] text-slate-400 font-medium uppercase">Leads</span>
+                      </div>
+                      <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
+                        {agent.leads_count || 0}
+                      </p>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <TrendingUp className="w-3 h-3 text-slate-400" strokeWidth={2} />
+                        <span className="text-[10px] text-slate-400 font-medium uppercase">Conv.</span>
+                      </div>
+                      <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
+                        {agent.conversion_rate || 0}%
+                      </p>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <Clock className="w-3 h-3 text-slate-400" strokeWidth={2} />
+                        <span className="text-[10px] text-slate-400 font-medium uppercase">Resp.</span>
+                      </div>
+                      <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
+                        {agent.avg_response_time ? `${agent.avg_response_time}s` : '-'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  {agent.created_at && (
+                    <div className="flex items-center gap-1 mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-400">
+                      <Calendar className="w-3 h-3" strokeWidth={2} />
+                      <span>Created {formatDate(agent.created_at)}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
       {/* Prebuilt AI Employees Section - only show if there are available employees */}
       {availablePrebuiltEmployees.length > 0 && (
-      <div className="pt-6 border-t border-slate-200">
-        <div className="mb-6">
+      <div className="pt-4 border-t border-slate-200">
+        <div className="mb-5">
           <h2 className="text-lg font-bold text-slate-900 tracking-tight mb-1">Prebuilt AI Employees</h2>
           <p className="text-[13px] text-slate-500">
             Get started quickly with these ready-to-use AI employee templates
@@ -638,17 +746,50 @@ const AgentsPage = () => {
                   </div>
 
                   {/* Footer */}
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                    {employee.integration === 'telegram' ? (
-                      <TelegramIcon className="w-[18px] h-[18px] text-[#0088cc]" />
-                    ) : (
-                      <svg className="w-[18px] h-[18px] text-[#FF5722]" viewBox="0 0 24 24" fill="none">
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
+                  <div className={`flex items-center ${employee.integrations.length > 0 ? 'justify-between' : 'justify-end'} pt-4 border-t border-slate-100`}>
+                    {employee.integrations.length > 0 && (
+                      <div className="flex items-center -space-x-1.5">
+                        {employee.integrations.map((integration, idx) => {
+                          if (integration === 'telegram') {
+                            return (
+                              <div
+                                key={integration}
+                                className="w-9 h-9 rounded-full bg-gradient-to-br from-[#29B6F6] to-[#0088cc] flex items-center justify-center shadow-lg shadow-[#0088cc]/30 ring-[2.5px] ring-white"
+                                style={{ zIndex: 10 - idx }}
+                              >
+                                <TelegramIcon className="w-[17px] h-[17px] text-white ml-[1px]" />
+                              </div>
+                            );
+                          }
+                          if (integration === 'bitrix') {
+                            return (
+                              <div
+                                key={integration}
+                                className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FF7043] to-[#E64A19] flex items-center justify-center shadow-lg shadow-[#FF5722]/30 ring-[2.5px] ring-white"
+                                style={{ zIndex: 10 - idx }}
+                              >
+                                <BitrixCRMIcon className="w-[17px] h-[17px] text-white" />
+                              </div>
+                            );
+                          }
+                          if (integration === 'sheets') {
+                            return (
+                              <div
+                                key={integration}
+                                className="w-9 h-9 rounded-full bg-gradient-to-br from-[#4CAF50] to-[#2E7D32] flex items-center justify-center shadow-lg shadow-[#4CAF50]/30 ring-[2.5px] ring-white"
+                                style={{ zIndex: 10 - idx }}
+                              >
+                                <GoogleSheetsIcon className="w-[17px] h-[17px] text-white" />
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
                     )}
                     <Button
                       onClick={() => handleHirePrebuilt(employee)}
-                      className="bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium h-7 px-3 rounded-md shadow-sm"
+                      className="bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium h-8 px-4 rounded-lg shadow-sm"
                     >
                       Hire
                     </Button>

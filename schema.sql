@@ -115,18 +115,36 @@ CREATE INDEX IF NOT EXISTS idx_leads_tenant_customer ON leads(tenant_id, custome
 -- Unique constraint to prevent duplicate leads per customer (race condition fix)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_tenant_customer_unique ON leads(tenant_id, customer_id);
 
--- Documents table
+-- Documents table (supports both tenant-specific and global documents)
 CREATE TABLE IF NOT EXISTS documents (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE NOT NULL,
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,  -- NULL for global docs
     title VARCHAR(255) NOT NULL,
     content TEXT,
     file_type VARCHAR(50),
     file_size INTEGER,
     doc_metadata JSONB DEFAULT '{}',
+    is_global BOOLEAN DEFAULT false,       -- true = available to all agents
+    global_order INTEGER DEFAULT 0,         -- ordering for global docs
+    category VARCHAR(50) DEFAULT 'knowledge', -- 'knowledge' or 'policy'
+    chunks_data JSONB,                      -- chunked content with embeddings
+    chunk_count INTEGER DEFAULT 0,          -- number of chunks
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_documents_tenant_id ON documents(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_documents_is_global ON documents(is_global) WHERE is_global = true;
+
+-- Agent document overrides (tracks disabled global docs per agent)
+CREATE TABLE IF NOT EXISTS agent_document_overrides (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    is_enabled BOOLEAN DEFAULT false,  -- false = disabled for this agent
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(tenant_id, document_id)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_doc_overrides_tenant ON agent_document_overrides(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_agent_doc_overrides_document ON agent_document_overrides(document_id);
 
 -- Tenant configs table
 CREATE TABLE IF NOT EXISTS tenant_configs (
@@ -151,7 +169,9 @@ CREATE TABLE IF NOT EXISTS tenant_configs (
     max_messages_per_minute INTEGER DEFAULT 20,
     -- Bitrix24 CRM integration columns
     bitrix_webhook_url VARCHAR(500),
-    bitrix_connected_at TIMESTAMPTZ
+    bitrix_connected_at TIMESTAMPTZ,
+    -- Prebuilt agent type (e.g., 'sales' for Jasur)
+    prebuilt_type VARCHAR(50)
 );
 
 -- Event logs table

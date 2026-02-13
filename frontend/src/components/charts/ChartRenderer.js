@@ -10,8 +10,9 @@ import KPICardBlock from './KPICardBlock';
  *
  * @param {Object} chart - Chart data object with type and data
  * @param {string} chart.type - One of: "bar", "pie", "line", "funnel", "kpi"
+ * @param {number} chartIndex - Index of this chart in a series (for color rotation)
  */
-export default function ChartRenderer({ chart }) {
+export default function ChartRenderer({ chart, chartIndex = 0 }) {
   if (!chart || !chart.type) {
     console.warn('ChartRenderer: Invalid chart data', chart);
     return null;
@@ -21,18 +22,18 @@ export default function ChartRenderer({ chart }) {
 
   switch (chartType) {
     case 'bar':
-      return <BarChartBlock chart={chart} />;
+      return <BarChartBlock chart={chart} chartIndex={chartIndex} />;
 
     case 'pie':
     case 'donut':
-      return <PieChartBlock chart={{ ...chart, donut: chartType === 'donut' }} />;
+      return <PieChartBlock chart={{ ...chart, donut: chartType === 'donut' }} chartIndex={chartIndex} />;
 
     case 'line':
     case 'area':
-      return <LineChartBlock chart={{ ...chart, area: chartType === 'area' || chart.area !== false }} />;
+      return <LineChartBlock chart={{ ...chart, area: chartType === 'area' || chart.area !== false }} chartIndex={chartIndex} />;
 
     case 'funnel':
-      return <FunnelChartBlock chart={chart} />;
+      return <FunnelChartBlock chart={chart} chartIndex={chartIndex} />;
 
     case 'kpi':
     case 'metric':

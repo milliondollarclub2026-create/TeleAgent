@@ -7,9 +7,7 @@ import {
   Bot,
   Link2,
   Check,
-  Loader2,
-  CircleDot,
-  Sheet
+  Loader2
 } from 'lucide-react';
 
 // Google Sheets icon (official-style)
@@ -306,19 +304,6 @@ const ConnectionsPage = () => {
         </Card>
       </div>
 
-      {/* Info Footer */}
-      <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
-        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-          <CircleDot className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
-        </div>
-        <div>
-          <h3 className="font-medium text-slate-900 text-sm">Connection Status</h3>
-          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-            Connected services sync automatically. Telegram messages trigger your AI agent,
-            and qualified leads are pushed to your CRM in real-time.
-          </p>
-        </div>
-      </div>
     </div>
   );
 };

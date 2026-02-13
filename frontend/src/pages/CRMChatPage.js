@@ -491,27 +491,27 @@ export default function CRMChatPage() {
                           remarkPlugins={[remarkGfm]}
                           components={{
                             table: ({ children }) => (
-                              <div className="overflow-x-auto my-4 border border-slate-200 rounded-lg">
-                                <table className="min-w-full border-collapse text-[13px]">
+                              <div className="overflow-x-auto my-4 border border-slate-300 rounded-lg shadow-sm">
+                                <table className="min-w-full text-[13px]">
                                   {children}
                                 </table>
                               </div>
                             ),
                             thead: ({ children }) => (
-                              <thead className="bg-slate-50">{children}</thead>
+                              <thead className="bg-gradient-to-b from-slate-100 to-slate-50">{children}</thead>
                             ),
                             th: ({ children }) => (
-                              <th className="px-4 py-2.5 text-left font-semibold text-slate-700 border-b border-slate-200">
+                              <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b-2 border-slate-300">
                                 {children}
                               </th>
                             ),
                             td: ({ children }) => (
-                              <td className="px-4 py-2.5 border-b border-slate-100 text-slate-600">
+                              <td className="px-4 py-2.5 border-b border-slate-200 text-slate-700">
                                 {children}
                               </td>
                             ),
                             tr: ({ children }) => (
-                              <tr className="hover:bg-slate-50/50">{children}</tr>
+                              <tr className="hover:bg-slate-50 transition-colors">{children}</tr>
                             ),
                             h1: ({ children }) => (
                               <h1 className="text-xl font-bold text-slate-900 mt-6 mb-3">{children}</h1>
@@ -577,25 +577,25 @@ export default function CRMChatPage() {
                               {kpis.length > 0 && (
                                 <div className={`grid gap-3 ${kpis.length === 1 ? 'grid-cols-1 max-w-xs' : kpis.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
                                   {kpis.map((chart, idx) => (
-                                    <ChartRenderer key={`kpi-${idx}`} chart={chart} />
+                                    <ChartRenderer key={`kpi-${idx}`} chart={chart} chartIndex={idx} />
                                   ))}
                                 </div>
                               )}
 
-                              {/* Small charts (pie, bar) - 2 per row when multiple */}
+                              {/* Small charts (pie, bar) - 2 per row when multiple, offset colors */}
                               {smallCharts.length > 0 && (
                                 <div className={`grid gap-4 ${smallCharts.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
                                   {smallCharts.map((chart, idx) => (
-                                    <ChartRenderer key={`small-${idx}`} chart={chart} />
+                                    <ChartRenderer key={`small-${idx}`} chart={chart} chartIndex={kpis.length + idx} />
                                   ))}
                                 </div>
                               )}
 
-                              {/* Wide charts (line, funnel) - full width, stacked */}
+                              {/* Wide charts (line, funnel) - full width, stacked, offset colors */}
                               {wideCharts.length > 0 && (
                                 <div className="space-y-4">
                                   {wideCharts.map((chart, idx) => (
-                                    <ChartRenderer key={`wide-${idx}`} chart={chart} />
+                                    <ChartRenderer key={`wide-${idx}`} chart={chart} chartIndex={kpis.length + smallCharts.length + idx} />
                                   ))}
                                 </div>
                               )}

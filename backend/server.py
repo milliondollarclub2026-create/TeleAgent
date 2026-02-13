@@ -590,6 +590,8 @@ class TenantConfigUpdate(BaseModel):
     promo_codes: Optional[List[Dict]] = None  # [{"code": "SUMMER20", "discount_percent": 20, "valid_until": "2026-03-01"}]
     payment_plans_enabled: Optional[bool] = None
     discount_authority: Optional[str] = None  # "none" | "manager_only" | "agent_can_offer"
+    # Prebuilt agent type (e.g., 'sales' for Jasur)
+    prebuilt_type: Optional[str] = None
 
 class DocumentCreate(BaseModel):
     title: str
@@ -3279,21 +3281,37 @@ Example 3 - Customer ready to buy:
 async def get_business_context_semantic(tenant_id: str, query: str, top_k: int = 5) -> List[str]:
     """
     Semantic RAG - finds relevant context using embeddings.
-    First loads from DB cache, then performs semantic search.
+    Combines enabled global documents + tenant-specific documents.
     """
     try:
         # Ensure embeddings are loaded from DB for this tenant
         await load_embeddings_from_db(tenant_id)
-        
-        # Collect all chunks from memory cache for this tenant
+
+        # Ensure global embeddings are loaded
+        await load_global_embeddings()
+
+        # Get disabled global docs for this tenant
+        disabled_global_ids = await get_disabled_global_docs(tenant_id)
+
+        # Collect all chunks from memory cache
         all_chunks = []
+
+        # 1. Add enabled global document chunks
+        for doc_id, doc_data in global_document_embeddings_cache.items():
+            if doc_id not in disabled_global_ids:
+                all_chunks.extend(doc_data.get("chunks", []))
+
+        # 2. Add tenant-specific document chunks
         for doc_id, doc_data in document_embeddings_cache.items():
             if doc_data.get("tenant_id") == tenant_id:
                 all_chunks.extend(doc_data.get("chunks", []))
-        
+
         # If we have chunks with embeddings, use semantic search
         if all_chunks and all_chunks[0].get("embedding"):
-            logger.info(f"Performing semantic search over {len(all_chunks)} chunks for tenant {tenant_id}")
+            global_count = sum(1 for c in all_chunks if c.get('source', '').startswith('[Global]'))
+            local_count = len(all_chunks) - global_count
+            logger.info(f"Performing semantic search over {len(all_chunks)} chunks ({global_count} global, {local_count} local) for tenant {tenant_id}")
+
             results = await semantic_search(query, all_chunks, top_k=top_k, min_similarity=0.25)
             context = [
                 f"[{r.get('source', 'Document')}] (relevance: {r['similarity']:.0%}): {r['text'][:600]}"
@@ -3302,26 +3320,34 @@ async def get_business_context_semantic(tenant_id: str, query: str, top_k: int =
             if context:
                 logger.info(f"Found {len(context)} relevant chunks for query: {query[:50]}...")
             return context
-        
+
         # Fallback to keyword matching from database content
         logger.info(f"No embeddings found, falling back to keyword search for tenant {tenant_id}")
-        result = supabase.table('documents').select('title, content').eq('tenant_id', tenant_id).execute()
-        
-        if not result.data:
+
+        # Get tenant docs + enabled global docs
+        tenant_docs = supabase.table('documents').select('title, content, is_global').eq('tenant_id', tenant_id).execute()
+        global_docs = supabase.table('documents').select('id, title, content').eq('is_global', True).execute()
+
+        all_docs = (tenant_docs.data or [])
+        for gdoc in (global_docs.data or []):
+            if gdoc['id'] not in disabled_global_ids:
+                all_docs.append({**gdoc, 'title': f"[Global] {gdoc['title']}"})
+
+        if not all_docs:
             return []
-        
+
         context = []
         query_words = set(query.lower().split())
-        
-        for doc in result.data:
+
+        for doc in all_docs:
             content = doc.get('content', '')
             # Skip placeholder content
             if content and not content.startswith('[File:') and query_words & set(content.lower().split()):
                 snippet = content[:500] + "..." if len(content) > 500 else content
                 context.append(f"[{doc.get('title', 'Document')}]: {snippet}")
-        
+
         return context[:top_k]
-        
+
     except Exception as e:
         logger.error(f"RAG context retrieval error: {e}")
         import traceback
@@ -5205,7 +5231,9 @@ async def update_tenant_config(request: TenantConfigUpdate, current_user: Dict =
         'collect_location', 'collect_preferred_time', 'collect_urgency',
         'collect_reference', 'collect_notes',
         # Hard constraints (anti-hallucination)
-        'promo_codes', 'payment_plans_enabled', 'discount_authority'
+        'promo_codes', 'payment_plans_enabled', 'discount_authority',
+        # Prebuilt agent type (e.g., 'sales' for Jasur)
+        'prebuilt_type'
     }
 
     # Filter to only include valid database columns and non-None values
@@ -5611,6 +5639,363 @@ async def search_documents(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============ Global Knowledge Base Endpoints ============
+
+# Cache for global document embeddings
+global_document_embeddings_cache = {}
+_global_cache_loaded = False
+
+
+async def load_global_embeddings():
+    """Load global document embeddings into cache"""
+    global _global_cache_loaded, global_document_embeddings_cache
+
+    if _global_cache_loaded:
+        return
+
+    try:
+        result = supabase.table('documents').select('*').eq('is_global', True).order('global_order').execute()
+
+        if not result.data:
+            _global_cache_loaded = True
+            return
+
+        for doc in result.data:
+            doc_id = doc['id']
+            if doc_id in global_document_embeddings_cache:
+                continue
+
+            chunks_data = doc.get('chunks_data')
+            if chunks_data:
+                try:
+                    if isinstance(chunks_data, str):
+                        chunks = json.loads(chunks_data)
+                    else:
+                        chunks = chunks_data
+
+                    global_document_embeddings_cache[doc_id] = {
+                        "chunks": chunks,
+                        "chunk_count": len(chunks),
+                        "is_global": True
+                    }
+                    logger.info(f"Loaded {len(chunks)} global chunks for document {doc_id}")
+                except Exception as e:
+                    logger.warning(f"Could not parse global chunks_data for doc {doc_id}: {e}")
+
+        _global_cache_loaded = True
+        logger.info(f"Loaded {len(global_document_embeddings_cache)} global documents into cache")
+
+    except Exception as e:
+        logger.error(f"Error loading global embeddings: {e}")
+
+
+async def get_disabled_global_docs(tenant_id: str) -> set:
+    """Get set of global document IDs that are disabled for this tenant"""
+    try:
+        result = supabase.table('agent_document_overrides').select('document_id').eq('tenant_id', tenant_id).eq('is_enabled', False).execute()
+        return {row['document_id'] for row in (result.data or [])}
+    except Exception as e:
+        logger.error(f"Error getting disabled global docs: {e}")
+        return set()
+
+
+@api_router.get("/documents/global")
+async def list_global_documents(current_user: Dict = Depends(get_current_user)):
+    """List all global documents (available to all agents)"""
+    try:
+        result = supabase.table('documents').select('*').eq('is_global', True).order('global_order').execute()
+
+        return [
+            {
+                "id": doc["id"],
+                "title": doc["title"],
+                "file_type": doc.get("file_type", "text"),
+                "file_size": doc.get("file_size"),
+                "category": doc.get("category", "knowledge"),
+                "chunk_count": doc.get("chunk_count") or global_document_embeddings_cache.get(doc["id"], {}).get("chunk_count", 1),
+                "global_order": doc.get("global_order", 0),
+                "created_at": doc.get("created_at", "")
+            }
+            for doc in (result.data or [])
+        ]
+    except Exception as e:
+        logger.error(f"Error listing global documents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/documents/global")
+async def create_global_document(request: DocumentCreate, current_user: Dict = Depends(get_current_user)):
+    """Create a global text document (available to all agents)"""
+    try:
+        # Process text content into chunks
+        chunks = process_text(request.content, request.title)
+
+        if not chunks:
+            raise HTTPException(status_code=400, detail="No content could be processed")
+
+        # Generate embeddings for chunks
+        chunk_texts = [chunk["text"] for chunk in chunks]
+        embeddings = await generate_embeddings_batch(chunk_texts)
+
+        # Prepare chunks with embeddings
+        chunks_with_embeddings = []
+        for chunk, embedding in zip(chunks, embeddings):
+            chunks_with_embeddings.append({
+                "text": chunk["text"],
+                "source": f"[Global] {chunk.get('source', request.title)}",
+                "token_count": chunk.get("token_count", 0),
+                "embedding": embedding
+            })
+
+        # Get max global_order for ordering
+        order_result = supabase.table('documents').select('global_order').eq('is_global', True).order('global_order', desc=True).limit(1).execute()
+        next_order = (order_result.data[0]['global_order'] + 1) if order_result.data else 0
+
+        doc_id = str(uuid.uuid4())
+
+        doc = {
+            "id": doc_id,
+            "tenant_id": None,  # Global docs have no tenant
+            "title": request.title,
+            "content": request.content,
+            "file_type": "text",
+            "file_size": len(request.content),
+            "chunk_count": len(chunks),
+            "chunks_data": json.dumps(chunks_with_embeddings),
+            "is_global": True,
+            "global_order": next_order,
+            "category": "knowledge",
+            "created_at": now_iso()
+        }
+
+        supabase.table('documents').insert(doc).execute()
+
+        # Store in global cache
+        global_document_embeddings_cache[doc_id] = {
+            "chunks": chunks_with_embeddings,
+            "chunk_count": len(chunks),
+            "is_global": True
+        }
+
+        logger.info(f"Global document created: {request.title}, {len(chunks)} chunks")
+
+        return {
+            "id": doc_id,
+            "title": request.title,
+            "chunk_count": len(chunks),
+            "is_global": True,
+            "created_at": doc["created_at"]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Global document creation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/documents/global/upload")
+async def upload_global_document(
+    file: UploadFile = File(...),
+    title: Optional[str] = Form(None),
+    category: Optional[str] = Form("knowledge"),
+    current_user: Dict = Depends(get_current_user)
+):
+    """Upload a global document (PDF, DOCX, Excel, CSV, Image, TXT)"""
+    try:
+        # Validate file size
+        file_content = await file.read()
+        file_size = len(file_content)
+
+        if file_size > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail=f"File too large. Maximum size is {MAX_FILE_SIZE // 1024 // 1024}MB")
+
+        if file_size == 0:
+            raise HTTPException(status_code=400, detail="File is empty")
+
+        filename = file.filename or "uploaded_file"
+        doc_title = title or filename
+        content_type = file.content_type or "application/octet-stream"
+
+        logger.info(f"Processing global upload: {filename}, type: {content_type}, size: {file_size}")
+
+        # Process document and generate embeddings
+        chunks, embeddings = await process_document(file_content, filename, content_type)
+
+        # Prepare chunks with embeddings
+        chunks_with_embeddings = []
+        extracted_text = []
+        for chunk, embedding in zip(chunks, embeddings):
+            chunks_with_embeddings.append({
+                "text": chunk["text"],
+                "source": f"[Global] {chunk.get('source', filename)}",
+                "token_count": chunk.get("token_count", 0),
+                "embedding": embedding
+            })
+            extracted_text.append(chunk["text"])
+
+        # Determine file type
+        filename_lower = filename.lower()
+        if filename_lower.endswith('.pdf'):
+            file_type = "pdf"
+        elif filename_lower.endswith('.docx'):
+            file_type = "docx"
+        elif filename_lower.endswith(('.xlsx', '.xls', '.csv')):
+            file_type = "spreadsheet"
+        elif filename_lower.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
+            file_type = "image"
+        else:
+            file_type = "text"
+
+        # Get max global_order
+        order_result = supabase.table('documents').select('global_order').eq('is_global', True).order('global_order', desc=True).limit(1).execute()
+        next_order = (order_result.data[0]['global_order'] + 1) if order_result.data else 0
+
+        doc_id = str(uuid.uuid4())
+        full_content = "\n\n".join(extracted_text)
+
+        doc = {
+            "id": doc_id,
+            "tenant_id": None,
+            "title": doc_title,
+            "content": full_content[:50000] if full_content else f"[File: {filename}]",
+            "file_type": file_type,
+            "file_size": file_size,
+            "chunk_count": len(chunks),
+            "chunks_data": json.dumps(chunks_with_embeddings),
+            "is_global": True,
+            "global_order": next_order,
+            "category": category or "knowledge",
+            "created_at": now_iso()
+        }
+
+        supabase.table('documents').insert(doc).execute()
+
+        # Store in global cache
+        global_document_embeddings_cache[doc_id] = {
+            "chunks": chunks_with_embeddings,
+            "chunk_count": len(chunks),
+            "is_global": True
+        }
+
+        logger.info(f"Global document uploaded: {doc_title}, {len(chunks)} chunks, {file_type}")
+
+        return {
+            "id": doc_id,
+            "title": doc_title,
+            "file_type": file_type,
+            "file_size": file_size,
+            "chunk_count": len(chunks),
+            "is_global": True,
+            "created_at": doc["created_at"],
+            "message": f"Successfully processed {filename} into {len(chunks)} searchable chunks"
+        }
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Global upload error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+
+
+@api_router.delete("/documents/global/{doc_id}")
+async def delete_global_document(doc_id: str, current_user: Dict = Depends(get_current_user)):
+    """Delete a global document"""
+    try:
+        # Verify it's a global document
+        result = supabase.table('documents').select('*').eq('id', doc_id).eq('is_global', True).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Global document not found")
+
+        # Delete related overrides first (cascade should handle this, but be explicit)
+        supabase.table('agent_document_overrides').delete().eq('document_id', doc_id).execute()
+
+        # Delete the document
+        supabase.table('documents').delete().eq('id', doc_id).execute()
+
+        # Remove from cache
+        if doc_id in global_document_embeddings_cache:
+            del global_document_embeddings_cache[doc_id]
+
+        logger.info(f"Global document deleted: {doc_id}")
+        return {"success": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting global document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/documents/global/settings")
+async def get_global_doc_settings(current_user: Dict = Depends(get_current_user)):
+    """Get agent's global document settings (which are enabled/disabled)"""
+    try:
+        tenant_id = current_user["tenant_id"]
+
+        # Get all global documents
+        global_docs = supabase.table('documents').select('*').eq('is_global', True).order('global_order').execute()
+
+        # Get overrides for this tenant
+        overrides = supabase.table('agent_document_overrides').select('document_id, is_enabled').eq('tenant_id', tenant_id).execute()
+        override_map = {o['document_id']: o['is_enabled'] for o in (overrides.data or [])}
+
+        # Build response with enabled status
+        # Default is enabled (True) if no override exists
+        return [
+            {
+                "id": doc["id"],
+                "title": doc["title"],
+                "file_type": doc.get("file_type", "text"),
+                "file_size": doc.get("file_size"),
+                "category": doc.get("category", "knowledge"),
+                "chunk_count": doc.get("chunk_count", 1),
+                "is_enabled": override_map.get(doc["id"], True),  # Default: enabled
+                "created_at": doc.get("created_at", "")
+            }
+            for doc in (global_docs.data or [])
+        ]
+
+    except Exception as e:
+        logger.error(f"Error getting global doc settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.put("/documents/global/{doc_id}/toggle")
+async def toggle_global_document(doc_id: str, enabled: bool, current_user: Dict = Depends(get_current_user)):
+    """Toggle a global document on/off for this agent"""
+    try:
+        tenant_id = current_user["tenant_id"]
+
+        # Verify document exists and is global
+        doc_result = supabase.table('documents').select('id').eq('id', doc_id).eq('is_global', True).execute()
+        if not doc_result.data:
+            raise HTTPException(status_code=404, detail="Global document not found")
+
+        if enabled:
+            # If enabling, delete the override (default is enabled)
+            supabase.table('agent_document_overrides').delete().eq('tenant_id', tenant_id).eq('document_id', doc_id).execute()
+            logger.info(f"Global doc {doc_id} enabled for tenant {tenant_id}")
+        else:
+            # If disabling, upsert an override with is_enabled=false
+            supabase.table('agent_document_overrides').upsert({
+                "tenant_id": tenant_id,
+                "document_id": doc_id,
+                "is_enabled": False
+            }, on_conflict="tenant_id,document_id").execute()
+            logger.info(f"Global doc {doc_id} disabled for tenant {tenant_id}")
+
+        return {"success": True, "is_enabled": enabled}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error toggling global document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============ Integration Status ============
 @api_router.get("/integrations/status")
 async def get_integrations_status(current_user: Dict = Depends(get_current_user)):
@@ -5717,7 +6102,8 @@ async def get_agents(current_user: Dict = Depends(get_current_user)):
             "conversations_count": len(convos_result.data) if convos_result.data else 0,
             "conversion_rate": conversion_rate,
             "avg_response_time": avg_response_time,
-            "created_at": agent_config.get('created_at', now_iso())
+            "created_at": agent_config.get('created_at', now_iso()),
+            "prebuilt_type": agent_config.get('prebuilt_type')
         }]
     except Exception as e:
         logger.error(f"Get agents error: {e}")

@@ -13,11 +13,11 @@ import {
 import {
   CHART_STYLES,
   CHART_CONFIG,
-  CHART_COLORS,
   TOOLTIP_STYLE,
   AXIS_STYLE,
   GRID_STYLE,
   formatNumber,
+  getRotatedPalette,
 } from './chartTheme';
 
 /**
@@ -27,8 +27,9 @@ import {
  * @param {string} chart.title - Chart title
  * @param {Array} chart.data - Array of {label, value} objects
  * @param {boolean} chart.area - If true, renders as area chart with gradient fill
+ * @param {number} chartIndex - Index of this chart for color rotation
  */
-export default function LineChartBlock({ chart }) {
+export default function LineChartBlock({ chart, chartIndex = 0 }) {
   const { title, data: rawData = [], area = true } = chart;
 
   // Validate and clean data
@@ -56,7 +57,9 @@ export default function LineChartBlock({ chart }) {
     value: item.value,
   }));
 
-  const primaryColor = CHART_COLORS[0];
+  // Get rotated palette and use first color as primary
+  const colors = getRotatedPalette(chartIndex);
+  const primaryColor = colors[0];
 
   // Custom tooltip formatter
   const CustomTooltip = ({ active, payload, label }) => {

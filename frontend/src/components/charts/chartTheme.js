@@ -101,6 +101,19 @@ export const getChartColor = (index) => {
   return CHART_COLORS[index % CHART_COLORS.length];
 };
 
+// Get color with offset for variety between adjacent charts
+// chartIndex is used to rotate the palette start position
+export const getChartColorWithOffset = (dataIndex, chartIndex = 0) => {
+  const offset = (chartIndex * 3) % CHART_COLORS.length; // Offset by 3 for visual variety
+  return CHART_COLORS[(dataIndex + offset) % CHART_COLORS.length];
+};
+
+// Generate a rotated color array for a specific chart
+export const getRotatedPalette = (chartIndex = 0) => {
+  const offset = (chartIndex * 3) % CHART_COLORS.length;
+  return [...CHART_COLORS.slice(offset), ...CHART_COLORS.slice(0, offset)];
+};
+
 // Format large numbers for display (handles null/undefined)
 export const formatNumber = (value) => {
   if (value === null || value === undefined) {

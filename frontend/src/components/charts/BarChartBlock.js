@@ -12,11 +12,11 @@ import {
 import {
   CHART_STYLES,
   CHART_CONFIG,
-  CHART_COLORS,
   TOOLTIP_STYLE,
   AXIS_STYLE,
   GRID_STYLE,
   formatNumber,
+  getRotatedPalette,
 } from './chartTheme';
 
 /**
@@ -26,8 +26,9 @@ import {
  * @param {string} chart.title - Chart title
  * @param {Array} chart.data - Array of {label, value} objects
  * @param {string} chart.orientation - "vertical" (default) or "horizontal"
+ * @param {number} chartIndex - Index of this chart for color rotation
  */
-export default function BarChartBlock({ chart }) {
+export default function BarChartBlock({ chart, chartIndex = 0 }) {
   const { title, data: rawData = [], orientation = 'vertical' } = chart;
 
   // Validate and clean data
@@ -49,11 +50,14 @@ export default function BarChartBlock({ chart }) {
     );
   }
 
+  // Get rotated palette for this chart
+  const colors = getRotatedPalette(chartIndex);
+
   // Prepare data for Recharts
   const chartData = data.map((item, index) => ({
     name: item.label,
     value: item.value,
-    fill: CHART_COLORS[index % CHART_COLORS.length],
+    fill: colors[index % colors.length],
   }));
 
   const isHorizontal = orientation === 'horizontal';

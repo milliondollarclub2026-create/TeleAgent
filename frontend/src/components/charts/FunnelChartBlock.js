@@ -2,9 +2,9 @@ import React from 'react';
 import {
   CHART_STYLES,
   CHART_CONFIG,
-  CHART_COLORS,
   formatNumber,
   formatPercent,
+  getRotatedPalette,
 } from './chartTheme';
 
 /**
@@ -14,8 +14,9 @@ import {
  * @param {Object} chart - Chart data
  * @param {string} chart.title - Chart title
  * @param {Array} chart.data - Array of {label, value} objects (top to bottom)
+ * @param {number} chartIndex - Index of this chart for color rotation
  */
-export default function FunnelChartBlock({ chart }) {
+export default function FunnelChartBlock({ chart, chartIndex = 0 }) {
   const { title, data: rawData = [] } = chart;
 
   // Validate and clean data - filter out invalid entries
@@ -40,6 +41,9 @@ export default function FunnelChartBlock({ chart }) {
   // Get the maximum value for scaling
   const maxValue = Math.max(...data.map(d => d.value), 1);
 
+  // Get rotated palette for this chart
+  const colors = getRotatedPalette(chartIndex);
+
   // Calculate conversion rates between stages
   const stages = data.map((item, index) => {
     const widthPercent = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
@@ -53,7 +57,7 @@ export default function FunnelChartBlock({ chart }) {
       value: item.value,
       widthPercent,
       conversionRate,
-      color: CHART_COLORS[index % CHART_COLORS.length],
+      color: colors[index % colors.length],
     };
   });
 

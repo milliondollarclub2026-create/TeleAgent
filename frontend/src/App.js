@@ -30,6 +30,8 @@ import TelegramSetupPage from "./pages/TelegramSetupPage";
 import BitrixSetupPage from "./pages/BitrixSetupPage";
 import SalesAgentPage from "./pages/SalesAgentPage";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
+import GlobalKnowledgeBasePage from "./pages/GlobalKnowledgeBasePage";
+import DocumentTemplatesPage from "./pages/DocumentTemplatesPage";
 import SettingsPage from "./pages/SettingsPage";
 import AccountPage from "./pages/AccountPage";
 import PrivacyPage from "./pages/PrivacyPage";
@@ -102,6 +104,9 @@ function AppRoutes() {
         <Route path="dialogue/:customerId" element={<AgentDialoguePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="account" element={<AccountPage />} />
+        {/* Global Knowledge Base */}
+        <Route path="global-knowledge" element={<GlobalKnowledgeBasePage />} />
+        <Route path="global-knowledge/templates" element={<DocumentTemplatesPage />} />
         {/* Global connections routes */}
         <Route path="connections" element={<ConnectionsPage />} />
         <Route path="connections/telegram" element={<TelegramSetupPage />} />
@@ -130,7 +135,7 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <AppRoutes />
-        <Toaster position="bottom-right" richColors />
+        <Toaster position="bottom-right" />
       </BrowserRouter>
     </AuthProvider>
   );

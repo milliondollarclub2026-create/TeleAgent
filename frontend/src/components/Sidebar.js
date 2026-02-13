@@ -19,7 +19,8 @@ import {
   MessageCircle,
   MessagesSquare,
   ChevronDown,
-  User
+  User,
+  Globe
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -37,6 +38,7 @@ const mainNavItems = [
   { path: '/app/agents', icon: Bot, label: 'AI Employees' },
   { path: '/app/leads', icon: Users, label: 'All Leads' },
   { path: '/app/dialogue', icon: MessagesSquare, label: 'Dialogue' },
+  { path: '/app/global-knowledge', icon: Globe, label: 'Shared Knowledge' },
   { path: '/app/connections', icon: Plug, label: 'Connections' },
 ];
 
@@ -239,18 +241,18 @@ const Sidebar = () => {
         )}
       </nav>
 
-      {/* Bottom Section */}
+      {/* Bottom Section - User Account */}
       <div className="mt-auto border-t border-slate-100">
-        {/* User Account Section */}
-        <div className={`p-2 border-t border-slate-100 ${collapsed ? 'px-1.5' : ''}`}>
+        <div className={`p-2 ${collapsed ? 'px-1.5' : ''}`}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 className={`w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-all duration-150 group ${collapsed ? 'justify-center' : ''}`}
                 data-testid="account-menu-btn"
               >
-                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-semibold text-slate-600">
+                {/* Dark Slate Avatar */}
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <span className="text-[13px] font-semibold text-white">
                     {user?.name?.[0]?.toUpperCase() || 'U'}
                   </span>
                 </div>

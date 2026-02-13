@@ -10,10 +10,10 @@ import {
 import {
   CHART_STYLES,
   CHART_CONFIG,
-  CHART_COLORS,
   TOOLTIP_STYLE,
   formatNumber,
   formatPercent,
+  getRotatedPalette,
 } from './chartTheme';
 
 /**
@@ -23,8 +23,9 @@ import {
  * @param {string} chart.title - Chart title
  * @param {Array} chart.data - Array of {label, value} objects
  * @param {boolean} chart.donut - If true, renders as donut chart
+ * @param {number} chartIndex - Index of this chart for color rotation
  */
-export default function PieChartBlock({ chart }) {
+export default function PieChartBlock({ chart, chartIndex = 0 }) {
   const { title, data: rawData = [], donut = false } = chart;
 
   // Validate and clean data
@@ -50,11 +51,14 @@ export default function PieChartBlock({ chart }) {
   // Calculate total for percentages
   const total = data.reduce((sum, item) => sum + item.value, 0);
 
+  // Get rotated palette for this chart
+  const colors = getRotatedPalette(chartIndex);
+
   // Prepare data for Recharts
   const chartData = data.map((item, index) => ({
     name: item.label,
     value: item.value,
-    fill: CHART_COLORS[index % CHART_COLORS.length],
+    fill: colors[index % colors.length],
     percentage: total > 0 ? (item.value / total) * 100 : 0,
   }));
 

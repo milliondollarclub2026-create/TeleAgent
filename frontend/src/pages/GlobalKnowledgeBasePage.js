@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -16,8 +17,11 @@ import {
   Image,
   File,
   Shield,
-  Package,
-  CheckCircle2,
+  Globe,
+  Check,
+  Info,
+  ArrowRight,
+  BookOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -47,8 +51,8 @@ import {
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const KnowledgeBasePage = () => {
-  const [documents, setDocuments] = useState([]);
+const GlobalKnowledgeBasePage = () => {
+  const navigate = useNavigate();
   const [globalDocs, setGlobalDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addingDoc, setAddingDoc] = useState(false);
@@ -57,46 +61,25 @@ const KnowledgeBasePage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newDoc, setNewDoc] = useState({ title: '', content: '' });
   const [isPolicyDoc, setIsPolicyDoc] = useState(false);
-  const [togglingDoc, setTogglingDoc] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    fetchAllDocuments();
+    fetchGlobalDocuments();
   }, []);
 
-  const fetchAllDocuments = async () => {
+  const fetchGlobalDocuments = async () => {
     try {
-      const [localRes, globalRes] = await Promise.all([
-        axios.get(`${API}/documents`),
-        axios.get(`${API}/documents/global/settings`)
-      ]);
-      setDocuments(localRes.data);
-      setGlobalDocs(globalRes.data);
+      const response = await axios.get(`${API}/documents/global`);
+      setGlobalDocs(response.data);
     } catch (error) {
-      console.error('Failed to fetch documents:', error);
-      toast.error('Failed to load documents');
+      console.error('Failed to fetch global documents:', error);
+      toast.error('Failed to load global documents');
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleGlobalDoc = async (docId, currentEnabled) => {
-    setTogglingDoc(docId);
-    try {
-      await axios.put(`${API}/documents/global/${docId}/toggle?enabled=${!currentEnabled}`);
-      setGlobalDocs(prev => prev.map(doc =>
-        doc.id === docId ? { ...doc, is_enabled: !currentEnabled } : doc
-      ));
-      toast.success(currentEnabled ? 'Document disabled for this agent' : 'Document enabled for this agent');
-    } catch (error) {
-      console.error('Failed to toggle document:', error);
-      toast.error('Failed to update document settings');
-    } finally {
-      setTogglingDoc(null);
-    }
-  };
-
-  const addDocument = async () => {
+  const addGlobalDocument = async () => {
     if (!newDoc.title.trim() || !newDoc.content.trim()) {
       toast.error('Please fill in both title and content');
       return;
@@ -104,18 +87,17 @@ const KnowledgeBasePage = () => {
 
     setAddingDoc(true);
     try {
-      const docData = {
-        ...newDoc,
-        category: isPolicyDoc ? 'policy' : 'knowledge'
-      };
-      await axios.post(`${API}/documents`, docData);
-      toast.success('Document added successfully');
+      await axios.post(`${API}/documents/global`, {
+        title: newDoc.title,
+        content: newDoc.content
+      });
+      toast.success('Global document added successfully');
       setNewDoc({ title: '', content: '' });
       setIsPolicyDoc(false);
       setDialogOpen(false);
-      fetchAllDocuments();
+      fetchGlobalDocuments();
     } catch (error) {
-      toast.error('Failed to add document');
+      toast.error('Failed to add global document');
     } finally {
       setAddingDoc(false);
     }
@@ -160,15 +142,15 @@ const KnowledgeBasePage = () => {
     formData.append('category', isPolicyDoc ? 'policy' : 'knowledge');
 
     try {
-      await axios.post(`${API}/documents/upload`, formData, {
+      await axios.post(`${API}/documents/global/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
       setUploadComplete(true);
 
       setTimeout(() => {
-        toast.success('Document uploaded successfully');
-        fetchAllDocuments();
+        toast.success('Global document uploaded successfully');
+        fetchGlobalDocuments();
         setDialogOpen(false);
         setIsPolicyDoc(false);
         setUploading(false);
@@ -187,13 +169,13 @@ const KnowledgeBasePage = () => {
     }
   };
 
-  const deleteDocument = async (docId) => {
+  const deleteGlobalDocument = async (docId) => {
     try {
-      await axios.delete(`${API}/documents/${docId}`);
-      toast.success('Document deleted');
-      fetchAllDocuments();
+      await axios.delete(`${API}/documents/global/${docId}`);
+      toast.success('Global document deleted');
+      fetchGlobalDocuments();
     } catch (error) {
-      toast.error('Failed to delete document');
+      toast.error('Failed to delete global document');
     }
   };
 
@@ -214,43 +196,8 @@ const KnowledgeBasePage = () => {
     return labels[type] || 'File';
   };
 
-  // Split documents by category
-  const knowledgeDocs = documents.filter(doc => doc.category !== 'policy');
-  const policyDocs = documents.filter(doc => doc.category === 'policy');
-
-  // Combine all documents for the unified list
-  const allDocuments = [
-    ...globalDocs.map(doc => ({ ...doc, isGlobal: true })),
-    ...documents.map(doc => ({ ...doc, isGlobal: false }))
-  ];
-
-  // Empty State Component
-  const EmptyState = ({ type }) => {
-    const isPolicy = type === 'policy';
-    return (
-      <div className="flex flex-col items-center justify-center py-10 px-6 text-center">
-        <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center mb-3">
-          {isPolicy ? (
-            <Shield className="w-5 h-5 text-slate-400" strokeWidth={1.75} />
-          ) : (
-            <Package className="w-5 h-5 text-slate-400" strokeWidth={1.75} />
-          )}
-        </div>
-        <h3 className="font-medium text-slate-900 text-sm mb-1">
-          {isPolicy ? 'No Policies Yet' : 'No Documents Yet'}
-        </h3>
-        <p className="text-xs text-slate-500 max-w-[180px]">
-          {isPolicy
-            ? 'Add return policy, terms of service, etc.'
-            : 'Upload product info, FAQs, or guides'
-          }
-        </p>
-      </div>
-    );
-  };
-
-  // Document Row Component (for local documents)
-  const DocumentRow = ({ doc }) => (
+  // Global Document Row - Clean slate design like Local KB
+  const GlobalDocumentRow = ({ doc }) => (
     <div className="group flex items-center justify-between py-3 px-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
       <div className="flex items-center gap-3 min-w-0 flex-1">
         <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
@@ -266,10 +213,10 @@ const KnowledgeBasePage = () => {
                 <span className="text-xs text-slate-400">{formatFileSize(doc.file_size)}</span>
               </>
             )}
-            {doc.category === 'policy' && (
+            {doc.chunk_count > 0 && (
               <>
                 <span className="text-slate-300">•</span>
-                <span className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Policy</span>
+                <span className="text-xs text-slate-400">{doc.chunk_count} chunks</span>
               </>
             )}
           </div>
@@ -290,16 +237,17 @@ const KnowledgeBasePage = () => {
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete this document?</AlertDialogTitle>
+              <AlertDialogTitle>Delete this global document?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently remove "{doc.title}" from your knowledge base.
+                This will permanently remove "{doc.title}" from the global knowledge base.
+                All agents will lose access to this document.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-red-600 hover:bg-red-700"
-                onClick={() => deleteDocument(doc.id)}
+                onClick={() => deleteGlobalDocument(doc.id)}
               >
                 Delete
               </AlertDialogAction>
@@ -310,92 +258,27 @@ const KnowledgeBasePage = () => {
     </div>
   );
 
-  // Unified Document Row for All Documents section (supports both local and global)
-  const UnifiedDocumentRow = ({ doc }) => {
-    const isGlobal = doc.isGlobal;
-
-    return (
-      <div className="group flex items-center justify-between py-3 px-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-            <FileText className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h4 className="font-medium text-slate-900 text-sm truncate">{doc.title}</h4>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-slate-400">{getFileTypeLabel(doc.file_type)}</span>
-              {doc.file_size && (
-                <>
-                  <span className="text-slate-300">•</span>
-                  <span className="text-xs text-slate-400">{formatFileSize(doc.file_size)}</span>
-                </>
-              )}
-              {isGlobal && (
-                <>
-                  <span className="text-slate-300">•</span>
-                  <span className="text-xs text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-sm font-medium">Global</span>
-                </>
-              )}
-              {!isGlobal && doc.category === 'policy' && (
-                <>
-                  <span className="text-slate-300">•</span>
-                  <span className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-sm">Policy</span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {isGlobal ? (
-            <div className="flex items-center gap-2">
-              <span className={`text-xs ${doc.is_enabled ? 'text-emerald-600' : 'text-slate-400'}`}>
-                {doc.is_enabled ? 'Enabled' : 'Disabled'}
-              </span>
-              <Switch
-                checked={doc.is_enabled}
-                onCheckedChange={() => toggleGlobalDoc(doc.id, doc.is_enabled)}
-                disabled={togglingDoc === doc.id}
-                className="data-[state=checked]:bg-emerald-600"
-              />
-            </div>
-          ) : (
-            <>
-              <span className="text-xs text-slate-400">{formatDate(doc.created_at)}</span>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete this document?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently remove "{doc.title}" from your knowledge base.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-red-600 hover:bg-red-700"
-                      onClick={() => deleteDocument(doc.id)}
-                    >
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </>
-          )}
-        </div>
+  // Empty State
+  const EmptyState = () => (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+      <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center mb-4">
+        <Globe className="w-7 h-7 text-slate-400" strokeWidth={1.75} />
       </div>
-    );
-  };
+      <h3 className="font-medium text-slate-900 text-base mb-1">
+        No Shared Documents Yet
+      </h3>
+      <p className="text-sm text-slate-500 max-w-[280px] mb-5">
+        Add documents that will be available to all your AI sales agents
+      </p>
+      <Button
+        className="bg-slate-900 hover:bg-slate-800"
+        onClick={() => setDialogOpen(true)}
+      >
+        <Plus className="w-4 h-4 mr-1.5" strokeWidth={2} />
+        Add First Document
+      </Button>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -403,27 +286,42 @@ const KnowledgeBasePage = () => {
         <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center">
           <Loader2 className="w-5 h-5 animate-spin text-white" strokeWidth={2} />
         </div>
-        <p className="text-[13px] text-slate-400">Loading documents...</p>
+        <p className="text-[13px] text-slate-400">Loading global documents...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fade-in" data-testid="knowledge-base-page">
+    <div className="space-y-6 animate-fade-in" data-testid="global-knowledge-base-page">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Agent Knowledge Base</h1>
-          <p className="text-[13px] text-slate-500 mt-0.5">Upload documents to help your AI understand your business</p>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Shared Knowledge Base</h1>
+          <p className="text-[13px] text-slate-500 mt-0.5">Manage documents available to all your AI agents</p>
         </div>
         <Button
           className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
           onClick={() => setDialogOpen(true)}
-          data-testid="add-document-btn"
+          data-testid="add-global-document-btn"
         >
           <Plus className="w-4 h-4 mr-1.5" strokeWidth={2.5} />
           Add Document
         </Button>
+      </div>
+
+      {/* Info Banner - Clean slate design */}
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
+        <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+          <Info className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+        </div>
+        <div>
+          <h3 className="font-medium text-slate-900 text-sm">How Shared Documents Work</h3>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            Documents added here are automatically available to all your AI sales agents.
+            Individual agents can disable specific documents from their Knowledge Base settings.
+            Use this for product catalogs, pricing guides, company policies, and FAQs.
+          </p>
+        </div>
       </div>
 
       {/* Upload Dialog */}
@@ -438,7 +336,7 @@ const KnowledgeBasePage = () => {
       }}>
         <DialogContent className="sm:max-w-[550px] p-0 gap-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4">
-            <DialogTitle className="text-lg font-semibold text-slate-900">Add Document</DialogTitle>
+            <DialogTitle className="text-lg font-semibold text-slate-900">Add Shared Document</DialogTitle>
           </DialogHeader>
 
           <Tabs defaultValue="upload" className="w-full">
@@ -484,16 +382,16 @@ const KnowledgeBasePage = () => {
                       {uploadComplete ? (
                         <>
                           <div className="w-14 h-14 rounded-full border-2 border-slate-900 flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle2 className="w-7 h-7 text-emerald-500" strokeWidth={2} />
+                            <Check className="w-7 h-7 text-emerald-500" strokeWidth={2.5} />
                           </div>
                           <p className="font-medium text-slate-900">Upload Complete</p>
-                          <p className="text-sm text-slate-500 mt-1">Your document is ready</p>
+                          <p className="text-sm text-slate-500 mt-1">Document is now available to all agents</p>
                         </>
                       ) : (
                         <>
                           <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4 relative">
-                            <div className="absolute inset-0 rounded-full border-2 border-slate-300 border-t-slate-900 animate-spin"></div>
-                            <FileText className="w-6 h-6 text-slate-500" strokeWidth={1.75} />
+                            <div className="absolute inset-0 rounded-full border-2 border-slate-200 border-t-slate-600 animate-spin"></div>
+                            <FileText className="w-6 h-6 text-slate-600" strokeWidth={1.75} />
                           </div>
                           <p className="font-medium text-slate-900">Processing document...</p>
                           <p className="text-sm text-slate-500 mt-1">This may take a moment</p>
@@ -511,7 +409,7 @@ const KnowledgeBasePage = () => {
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         onChange={handleFileUpload}
                         accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,.png,.jpg,.jpeg,.gif,.webp"
-                        data-testid="file-upload-input"
+                        data-testid="global-file-upload-input"
                       />
                     </div>
                   )}
@@ -549,44 +447,26 @@ const KnowledgeBasePage = () => {
 
             <TabsContent value="text" className="mt-0 focus-visible:ring-0">
               <div className="px-6 py-5 space-y-4 min-h-[420px]">
-                {/* Category Toggle */}
-                <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="flex items-center gap-3">
-                    <Shield className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">This is a policy document</p>
-                      <p className="text-xs text-slate-500">Return policy, terms, privacy, etc.</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={isPolicyDoc}
-                    onCheckedChange={setIsPolicyDoc}
-                  />
-                </div>
-
                 <div className="space-y-1.5">
                   <Label className="text-slate-700 text-sm font-medium">Title</Label>
                   <Input
-                    placeholder={isPolicyDoc ? "e.g., Return Policy" : "e.g., Product Catalog"}
+                    placeholder="e.g., Product Catalog, Company FAQ"
                     value={newDoc.title}
                     onChange={(e) => setNewDoc(prev => ({ ...prev, title: e.target.value }))}
                     className="h-10 border-slate-200"
-                    data-testid="doc-title-input"
+                    data-testid="global-doc-title-input"
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label className="text-slate-700 text-sm font-medium">Content</Label>
                   <Textarea
-                    placeholder={isPolicyDoc
-                      ? "Paste your policy text here..."
-                      : "Paste product details, FAQs, guides, etc."
-                    }
+                    placeholder="Paste product details, FAQs, pricing info, or any content you want all agents to know..."
                     value={newDoc.content}
                     onChange={(e) => setNewDoc(prev => ({ ...prev, content: e.target.value }))}
-                    rows={8}
+                    rows={10}
                     className="border-slate-200 resize-none"
-                    data-testid="doc-content-input"
+                    data-testid="global-doc-content-input"
                   />
                 </div>
 
@@ -600,12 +480,12 @@ const KnowledgeBasePage = () => {
                   </Button>
                   <Button
                     className="h-9 bg-slate-900 hover:bg-slate-800"
-                    onClick={addDocument}
+                    onClick={addGlobalDocument}
                     disabled={addingDoc}
-                    data-testid="save-document-btn"
+                    data-testid="save-global-document-btn"
                   >
                     {addingDoc && <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={2} />}
-                    Save Document
+                    Add Document
                   </Button>
                 </div>
               </div>
@@ -614,96 +494,53 @@ const KnowledgeBasePage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Two Column Layout for Categories */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Business Knowledge Section */}
+      {/* Documents List */}
+      {globalDocs.length === 0 ? (
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+          <EmptyState />
+        </Card>
+      ) : (
         <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
-                <Package className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                <Globe className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
               </div>
               <div>
-                <h2 className="font-semibold text-slate-900 text-sm">Business Knowledge</h2>
-                <p className="text-xs text-slate-500">Products, FAQs, guides</p>
+                <h2 className="font-semibold text-slate-900 text-sm">Shared Documents</h2>
+                <p className="text-xs text-slate-500">{globalDocs.length} document{globalDocs.length !== 1 ? 's' : ''} available to all agents</p>
               </div>
             </div>
-            <Button
-              size="sm"
-              className="h-8 text-xs bg-slate-900 hover:bg-slate-800 text-white"
-              onClick={() => {
-                setIsPolicyDoc(false);
-                setDialogOpen(true);
-              }}
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" strokeWidth={2} />
-              Add
-            </Button>
           </div>
 
-          {knowledgeDocs.length === 0 ? (
-            <EmptyState type="knowledge" />
-          ) : (
-            <div className="max-h-[280px] overflow-y-auto">
-              {knowledgeDocs.map((doc) => (
-                <DocumentRow key={doc.id} doc={doc} />
-              ))}
-            </div>
-          )}
-        </Card>
-
-        {/* Terms & Policies Section */}
-        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
-                <Shield className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
-              </div>
-              <div>
-                <h2 className="font-semibold text-slate-900 text-sm">Terms & Policies</h2>
-                <p className="text-xs text-slate-500">Return policy, terms of service</p>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              className="h-8 text-xs bg-slate-900 hover:bg-slate-800 text-white"
-              onClick={() => {
-                setIsPolicyDoc(true);
-                setDialogOpen(true);
-              }}
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" strokeWidth={2} />
-              Add
-            </Button>
+          <div className="max-h-[400px] overflow-y-auto">
+            {globalDocs.map((doc) => (
+              <GlobalDocumentRow key={doc.id} doc={doc} />
+            ))}
           </div>
-
-          {policyDocs.length === 0 ? (
-            <EmptyState type="policy" />
-          ) : (
-            <div className="max-h-[280px] overflow-y-auto">
-              {policyDocs.map((doc) => (
-                <DocumentRow key={doc.id} doc={doc} />
-              ))}
-            </div>
-          )}
         </Card>
-      </div>
-
-      {/* All Agent Documents Section */}
-      {allDocuments.length > 0 && (
-        <div>
-          <h3 className="text-sm font-bold text-slate-900 mb-3">All Agent Documents</h3>
-          <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
-            <div className="divide-y divide-slate-100">
-              {allDocuments.map((doc) => (
-                <UnifiedDocumentRow key={`${doc.isGlobal ? 'global' : 'local'}-${doc.id}`} doc={doc} />
-              ))}
-            </div>
-          </Card>
-        </div>
       )}
+
+      {/* Templates Link Card */}
+      <Card
+        className="bg-white border-slate-200 shadow-sm overflow-hidden cursor-pointer hover:bg-slate-50 transition-colors group"
+        onClick={() => navigate('/app/global-knowledge/templates')}
+      >
+        <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
+              <BookOpen className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900 text-sm">Need help getting started?</h3>
+              <p className="text-xs text-slate-500 mt-0.5">View our document templates for product catalogs, FAQs, policies, and sales scripts</p>
+            </div>
+          </div>
+          <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all" strokeWidth={1.75} />
+        </div>
+      </Card>
     </div>
   );
 };
 
-export default KnowledgeBasePage;
+export default GlobalKnowledgeBasePage;
