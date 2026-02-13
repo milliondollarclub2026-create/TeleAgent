@@ -756,7 +756,7 @@ export default function LandingPage() {
             </div>
             <button
               onClick={handleCTA}
-              className="group flex-shrink-0 bg-white text-emerald-700 hover:bg-emerald-50 rounded-full px-8 py-4 text-base font-semibold transition-all duration-300 shadow-sm hover:shadow-md flex items-center gap-2"
+              className="group flex-shrink-0 bg-slate-900 text-white rounded-full px-8 py-4 text-base font-semibold transition-all duration-300 flex items-center gap-2 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)]"
             >
               Start Hiring
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={2.5} />

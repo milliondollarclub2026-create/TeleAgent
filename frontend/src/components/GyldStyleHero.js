@@ -1,14 +1,40 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, ChevronDown } from 'lucide-react';
 
-export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
-  const capabilities = [
-    '3 AI Employees',
-    'Telegram + CRM',
-    'UZ / RU / EN',
-    'Always On',
-  ];
+function AnimatedCounter({ end, duration = 1800, suffix = '', delay = 0 }) {
+  const [count, setCount] = useState(0);
+  const [started, setStarted] = useState(false);
 
+  useEffect(() => {
+    const timeout = setTimeout(() => setStarted(true), delay);
+    return () => clearTimeout(timeout);
+  }, [delay]);
+
+  useEffect(() => {
+    if (!started) return;
+    const steps = 60;
+    const increment = end / steps;
+    let current = 0;
+    const interval = setInterval(() => {
+      current += increment;
+      if (current >= end) {
+        setCount(end);
+        clearInterval(interval);
+      } else {
+        setCount(Math.floor(current));
+      }
+    }, duration / steps);
+    return () => clearInterval(interval);
+  }, [started, end, duration]);
+
+  return (
+    <span className="tabular-nums">
+      {count.toLocaleString()}{suffix}
+    </span>
+  );
+}
+
+export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden bg-white">
       {/* Content container */}
@@ -30,7 +56,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
 
         {/* CTAs */}
         <div
-          className="animate-fadeUp opacity-0 delay-300 flex flex-col sm:flex-row items-center justify-center gap-4 mb-12"
+          className="animate-fadeUp opacity-0 delay-300 flex flex-col sm:flex-row items-center justify-center gap-4 mb-14"
         >
           <button
             onClick={onGetStarted}
@@ -51,18 +77,43 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
           </button>
         </div>
 
-        {/* Capability Pills - text only, no icons */}
-        <div
-          className="animate-fadeUp opacity-0 delay-400 flex flex-wrap items-center justify-center gap-3"
-        >
-          {capabilities.map((label) => (
-            <div
-              key={label}
-              className="inline-flex items-center px-4 py-2 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-sm font-medium"
-            >
-              {label}
+        {/* Live Stats Ticker — replaces pills */}
+        <div className="animate-fadeUp opacity-0 delay-400">
+          <div className="inline-flex items-center gap-6 sm:gap-10">
+            <div className="text-center">
+              <div className="text-2xl sm:text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">
+                <AnimatedCounter end={3} duration={800} delay={500} />
+              </div>
+              <div className="text-xs sm:text-sm text-slate-400 font-medium mt-1">AI Employees</div>
             </div>
-          ))}
+
+            <div className="w-px h-10 bg-slate-200" />
+
+            <div className="text-center">
+              <div className="text-2xl sm:text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">
+                <AnimatedCounter end={3} duration={1000} delay={700} />
+              </div>
+              <div className="text-xs sm:text-sm text-slate-400 font-medium mt-1">Languages</div>
+            </div>
+
+            <div className="w-px h-10 bg-slate-200" />
+
+            <div className="text-center">
+              <div className="text-2xl sm:text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">
+                <AnimatedCounter end={10} duration={1200} delay={900} suffix=" min" />
+              </div>
+              <div className="text-xs sm:text-sm text-slate-400 font-medium mt-1">Setup Time</div>
+            </div>
+
+            <div className="w-px h-10 bg-slate-200" />
+
+            <div className="text-center">
+              <div className="text-2xl sm:text-3xl font-bold text-emerald-600 font-['Plus_Jakarta_Sans']">
+                24/7
+              </div>
+              <div className="text-xs sm:text-sm text-slate-400 font-medium mt-1">Always On</div>
+            </div>
+          </div>
         </div>
       </div>
 
