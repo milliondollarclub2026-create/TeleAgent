@@ -31,6 +31,7 @@ import BitrixSetupPage from "./pages/BitrixSetupPage";
 import SalesAgentPage from "./pages/SalesAgentPage";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
 import SettingsPage from "./pages/SettingsPage";
+import AccountPage from "./pages/AccountPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import PricingPage from "./pages/PricingPage";
@@ -86,7 +87,7 @@ function AppRoutes() {
         <Route path="dialogue" element={<AgentDialoguePage />} />
         <Route path="dialogue/:customerId" element={<AgentDialoguePage />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="account" element={<SettingsPage />} />
+        <Route path="account" element={<AccountPage />} />
         {/* Global connections routes */}
         <Route path="connections" element={<ConnectionsPage />} />
         <Route path="connections/telegram" element={<TelegramSetupPage />} />

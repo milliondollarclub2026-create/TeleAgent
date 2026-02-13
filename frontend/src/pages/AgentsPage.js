@@ -354,60 +354,64 @@ const AgentsPage = () => {
             return (
               <Card
                 key={employee.id}
-                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group"
+                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group relative"
                 onClick={() => employee.type === 'crm' ? navigate('/app/crm') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } })}
                 data-testid={`hired-${employee.id}`}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
+                {/* Top Right: Hired Badge (default) / Menu (on hover) */}
+                <div className="absolute top-4 right-4 z-10">
+                  {/* Hired Badge - visible by default, hidden on hover */}
+                  <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-medium px-2 py-0.5 gap-1 hover:bg-emerald-50 cursor-default opacity-100 group-hover:opacity-0 transition-opacity duration-150">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Hired
+                  </Badge>
+                  {/* Menu Button - hidden by default, visible on hover */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:bg-slate-200/50 absolute top-0 right-0"
+                      >
+                        <MoreVertical className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem
+                        onClick={(e) => { e.stopPropagation(); employee.type === 'crm' ? navigate('/app/crm') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } }); }}
+                        className="gap-2.5 text-[13px]"
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                        Open
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="gap-2.5 text-[13px] text-red-600 focus:text-red-600 focus:bg-red-50"
+                        onClick={(e) => { e.stopPropagation(); handleFirePrebuilt(employee); }}
+                      >
+                        <Trash2 className="w-4 h-4" strokeWidth={1.75} />
+                        Remove
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
                 <CardContent className="p-5">
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-4">
+                  {/* Header - Icon only, no menu here anymore */}
+                  <div className="mb-4">
                     <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center shadow-sm">
                       <Icon className="w-6 h-6 text-slate-600" strokeWidth={1.75} />
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-200/50"
-                        >
-                          <MoreVertical className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuItem
-                          onClick={(e) => { e.stopPropagation(); employee.type === 'crm' ? navigate('/app/crm') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } }); }}
-                          className="gap-2.5 text-[13px]"
-                        >
-                          <LayoutDashboard className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
-                          Open
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="gap-2.5 text-[13px] text-red-600 focus:text-red-600 focus:bg-red-50"
-                          onClick={(e) => { e.stopPropagation(); handleFirePrebuilt(employee); }}
-                        >
-                          <Trash2 className="w-4 h-4" strokeWidth={1.75} />
-                          Remove
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
 
                   {/* Name & Status */}
                   <div className="mb-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-slate-900 text-[15px] truncate group-hover:text-slate-700 transition-colors">
-                        {employee.name}
-                      </h3>
-                    </div>
+                    <h3 className="font-semibold text-slate-900 text-[15px] truncate group-hover:text-slate-700 transition-colors mb-1">
+                      {employee.name}
+                    </h3>
                     <p className="text-[12px] text-slate-500 mb-2">{employee.role}</p>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge className="bg-emerald-50 text-emerald-600 border-0 text-[10px] font-medium px-1.5 py-0 gap-1 hover:bg-emerald-50 cursor-default">
-                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                        Hired
-                      </Badge>
                       {employee.integration === 'telegram' ? (
                         <Badge className="bg-[#0088cc]/10 text-[#0088cc] hover:bg-[#0088cc]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
                           <TelegramIcon className="w-3 h-3" />

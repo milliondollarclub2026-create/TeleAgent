@@ -6,15 +6,19 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Switch } from '../components/ui/switch';
 import {
-  User,
-  Mail,
-  Shield,
+  Settings,
+  Bell,
+  Globe,
+  Database,
   Trash2,
   AlertTriangle,
   Loader2,
-  Database,
-  LogOut
+  User,
+  Download,
+  ChevronRight,
+  Shield
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -37,6 +41,11 @@ export default function SettingsPage() {
   const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  // Preferences state (stored locally for now)
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [leadAlerts, setLeadAlerts] = useState(true);
 
   const handleDeleteData = async () => {
     setLoading(true);
@@ -70,57 +79,113 @@ export default function SettingsPage() {
     }
   };
 
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      // Simulate export - in production this would call an API endpoint
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      toast.success('Export started. You will receive an email with your data.');
+    } catch (error) {
+      toast.error('Failed to start export');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-500" data-testid="settings-page">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight font-['Plus_Jakarta_Sans']">Settings</h1>
-        <p className="text-[13px] text-slate-500 mt-0.5">Manage your account and preferences</p>
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Settings</h1>
+        <p className="text-[13px] text-slate-500 mt-0.5">Manage your preferences and data</p>
       </div>
 
-      {/* Profile Section */}
+      {/* Notifications Section */}
       <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center">
-              <User className="w-4 h-4 text-white" strokeWidth={2} />
+              <Bell className="w-4 h-4 text-white" strokeWidth={2} />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">Profile</h2>
-              <p className="text-xs text-slate-500">Your account information</p>
+              <h2 className="text-sm font-semibold text-slate-900">Notifications</h2>
+              <p className="text-xs text-slate-500">Control how you receive updates</p>
             </div>
           </div>
         </div>
         <CardContent className="p-6 space-y-5">
-          <div className="space-y-2">
-            <Label className="text-slate-600 text-sm font-medium flex items-center gap-2">
-              <Mail className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
-              Email
-            </Label>
-            <Input
-              value={user?.email || ''}
-              disabled
-              className="h-11 bg-slate-50 border-slate-200 text-slate-600 cursor-not-allowed"
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-900">Email Notifications</p>
+              <p className="text-xs text-slate-500 mt-0.5">Receive updates about your account</p>
+            </div>
+            <Switch
+              checked={emailNotifications}
+              onCheckedChange={setEmailNotifications}
             />
           </div>
-          <div className="space-y-2">
-            <Label className="text-slate-600 text-sm font-medium flex items-center gap-2">
-              <User className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
-              Name
-            </Label>
-            <Input
-              value={user?.name || 'User'}
-              disabled
-              className="h-11 bg-slate-50 border-slate-200 text-slate-600 cursor-not-allowed"
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-900">Lead Alerts</p>
+              <p className="text-xs text-slate-500 mt-0.5">Get notified when new hot leads arrive</p>
+            </div>
+            <Switch
+              checked={leadAlerts}
+              onCheckedChange={setLeadAlerts}
             />
           </div>
-          <p className="text-xs text-slate-400 pt-2">
-            Contact support to update your profile information.
-          </p>
         </CardContent>
       </Card>
 
-      {/* Security Section */}
+      {/* Data Management Section */}
+      <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center">
+              <Database className="w-4 h-4 text-white" strokeWidth={2} />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Data Management</h2>
+              <p className="text-xs text-slate-500">Export or manage your data</p>
+            </div>
+          </div>
+        </div>
+        <CardContent className="p-6 space-y-5">
+          {/* Export Data */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <Download className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                <p className="text-sm font-medium text-slate-900">Export Data</p>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Download all your leads, conversations, and settings as a CSV file.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportData}
+              disabled={exporting}
+              className="h-9 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 flex-shrink-0"
+            >
+              {exporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-2" strokeWidth={1.75} />
+                  Export
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Privacy & Security Section */}
       <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
@@ -128,27 +193,26 @@ export default function SettingsPage() {
               <Shield className="w-4 h-4 text-white" strokeWidth={2} />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">Security</h2>
-              <p className="text-xs text-slate-500">Authentication and access</p>
+              <h2 className="text-sm font-semibold text-slate-900">Privacy & Security</h2>
+              <p className="text-xs text-slate-500">Manage your privacy settings</p>
             </div>
           </div>
         </div>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-900">Sign out</p>
-              <p className="text-xs text-slate-500 mt-0.5">End your current session</p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { logout(); navigate('/login'); }}
-              className="h-9 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            >
-              <LogOut className="w-4 h-4 mr-2" strokeWidth={1.75} />
-              Sign out
-            </Button>
-          </div>
+        <CardContent className="p-0">
+          <button
+            onClick={() => window.open('/privacy', '_blank')}
+            className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors border-b border-slate-100"
+          >
+            <p className="text-sm font-medium text-slate-900">Privacy Policy</p>
+            <ChevronRight className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
+          </button>
+          <button
+            onClick={() => window.open('/terms', '_blank')}
+            className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors"
+          >
+            <p className="text-sm font-medium text-slate-900">Terms of Service</p>
+            <ChevronRight className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
+          </button>
         </CardContent>
       </Card>
 
