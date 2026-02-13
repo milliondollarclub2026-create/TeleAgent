@@ -462,11 +462,12 @@ async def send_confirmation_email(email: str, name: str, token: str) -> bool:
         
         # Run sync SDK in thread to keep FastAPI non-blocking
         result = await asyncio.to_thread(resend.Emails.send, params)
-        logger.info(f"Confirmation email sent to {email}, id: {result.get('id')}")
+        email_id = getattr(result, 'id', None) or (result.get('id') if isinstance(result, dict) else str(result))
+        logger.info(f"Confirmation email sent to {email}, id: {email_id}")
         return True
-        
+
     except Exception as e:
-        logger.error(f"Failed to send confirmation email to {email}: {e}")
+        logger.error(f"Failed to send confirmation email to {email}: {type(e).__name__}: {e}", exc_info=True)
         return False
 
 
@@ -717,7 +718,10 @@ async def register(request: RegisterRequest):
             logger.warning(f"Could not create tenant config: {e}")
 
         # Send confirmation email via async helper
-        await send_confirmation_email(request.email, request.name, confirmation_token)
+        email_sent = await send_confirmation_email(request.email, request.name, confirmation_token)
+        if not email_sent:
+            logger.error(f"Registration succeeded but confirmation email failed for {request.email}")
+            logger.error(f"Resend config - API key set: {bool(resend.api_key)}, key prefix: {resend.api_key[:8] if resend.api_key else 'NONE'}, Sender: {SENDER_EMAIL}")
 
         return AuthResponse(
             token=None,
@@ -860,6 +864,53 @@ async def reset_password(request: ResetPasswordRequest):
     except Exception as e:
         logger.error(f"Password reset error: {e}")
         raise HTTPException(status_code=400, detail="Password reset failed. Please try again.")
+
+
+@api_router.get("/debug/email-test")
+async def debug_email_test():
+    """Diagnostic endpoint to test Resend email configuration"""
+    diagnostics = {
+        "resend_api_key_set": bool(resend.api_key),
+        "resend_api_key_prefix": resend.api_key[:12] + "..." if resend.api_key else "NOT SET",
+        "sender_email": SENDER_EMAIL,
+        "frontend_url": FRONTEND_URL,
+    }
+
+    if not resend.api_key:
+        diagnostics["error"] = "RESEND_API_KEY environment variable is not set"
+        return diagnostics
+
+    # Try sending a test email to a known-good address
+    try:
+        params = {
+            "from": SENDER_EMAIL,
+            "to": ["delivered@resend.dev"],
+            "subject": "LeadRelay Email Test",
+            "html": "<p>If you see this, email sending works.</p>"
+        }
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        # Handle both dict and object responses
+        if hasattr(result, 'id'):
+            diagnostics["success"] = True
+            diagnostics["email_id"] = result.id
+        elif isinstance(result, dict):
+            diagnostics["success"] = True
+            diagnostics["email_id"] = result.get('id')
+        else:
+            diagnostics["success"] = True
+            diagnostics["result_type"] = str(type(result))
+            diagnostics["result"] = str(result)
+    except Exception as e:
+        diagnostics["success"] = False
+        diagnostics["error_type"] = type(e).__name__
+        diagnostics["error_message"] = str(e)
+        # If it's a Resend API error, try to get more details
+        if hasattr(e, 'status_code'):
+            diagnostics["status_code"] = e.status_code
+        if hasattr(e, 'message'):
+            diagnostics["api_message"] = e.message
+
+    return diagnostics
 
 
 @api_router.post("/auth/login", response_model=AuthResponse)
