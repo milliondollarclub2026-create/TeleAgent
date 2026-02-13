@@ -124,9 +124,9 @@ const LoginPage = () => {
   // Gradient left panel (shared across all views)
   const GradientPanel = () => (
     <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-      {/* Emerald gradient background */}
+      {/* Dark slate gradient background */}
       <div className="absolute inset-0" style={{
-        background: 'linear-gradient(135deg, #059669 0%, #047857 30%, #065f46 60%, #064e3b 100%)'
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)'
       }} />
 
       {/* Subtle pattern overlay */}
@@ -135,9 +135,9 @@ const LoginPage = () => {
         backgroundSize: '32px 32px'
       }} />
 
-      {/* Soft light blurs */}
-      <div className="absolute top-1/4 -left-20 w-[400px] h-[400px] bg-emerald-400/20 rounded-full blur-[100px]" />
-      <div className="absolute bottom-1/4 -right-20 w-[350px] h-[350px] bg-teal-400/15 rounded-full blur-[100px]" />
+      {/* Subtle emerald blurs */}
+      <div className="absolute top-1/4 -left-20 w-[400px] h-[400px] bg-emerald-500/10 rounded-full blur-[100px]" />
+      <div className="absolute bottom-1/4 -right-20 w-[350px] h-[350px] bg-emerald-500/10 rounded-full blur-[100px]" />
 
       {/* Logo — pinned top-left */}
       <div className="absolute top-0 left-0 z-20 px-8 py-6">
@@ -163,7 +163,7 @@ const LoginPage = () => {
             always closing.
           </h1>
 
-          <p className={`text-emerald-100 text-lg leading-relaxed mb-10 transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <p className={`text-slate-400 text-lg leading-relaxed mb-10 transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             Three AI employees that qualify leads, answer questions, and manage your CRM — in Uzbek, Russian, or English.
           </p>
 
@@ -455,7 +455,7 @@ const LoginPage = () => {
 
             <Button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 h-11 text-sm font-medium rounded-xl group"
+              className="w-full bg-slate-900 hover:bg-emerald-600 h-11 text-sm font-medium rounded-xl group transition-colors duration-200"
               data-testid="login-submit-btn"
               disabled={loading}
             >

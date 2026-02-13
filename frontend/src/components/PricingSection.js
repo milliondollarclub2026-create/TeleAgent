@@ -30,7 +30,6 @@ const channelOptions = [
   { id: 'telegram', label: 'Telegram', price: 0, note: 'Included', available: true },
   { id: 'tg_ig', label: 'Telegram + Instagram', price: 25, note: '+$25/mo', available: true },
   { id: 'ig_only', label: 'Instagram Only', price: 10, note: '+$10/mo', available: true },
-  { id: 'whatsapp', label: 'WhatsApp', price: 0, note: 'Coming soon', available: false },
 ];
 
 const billingOptions = [
@@ -176,7 +175,7 @@ export default function PricingSection({ onGetStarted }) {
                       onClick={() => toggleAgent(agent.id)}
                       className={`w-full text-left rounded-2xl p-5 transition-all duration-200 ${
                         isSelected
-                          ? 'bg-white border-2 border-emerald-500 shadow-md shadow-emerald-50'
+                          ? 'bg-white border-2 border-slate-900 shadow-md shadow-slate-50'
                           : 'bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm'
                       }`}
                     >
@@ -234,8 +233,8 @@ export default function PricingSection({ onGetStarted }) {
                   Hire all 3 and save ${BUNDLE_DISCOUNT}/month
                 </button>
               ) : (
-                <div className="mt-3 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium">
-                  <Check className="w-4 h-4" strokeWidth={2.5} />
+                <div className="mt-3 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-900 border-l-4 border-emerald-500 text-white text-sm font-medium">
+                  <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
                   Full team hired. ${BUNDLE_DISCOUNT}/month bundle discount applied.
                 </div>
               )}
@@ -260,7 +259,7 @@ export default function PricingSection({ onGetStarted }) {
                         isDisabled
                           ? 'bg-slate-50 border border-slate-100 opacity-50 cursor-not-allowed'
                           : isSelected
-                          ? 'bg-white border-2 border-emerald-500 shadow-sm'
+                          ? 'bg-white border-2 border-slate-900 shadow-sm'
                           : 'bg-white border border-slate-200 hover:border-slate-300 cursor-pointer'
                       }`}
                     >
@@ -391,7 +390,7 @@ export default function PricingSection({ onGetStarted }) {
               {/* CTA */}
               <button
                 onClick={onGetStarted}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-full py-4 text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 group shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-200"
+                className="w-full bg-slate-900 hover:bg-emerald-600 text-white rounded-full py-4 text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 group shadow-lg shadow-slate-200 hover:shadow-xl hover:shadow-emerald-200"
               >
                 Start 7-Day Free Trial
                 <ArrowRight

@@ -590,6 +590,10 @@ export default function LandingPage() {
       <section id="features" className="py-32 relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #ecfdf5 0%, #f0fdf4 30%, #f8fafc 55%, #f0fdfa 80%, #ecfdf5 100%)' }}>
         <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-emerald-200/30 rounded-full blur-[120px] pointer-events-none" />
         <div className="absolute bottom-1/4 right-0 w-[600px] h-[600px] bg-teal-200/25 rounded-full blur-[100px] pointer-events-none" />
+        {/* Floating decorative orbs */}
+        <div className="absolute top-1/3 left-[10%] w-[300px] h-[300px] bg-emerald-400/10 rounded-full blur-[80px] pointer-events-none" style={{ animation: 'float-slow 10s ease-in-out infinite' }} />
+        <div className="absolute bottom-1/3 right-[15%] w-[250px] h-[250px] bg-emerald-500/10 rounded-full blur-[80px] pointer-events-none" style={{ animation: 'float-slow 12s ease-in-out infinite 2s' }} />
+        <div className="absolute top-2/3 left-[50%] w-[200px] h-[200px] bg-teal-400/15 rounded-full blur-[80px] pointer-events-none" style={{ animation: 'float-slow 8s ease-in-out infinite 4s' }} />
         <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
           {/* Section Header */}
           <div className="text-center mb-20 scroll-reveal">
@@ -606,12 +610,12 @@ export default function LandingPage() {
           {/* Agent Cards - 3 equal columns */}
           <div className="grid md:grid-cols-3 gap-5 mb-5 scroll-reveal" style={{ transitionDelay: '100ms' }}>
             {/* Jasur, Sales Agent */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 hover:border-emerald-200 hover:-translate-y-1">
+            <div className="h-full flex flex-col bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
               <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Sales Agent</span>
               <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
                 Jasur
               </h3>
-              <p className="text-slate-500 leading-relaxed mb-6">
+              <p className="text-slate-500 leading-relaxed mb-6 flex-1">
                 Handles customer conversations on Telegram around the clock. Qualifies leads, answers product questions from your knowledge base, collects contact details, and moves qualified prospects into your CRM.
               </p>
               <div className="flex flex-wrap gap-2">
@@ -627,38 +631,33 @@ export default function LandingPage() {
             </div>
 
             {/* Nilufar, Knowledge Specialist */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 hover:border-emerald-200 hover:-translate-y-1">
+            <div className="h-full flex flex-col bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
               <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Knowledge Specialist</span>
               <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
                 Nilufar
               </h3>
-              <p className="text-slate-500 leading-relaxed mb-6">
+              <p className="text-slate-500 leading-relaxed mb-6 flex-1">
                 Answers customer questions instantly using your uploaded product docs, pricing sheets, and FAQs. Handles repetitive inquiries so your human team focuses on high-value conversations.
               </p>
-              <div className="flex gap-3">
-                {[
-                  { code: 'UZ', label: "O'zbek" },
-                  { code: 'RU', label: 'Русский' },
-                  { code: 'EN', label: 'English' }
-                ].map((lang) => (
-                  <div
-                    key={lang.code}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200"
+              <div className="flex flex-wrap gap-2">
+                {['Multilingual', 'Knowledge Base', 'FAQ Expert'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
                   >
-                    <span className="text-sm font-semibold text-slate-600">{lang.code}</span>
-                    <span className="text-xs text-slate-400 hidden sm:inline">{lang.label}</span>
-                  </div>
+                    {tag}
+                  </span>
                 ))}
               </div>
             </div>
 
             {/* Bobur, CRM Analyst */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 hover:border-emerald-200 hover:-translate-y-1">
+            <div className="h-full flex flex-col bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
               <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">CRM Analyst</span>
               <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
                 Bobur
               </h3>
-              <p className="text-slate-500 leading-relaxed mb-6">
+              <p className="text-slate-500 leading-relaxed mb-6 flex-1">
                 Connects to your Bitrix24 and gives you conversational access to your sales data. Qualified leads, deal stages, and conversation history stay in sync — both ways, in real time.
               </p>
               <div className="flex flex-wrap gap-2">
@@ -677,7 +676,7 @@ export default function LandingPage() {
           {/* Feature Cards - 2 equal columns */}
           <div className="grid md:grid-cols-2 gap-5 scroll-reveal" style={{ transitionDelay: '200ms' }}>
             {/* Trained on your business */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 hover:border-emerald-200 hover:-translate-y-1">
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
               <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans'] tracking-tight">
                 Trained on your business
               </h3>
@@ -687,7 +686,7 @@ export default function LandingPage() {
             </div>
 
             {/* See what's working */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 hover:border-emerald-200 hover:-translate-y-1">
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
               <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans'] tracking-tight">
                 See what's working
               </h3>
@@ -715,33 +714,40 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 lg:gap-8 scroll-reveal" style={{ transitionDelay: '100ms' }}>
-            {[
-              {
-                step: 1,
-                title: 'Define your business',
-                description: 'Tell us about your products, pricing, and how you sell. The setup wizard configures your AI team\'s tone, language, and sales approach.',
-              },
-              {
-                step: 2,
-                title: 'Connect your tools',
-                description: 'Paste your Telegram bot token, link Bitrix24, and upload your product docs. Your AI team reads everything and starts learning your business.',
-              },
-              {
-                step: 3,
-                title: 'Start selling',
-                description: 'Flip the switch. Your AI team handles conversations, qualifies leads, collects contacts, and logs every deal to your CRM. You focus on closing.',
-              }
-            ].map((item) => (
-              <div key={item.step} className={`group flex flex-col cursor-default step-glow step-glow-${item.step}`}>
-                {/* Large step number — turns emerald on hover + glow pulse */}
-                <div className="mb-6">
-                  <span className="step-number text-5xl font-bold text-slate-200 group-hover:text-emerald-500 transition-colors duration-300 font-['Plus_Jakarta_Sans']">
-                    {item.step}
-                  </span>
+          {/* Desktop: Horizontal timeline */}
+          <div className="hidden md:block scroll-reveal" style={{ transitionDelay: '100ms' }}>
+            {/* Timeline connector + checkpoints */}
+            <div className="relative flex items-center justify-between mb-10 px-[16.67%]">
+              <div className="absolute left-[16.67%] right-[16.67%] top-1/2 -translate-y-1/2 h-0.5 bg-slate-200" />
+              {[1, 2, 3].map((step) => (
+                <div
+                  key={step}
+                  className="relative z-10 w-10 h-10 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center text-sm font-bold text-slate-400 transition-all duration-300 hover:border-emerald-500 hover:text-emerald-600 cursor-default"
+                >
+                  {step}
                 </div>
-
-                <div className="step-card flex-1 bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-emerald-100/50 group-hover:border-emerald-200 group-hover:-translate-y-1">
+              ))}
+            </div>
+            {/* Cards below checkpoints */}
+            <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
+              {[
+                {
+                  step: 1,
+                  title: 'Define your business',
+                  description: 'Tell us about your products, pricing, and how you sell. The setup wizard configures your AI team\'s tone, language, and sales approach.',
+                },
+                {
+                  step: 2,
+                  title: 'Connect your tools',
+                  description: 'Paste your Telegram bot token, link Bitrix24, and upload your product docs. Your AI team reads everything and starts learning your business.',
+                },
+                {
+                  step: 3,
+                  title: 'Start selling',
+                  description: 'Flip the switch. Your AI team handles conversations, qualifies leads, collects contacts, and logs every deal to your CRM. You focus on closing.',
+                }
+              ].map((item) => (
+                <div key={item.step} className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300">
                   <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans']">
                     {item.title}
                   </h3>
@@ -749,8 +755,49 @@ export default function LandingPage() {
                     {item.description}
                   </p>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Mobile: Vertical timeline */}
+          <div className="md:hidden scroll-reveal" style={{ transitionDelay: '100ms' }}>
+            <div className="relative pl-14">
+              {/* Vertical line */}
+              <div className="absolute left-[18px] top-0 bottom-0 w-0.5 bg-slate-200" />
+              {[
+                {
+                  step: 1,
+                  title: 'Define your business',
+                  description: 'Tell us about your products, pricing, and how you sell. The setup wizard configures your AI team\'s tone, language, and sales approach.',
+                },
+                {
+                  step: 2,
+                  title: 'Connect your tools',
+                  description: 'Paste your Telegram bot token, link Bitrix24, and upload your product docs. Your AI team reads everything and starts learning your business.',
+                },
+                {
+                  step: 3,
+                  title: 'Start selling',
+                  description: 'Flip the switch. Your AI team handles conversations, qualifies leads, collects contacts, and logs every deal to your CRM. You focus on closing.',
+                }
+              ].map((item, i) => (
+                <div key={item.step} className={`relative ${i < 2 ? 'pb-8' : ''}`}>
+                  {/* Checkpoint circle */}
+                  <div className="absolute -left-14 top-0 w-10 h-10 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center text-sm font-bold text-slate-400 z-10">
+                    {item.step}
+                  </div>
+                  {/* Card */}
+                  <div className="bg-white border border-slate-200 rounded-2xl p-6 transition-all duration-300 hover:shadow-md hover:border-slate-300">
+                    <h3 className="text-lg font-bold text-slate-900 mb-2 font-['Plus_Jakarta_Sans']">
+                      {item.title}
+                    </h3>
+                    <p className="text-slate-500 text-sm leading-relaxed">
+                      {item.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -978,56 +1025,10 @@ export default function LandingPage() {
           transform: translateY(0);
         }
 
-        /* Sequential emerald glow on step cards */
-        @keyframes step-glow-sweep {
-          0%, 15% {
-            box-shadow: 0 0 0 0 rgba(5, 150, 105, 0), 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-            border-color: rgb(226, 232, 240);
-          }
-          30% {
-            box-shadow: 0 0 30px -5px rgba(5, 150, 105, 0.25), 0 20px 40px -10px rgba(5, 150, 105, 0.15);
-            border-color: rgb(167, 243, 208);
-          }
-          50%, 100% {
-            box-shadow: 0 0 0 0 rgba(5, 150, 105, 0), 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-            border-color: rgb(226, 232, 240);
-          }
-        }
-        @keyframes step-number-sweep {
-          0%, 15% { color: rgb(226, 232, 240); }
-          30% { color: rgb(16, 185, 129); }
-          50%, 100% { color: rgb(226, 232, 240); }
-        }
-
-        .step-glow-1 .step-card {
-          animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 0s;
-        }
-        .step-glow-1 .step-number {
-          animation: step-number-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 0s;
-        }
-        .step-glow-2 .step-card {
-          animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 2s;
-        }
-        .step-glow-2 .step-number {
-          animation: step-number-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 2s;
-        }
-        .step-glow-3 .step-card {
-          animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 4s;
-        }
-        .step-glow-3 .step-number {
-          animation: step-number-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 4s;
-        }
-
-        /* Pause glow animation on hover (hover effect takes priority) */
-        .step-glow:hover .step-card,
-        .step-glow:hover .step-number {
-          animation-play-state: paused;
+        /* Floating orb animation */
+        @keyframes float-slow {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
         }
       `}</style>
     </div>
