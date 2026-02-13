@@ -637,42 +637,41 @@ export default function LandingPage() {
       </div>
 
       {/* ================================================================ */}
-      {/* SOCIAL PROOF / TRUST BAR                                         */}
+      {/* TRUST / METRICS BAR                                              */}
       {/* ================================================================ */}
-      <section className="py-16 bg-white border-b border-slate-100 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 md:px-12">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8 scroll-reveal">
-            <p className="text-sm text-slate-400 font-medium uppercase tracking-widest whitespace-nowrap">
-              Built with industry leaders
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-x-12 gap-y-6">
-              {[
-                { name: 'Telegram', icon: (
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
-                  </svg>
-                )},
-                { name: 'Bitrix24', icon: (
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/>
-                  </svg>
-                )},
-                { name: 'OpenAI', icon: (
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M22.28 9.37a5.93 5.93 0 00-.51-4.88 6.01 6.01 0 00-6.47-2.91A5.93 5.93 0 0010.84.02a6.01 6.01 0 00-5.74 3.92 5.93 5.93 0 00-3.97 2.87 6.01 6.01 0 00.74 7.04 5.93 5.93 0 00.51 4.88 6.01 6.01 0 006.47 2.91 5.93 5.93 0 004.46 1.56 6.01 6.01 0 005.74-3.92 5.93 5.93 0 003.97-2.87 6.01 6.01 0 00-.74-7.04z"/>
-                  </svg>
-                )},
-                { name: 'Google Sheets', icon: (
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7v-7zm4-3h2v10h-2V7zm4 6h2v4h-2v-4z"/>
-                  </svg>
-                )},
-              ].map((partner) => (
-                <div key={partner.name} className="flex items-center gap-2.5 text-slate-300 hover:text-slate-500 transition-colors duration-300 cursor-default">
-                  <span className="opacity-50">{partner.icon}</span>
-                  <span className="text-sm font-medium text-slate-400">{partner.name}</span>
-                </div>
-              ))}
+      <section className="py-12 bg-white border-b border-slate-100 relative overflow-hidden">
+        <div className="max-w-5xl mx-auto px-6 md:px-12">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-4 scroll-reveal">
+            {/* Integrations */}
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-3 mb-2">
+                <svg className="w-5 h-5 text-slate-400" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+                </svg>
+                <svg className="w-5 h-5 text-slate-400" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/>
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-slate-900">Telegram + Bitrix24</p>
+              <p className="text-xs text-slate-400 mt-0.5">Native integrations</p>
+            </div>
+
+            {/* Setup time */}
+            <div className="text-center">
+              <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">10 min</p>
+              <p className="text-xs text-slate-400">Average setup time</p>
+            </div>
+
+            {/* Availability */}
+            <div className="text-center">
+              <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">24/7</p>
+              <p className="text-xs text-slate-400">AI availability</p>
+            </div>
+
+            {/* Languages */}
+            <div className="text-center">
+              <p className="text-sm font-semibold text-slate-900 mb-1">UZ / RU / EN</p>
+              <p className="text-xs text-slate-400">3 languages supported</p>
             </div>
           </div>
         </div>
@@ -999,14 +998,14 @@ export default function LandingPage() {
                 Ready to automate your Telegram sales?
               </h3>
               <p className="text-emerald-100/80 text-lg">
-                14-day free trial. No credit card required.
+                Set up in under 10 minutes. No long-term contracts.
               </p>
             </div>
             <button
               onClick={handleCTA}
               className="group flex-shrink-0 bg-white text-emerald-700 hover:bg-emerald-50 rounded-full px-8 py-4 text-base font-semibold transition-all duration-300 shadow-lg shadow-emerald-700/20 hover:shadow-xl hover:shadow-emerald-700/30 flex items-center gap-2"
             >
-              Start Free Trial
+              Get Started Now
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={2.5} />
             </button>
           </div>
@@ -1057,7 +1056,7 @@ export default function LandingPage() {
               data-testid="final-cta-btn"
             >
               <span className="relative z-10 inline-flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all duration-300 group-hover:shadow-2xl group-hover:shadow-emerald-500/30">
-                Get Started Free
+                Get Started
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform duration-300" strokeWidth={2.5} />
               </span>
             </button>

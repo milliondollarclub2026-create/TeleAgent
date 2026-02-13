@@ -96,7 +96,7 @@ def db_rest_update(table: str, data: dict, eq_column: str, eq_value: str):
 # Initialize Resend for email
 # Strip env vars to remove accidental newlines
 resend.api_key = (os.environ.get('RESEND_API_KEY') or '').strip()
-SENDER_EMAIL = (os.environ.get('SENDER_EMAIL') or 'onboarding@resend.dev').strip()
+SENDER_EMAIL = (os.environ.get('SENDER_EMAIL') or 'noreply@leadrelay.net').strip()
 FRONTEND_URL = (os.environ.get('FRONTEND_URL') or 'https://leadrelay.net').strip()
 
 # Log Resend configuration status (without exposing key)
@@ -106,7 +106,7 @@ if resend.api_key:
 else:
     logger.warning("RESEND_API_KEY not configured - email sending will fail!")
 
-app = FastAPI(title="TeleAgent - AI Sales Agent")
+app = FastAPI(title="LeadRelay - AI Sales Automation")
 api_router = APIRouter(prefix="/api")
 
 # ============ Configuration ============
@@ -418,45 +418,45 @@ async def send_confirmation_email(email: str, name: str, token: str) -> bool:
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 30px;">
-                <h1 style="color: #10b981; margin: 0;">TeleAgent</h1>
-                <p style="color: #64748b; margin-top: 5px;">AI Sales Agent Platform</p>
+                <h1 style="color: #059669; margin: 0;">LeadRelay</h1>
+                <p style="color: #64748b; margin-top: 5px;">AI-Powered Sales Automation</p>
             </div>
-            
+
             <h2 style="color: #1e293b;">Welcome, {name}!</h2>
-            
+
             <p style="color: #475569; line-height: 1.6;">
-                Thank you for registering with TeleAgent. Please confirm your email address 
+                Thank you for registering with LeadRelay. Please confirm your email address
                 by clicking the button below:
             </p>
-            
+
             <div style="text-align: center; margin: 30px 0;">
-                <a href="{confirmation_url}" 
-                   style="background-color: #10b981; color: white; padding: 12px 30px; 
+                <a href="{confirmation_url}"
+                   style="background-color: #059669; color: white; padding: 12px 30px;
                           text-decoration: none; border-radius: 6px; font-weight: bold;
                           display: inline-block;">
                     Confirm Email
                 </a>
             </div>
-            
+
             <p style="color: #64748b; font-size: 14px;">
                 Or copy and paste this link into your browser:<br/>
-                <a href="{confirmation_url}" style="color: #10b981; word-break: break-all;">
+                <a href="{confirmation_url}" style="color: #059669; word-break: break-all;">
                     {confirmation_url}
                 </a>
             </p>
-            
+
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;"/>
-            
+
             <p style="color: #94a3b8; font-size: 12px; text-align: center;">
                 If you didn't create an account, you can safely ignore this email.
             </p>
         </div>
         """
-        
+
         params = {
             "from": SENDER_EMAIL,
             "to": [email],
-            "subject": "Confirm your TeleAgent account",
+            "subject": "Confirm your LeadRelay account",
             "html": html_content
         }
         
@@ -478,35 +478,35 @@ async def send_password_reset_email(email: str, name: str, token: str) -> bool:
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 30px;">
-                <h1 style="color: #10b981; margin: 0;">TeleAgent</h1>
+                <h1 style="color: #059669; margin: 0;">LeadRelay</h1>
             </div>
-            
+
             <h2 style="color: #1e293b;">Password Reset Request</h2>
-            
+
             <p style="color: #475569; line-height: 1.6;">
-                Hi {name}, we received a request to reset your password. 
+                Hi {name}, we received a request to reset your password.
                 Click the button below to create a new password:
             </p>
-            
+
             <div style="text-align: center; margin: 30px 0;">
-                <a href="{reset_url}" 
-                   style="background-color: #10b981; color: white; padding: 12px 30px; 
+                <a href="{reset_url}"
+                   style="background-color: #059669; color: white; padding: 12px 30px;
                           text-decoration: none; border-radius: 6px; font-weight: bold;
                           display: inline-block;">
                     Reset Password
                 </a>
             </div>
-            
+
             <p style="color: #64748b; font-size: 14px;">
                 This link expires in 1 hour. If you didn't request this, ignore this email.
             </p>
         </div>
         """
-        
+
         params = {
             "from": SENDER_EMAIL,
             "to": [email],
-            "subject": "Reset your TeleAgent password",
+            "subject": "Reset your LeadRelay password",
             "html": html_content
         }
         
@@ -716,37 +716,8 @@ async def register(request: RegisterRequest):
         except Exception as e:
             logger.warning(f"Could not create tenant config: {e}")
 
-        # Send confirmation email via Resend
-        try:
-            confirm_url = f"{FRONTEND_URL}/confirm-email?token={confirmation_token}"
-
-            logger.info(f"Sending confirmation email from '{SENDER_EMAIL}' to '{request.email}'")
-            logger.info(f"Resend API key configured: {bool(resend.api_key)}")
-            email_response = resend.emails.send({
-                "from": SENDER_EMAIL,
-                "to": request.email,
-                "subject": "Confirm your LeadRelay account",
-                "html": f"""
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #059669;">Welcome to LeadRelay!</h2>
-                    <p>Hi {request.name},</p>
-                    <p>Thank you for registering. Please confirm your email address by clicking the button below:</p>
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{confirm_url}" style="background-color: #059669; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">Confirm Email</a>
-                    </div>
-                    <p>Or copy and paste this link into your browser:</p>
-                    <p style="color: #666; word-break: break-all;">{confirm_url}</p>
-                    <p>This link will expire in 24 hours.</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="color: #999; font-size: 12px;">If you didn't create an account, you can ignore this email.</p>
-                </div>
-                """
-            })
-            logger.info(f"Resend response: {email_response}")
-        except Exception as e:
-            logger.error(f"Failed to send confirmation email: {type(e).__name__}: {e}", exc_info=True)
-            logger.error(f"Resend config - API key set: {bool(resend.api_key)}, Sender: {SENDER_EMAIL}")
-            # Don't fail registration if email fails - user can request resend
+        # Send confirmation email via async helper
+        await send_confirmation_email(request.email, request.name, confirmation_token)
 
         return AuthResponse(
             token=None,
@@ -820,25 +791,8 @@ async def resend_confirmation(email: EmailStr):
                 "token_expires_at": token_expires
             }, 'id', user['id'])
 
-            # Send email via Resend
-            confirm_url = f"{FRONTEND_URL}/confirm-email?token={confirmation_token}"
-
-            resend.emails.send({
-                "from": SENDER_EMAIL,
-                "to": email,
-                "subject": "Confirm your LeadRelay account",
-                "html": f"""
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #059669;">Confirm Your Email</h2>
-                    <p>Hi {user.get('name', 'there')},</p>
-                    <p>Please confirm your email address by clicking the button below:</p>
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{confirm_url}" style="background-color: #059669; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">Confirm Email</a>
-                    </div>
-                    <p>Or copy and paste this link: {confirm_url}</p>
-                </div>
-                """
-            })
+            # Send email via async helper
+            await send_confirmation_email(email, user.get('name', 'there'), confirmation_token)
         return {"message": "If this email is registered, a confirmation link will be sent."}
     except Exception as e:
         logger.error(f"Resend confirmation error: {type(e).__name__}: {e}", exc_info=True)
@@ -863,26 +817,8 @@ async def forgot_password(email: EmailStr):
                 "password_reset_expires_at": token_expires
             }, 'id', user['id'])
 
-            # Send email via Resend
-            reset_url = f"{FRONTEND_URL}/reset-password?token={reset_token}"
-
-            resend.emails.send({
-                "from": SENDER_EMAIL,
-                "to": email,
-                "subject": "Reset your LeadRelay password",
-                "html": f"""
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #059669;">Reset Your Password</h2>
-                    <p>Hi {user.get('name', 'there')},</p>
-                    <p>We received a request to reset your password. Click the button below to create a new password:</p>
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{reset_url}" style="background-color: #059669; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">Reset Password</a>
-                    </div>
-                    <p>Or copy and paste this link: {reset_url}</p>
-                    <p>If you didn't request this, you can ignore this email.</p>
-                </div>
-                """
-            })
+            # Send email via async helper
+            await send_password_reset_email(email, user.get('name', 'there'), reset_token)
         return {"message": "If this email is registered, a password reset link will be sent."}
     except Exception as e:
         logger.warning(f"Password reset error: {e}")
@@ -4030,7 +3966,7 @@ def _build_bitrix_lead_summary(fields: Dict, hotness: str, score: int) -> str:
         lines.append("• No additional details collected yet")
 
     lines.append("")
-    lines.append("Source: Telegram Bot (TeleAgent)")
+    lines.append("Source: Telegram Bot (LeadRelay)")
 
     return "\n".join(lines)
 
@@ -5488,7 +5424,7 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
 # ============ Health Check ============
 @api_router.get("/")
 async def root():
-    return {"message": "TeleAgent API - AI Sales Agent for Telegram", "version": "2.0", "features": ["sales_pipeline", "objection_handling", "closing_scripts", "bitrix24_oauth"]}
+    return {"message": "LeadRelay API - AI Sales Automation", "version": "2.0", "features": ["sales_pipeline", "objection_handling", "closing_scripts", "bitrix24_oauth"]}
 
 
 @api_router.get("/health")

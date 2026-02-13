@@ -66,7 +66,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
             onClick={onGetStarted}
             className="group bg-emerald-500 hover:bg-emerald-400 text-slate-900 px-8 py-4 rounded-full font-semibold text-lg transition-all duration-200 inline-flex items-center gap-2 shadow-lg shadow-emerald-500/25 hover:shadow-emerald-400/30"
           >
-            Try for free
+            Get Started
             <ArrowRight
               className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-1"
               strokeWidth={2}

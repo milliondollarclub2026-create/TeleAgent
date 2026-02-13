@@ -7,6 +7,8 @@ import {
   Bot,
   BarChart3,
   Database,
+  Globe,
+  FileText,
   Headphones,
   ChevronDown,
   Menu,
@@ -14,6 +16,7 @@ import {
   Zap,
   Shield
 } from 'lucide-react';
+import PricingSection from '../components/PricingSection';
 
 export default function PricingPage() {
   const navigate = useNavigate();
@@ -58,68 +61,47 @@ export default function PricingPage() {
   const goToFeatures = () => navigate('/#features');
   const goToHowItWorks = () => navigate('/#how-it-works');
 
-  const pricingTiers = [
-    {
-      name: 'Starter',
-      price: '$50',
-      period: '/month',
-      description: 'For small businesses ready to automate their first Telegram sales channel',
-      features: [
-        { text: '250 AI messages/month', icon: MessageSquare },
-        { text: '2 AI Agents', icon: Bot },
-        { text: 'Telegram integration', icon: Zap },
-        { text: 'Basic analytics', icon: BarChart3 },
-      ],
-      highlighted: false,
-    },
-    {
-      name: 'Professional',
-      price: '$100',
-      period: '/month',
-      description: 'For growing teams that need unlimited agents and full Bitrix24 CRM integration',
-      features: [
-        { text: '600 AI messages/month', icon: MessageSquare },
-        { text: 'Unlimited AI Agents', icon: Bot },
-        { text: 'Telegram + Bitrix24 integration', icon: Database },
-        { text: 'CRM Chat feature', icon: MessageSquare },
-        { text: 'Advanced analytics', icon: BarChart3 },
-        { text: 'Priority support', icon: Headphones },
-      ],
-      highlighted: true,
-      badge: 'POPULAR',
-    },
+  const featureDetails = [
+    { icon: MessageSquare, title: 'Unlimited AI Messages', description: 'No caps on conversations. Your AI agents handle every customer inquiry without limits.' },
+    { icon: Bot, title: 'Unlimited AI Agents', description: 'Create as many specialized agents as you need for different products or workflows.' },
+    { icon: Database, title: 'Bitrix24 CRM Integration', description: 'Two-way sync for leads, deals, contacts, and products. Keep your pipeline organized automatically.' },
+    { icon: FileText, title: 'Knowledge Base Training', description: 'Upload PDFs, documents, and FAQs. Your AI learns your products and gives accurate answers.' },
+    { icon: Globe, title: 'Multi-Language Support', description: 'Fluent in Uzbek, Russian, and English. Auto-detects and responds in the customer\'s language.' },
+    { icon: Zap, title: 'Google Sheets Export', description: 'Export leads, conversations, and analytics to Google Sheets for custom reporting.' },
+    { icon: BarChart3, title: 'Advanced Analytics', description: 'Track conversion rates, response times, and agent performance with detailed dashboards.' },
+    { icon: Headphones, title: 'Priority Support', description: 'Get help when you need it. Direct access to our team for setup and troubleshooting.' },
   ];
 
   const faqs = [
     {
-      question: 'What happens if I exceed my message limit?',
-      answer: 'Your AI agents will pause until the next billing cycle. You can upgrade to Professional at any time to get more messages, or purchase additional message packs.',
+      question: 'How does per-channel pricing work?',
+      answer: 'Each messaging channel costs $30/month. You only pay for the channels you activate. All features are included with every channel — no tiers, no upsells.',
     },
     {
-      question: 'Can I switch plans at any time?',
-      answer: 'Yes. You can upgrade or downgrade your plan at any time. When upgrading, you get immediate access to new features. When downgrading, changes take effect at your next billing cycle.',
+      question: 'Can I add more channels later?',
+      answer: 'Yes. When new channels like WhatsApp or Instagram become available, you can add them to your account instantly. Each additional channel is $30/month.',
     },
     {
       question: 'What integrations are included?',
-      answer: 'Starter includes Telegram Bot integration. Professional adds full Bitrix24 CRM integration with two-way sync for leads, deals, contacts, and products.',
+      answer: 'Every channel includes full Bitrix24 CRM integration with two-way sync, Google Sheets export, knowledge base training, and advanced analytics. Nothing is locked behind a higher tier.',
     },
     {
       question: 'How do I get started?',
-      answer: 'Choose a plan and sign up. Setup takes under 10 minutes. Our onboarding wizard walks you through connecting your Telegram bot and configuring your AI agent.',
+      answer: 'Sign up and our onboarding wizard walks you through connecting your Telegram bot, training your AI agent, and configuring your CRM integration. Most businesses are live in under 10 minutes.',
     },
     {
       question: 'What languages does the AI support?',
       answer: 'Our AI agents fluently support English, Russian, and Uzbek. The AI auto-detects the customer\'s language and responds naturally in their preferred language.',
     },
     {
-      question: 'How does CRM Chat work?',
-      answer: 'CRM Chat lets you query your Bitrix24 data using natural language. Ask questions like "What are my top leads this week?" or "Show me deals closing this month" and get instant insights.',
+      question: 'Can I cancel anytime?',
+      answer: 'Yes. There are no long-term contracts. Cancel your subscription at any time and your service continues until the end of the billing period.',
     },
   ];
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden">
-      {/* Navigation - Matches landing page */}
+      {/* Navigation */}
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         isScrolled
           ? 'bg-white/90 backdrop-blur-xl border-b border-slate-200/50 shadow-sm'
@@ -239,156 +221,43 @@ export default function PricingPage() {
               Pricing
             </span>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-6">
-              Simple, transparent <span className="text-emerald-600">pricing</span>
+              Simple, per-channel <span className="text-emerald-600">pricing</span>
             </h1>
             <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto">
-              No hidden fees, no long-term contracts. Choose the plan that fits your business and start selling smarter today.
+              No hidden fees, no tiers. Pay per channel, get everything included.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Pricing Cards Section */}
-      <section className="py-16 bg-slate-50">
+      {/* Pricing Section Component */}
+      <PricingSection onGetStarted={handleCTA} />
+
+      {/* Everything Included - Feature Details */}
+      <section className="py-24 bg-white">
         <div className="max-w-5xl mx-auto px-6 md:px-12">
-          <div className="grid md:grid-cols-2 gap-8">
-            {pricingTiers.map((tier, index) => (
-              <div
-                key={tier.name}
-                className={`relative bg-white rounded-2xl p-8 transform transition-all duration-700 ${
-                  isVisible ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'
-                } ${tier.highlighted
-                  ? 'border-2 border-emerald-500 shadow-xl shadow-emerald-100'
-                  : 'border border-slate-200 shadow-sm hover:shadow-md'
-                } hover:-translate-y-1`}
-                style={{ transitionDelay: `${index * 150}ms` }}
-              >
-                {tier.badge && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <span className="bg-emerald-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
-                      {tier.badge}
-                    </span>
-                  </div>
-                )}
-
-                <div className="mb-8">
-                  <h3 className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-2">
-                    {tier.name}
-                  </h3>
-                  <p className="text-slate-500 text-sm">{tier.description}</p>
-                </div>
-
-                <div className="mb-8">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-5xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">
-                      {tier.price}
-                    </span>
-                    <span className="text-slate-500 text-lg">{tier.period}</span>
-                  </div>
-                </div>
-
-                <ul className="space-y-4 mb-8">
-                  {tier.features.map((feature, featureIndex) => (
-                    <li key={featureIndex} className="flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        tier.highlighted ? 'bg-emerald-100' : 'bg-slate-100'
-                      }`}>
-                        <Check className={`w-3 h-3 ${
-                          tier.highlighted ? 'text-emerald-600' : 'text-slate-600'
-                        }`} strokeWidth={2.5} />
-                      </div>
-                      <span className="text-slate-700">{feature.text}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <button
-                  onClick={handleCTA}
-                  className={`w-full py-4 rounded-full font-semibold transition-all duration-300 ${
-                    tier.highlighted
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-200'
-                      : 'border border-slate-300 hover:border-emerald-500 text-slate-700 hover:text-emerald-700'
-                  }`}
-                >
-                  Get Started
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className={`text-center mt-12 transform transition-all duration-700 delay-500 ${
-            isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
-          }`}>
-            <p className="text-slate-500 text-sm flex items-center justify-center gap-4">
-              <span className="flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-emerald-600" strokeWidth={2} />
-                Setup in under 10 minutes
-              </span>
-              <span className="text-slate-300">|</span>
-              <span className="flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-emerald-600" strokeWidth={2} />
-                Cancel anytime
-              </span>
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Feature Comparison */}
-      <section className="py-16 bg-white">
-        <div className="max-w-4xl mx-auto px-6 md:px-12">
-          <div className="text-center mb-12 scroll-reveal">
+          <div className="text-center mb-16 scroll-reveal">
             <h2 className="text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-4">
-              Compare plans
+              Everything included
             </h2>
-            <p className="text-slate-500">See what is included in each plan</p>
+            <p className="text-slate-500">No tiers, no upsells. Every feature with every channel.</p>
           </div>
 
-          <div className="bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 scroll-reveal" style={{ transitionDelay: '100ms' }}>
-            <div className="grid grid-cols-3 bg-slate-100 border-b border-slate-200">
-              <div className="p-4 font-medium text-slate-900">Feature</div>
-              <div className="p-4 font-medium text-slate-900 text-center">Starter</div>
-              <div className="p-4 font-medium text-emerald-600 text-center bg-emerald-50">Professional</div>
-            </div>
-
-            {[
-              { feature: 'AI Messages', starter: '250/month', professional: '600/month' },
-              { feature: 'AI Agents', starter: '2', professional: 'Unlimited' },
-              { feature: 'Telegram Integration', starter: true, professional: true },
-              { feature: 'Bitrix24 Integration', starter: false, professional: true },
-              { feature: 'CRM Chat', starter: false, professional: true },
-              { feature: 'Google Sheets Export', starter: false, professional: true },
-              { feature: 'Analytics', starter: 'Basic', professional: 'Advanced' },
-              { feature: 'Support', starter: 'Email', professional: 'Priority' },
-            ].map((row, index) => (
-              <div key={index} className={`grid grid-cols-3 ${
-                index < 7 ? 'border-b border-slate-200' : ''
-              } hover:bg-slate-50/50 transition-colors`}>
-                <div className="p-4 text-slate-700 text-sm">{row.feature}</div>
-                <div className="p-4 text-center text-slate-600 text-sm">
-                  {typeof row.starter === 'boolean' ? (
-                    row.starter ? (
-                      <Check className="w-5 h-5 text-emerald-600 mx-auto" strokeWidth={2} />
-                    ) : (
-                      <span className="text-slate-300">-</span>
-                    )
-                  ) : (
-                    row.starter
-                  )}
+          <div className="grid md:grid-cols-2 gap-6 scroll-reveal" style={{ transitionDelay: '100ms' }}>
+            {featureDetails.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <div key={feature.title} className="flex gap-4 p-5 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <Icon className="w-5 h-5 text-emerald-600" strokeWidth={1.75} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-900 text-sm mb-1">{feature.title}</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed">{feature.description}</p>
+                  </div>
                 </div>
-                <div className="p-4 text-center text-slate-700 bg-emerald-50/50 text-sm">
-                  {typeof row.professional === 'boolean' ? (
-                    row.professional ? (
-                      <Check className="w-5 h-5 text-emerald-600 mx-auto" strokeWidth={2} />
-                    ) : (
-                      <span className="text-slate-300">-</span>
-                    )
-                  ) : (
-                    <span className="font-medium">{row.professional}</span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -436,7 +305,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* CTA Section - Dark, matching landing page */}
+      {/* CTA Section */}
       <section className="py-32 relative overflow-hidden">
         <div className="absolute inset-0 bg-[#0a0f1a]" />
         <div className="absolute inset-0" style={{
@@ -459,7 +328,7 @@ export default function PricingPage() {
               onClick={handleCTA}
               className="group inline-flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/30"
             >
-              Get Started Free
+              Get Started
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform duration-300" strokeWidth={2.5} />
             </button>
           </div>
@@ -467,8 +336,8 @@ export default function PricingPage() {
           <div className="mt-16 pt-8 border-t border-white/5">
             <div className="flex flex-wrap justify-center items-center gap-10 md:gap-16">
               {[
-                { icon: <Zap className="w-4 h-4" strokeWidth={2.5} />, text: '14-day free trial' },
-                { icon: <Shield className="w-4 h-4" strokeWidth={2.5} />, text: 'No credit card required' },
+                { icon: <Zap className="w-4 h-4" strokeWidth={2.5} />, text: '10-minute setup' },
+                { icon: <Shield className="w-4 h-4" strokeWidth={2.5} />, text: 'Cancel anytime' },
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -482,7 +351,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* Footer - Dark, matching landing page */}
+      {/* Footer */}
       <footer className="bg-[#0a0f1a] border-t border-white/5 relative overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
 

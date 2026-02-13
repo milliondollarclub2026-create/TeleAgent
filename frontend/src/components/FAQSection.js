@@ -35,9 +35,9 @@ const faqData = [
   },
   {
     id: 'faq-5',
-    question: 'Is there a free trial?',
+    question: 'How does billing work?',
     answer:
-      'Yes. We offer a 14-day free trial with full access to all features. No credit card required to get started.',
+      'LeadRelay uses simple per-channel pricing at $30/month per channel. You only pay for the channels you activate. Cancel anytime with no long-term contracts.',
   },
   {
     id: 'faq-6',
