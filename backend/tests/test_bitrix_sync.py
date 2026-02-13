@@ -392,6 +392,101 @@ class TestShouldSyncToBitrix:
         assert should_sync is True
         assert reason == "hotness_hot_to_cold"
 
+    # ============ Hotness Change WITHOUT Contact (Bug Fix Tests) ============
+
+    def test_no_sync_hotness_change_without_contact_info(self):
+        """BUG FIX: Should NOT sync when hotness changes but no contact info exists"""
+        should_sync, reason = _should_sync_to_bitrix(
+            fields_collected={"product": "Widget"},  # No name, phone, or email
+            previous_fields={"product": "Widget"},
+            current_score=75,  # warm->hot transition
+            previous_score=50,
+            crm_lead_id="123"
+        )
+        assert should_sync is False
+        assert reason == "hotness_change_no_contact"
+
+    def test_no_sync_cold_to_hot_without_contact(self):
+        """BUG FIX: Should NOT sync cold->hot without any contact info"""
+        should_sync, reason = _should_sync_to_bitrix(
+            fields_collected={},  # Empty - no contact
+            previous_fields={},
+            current_score=85,
+            previous_score=25,
+            crm_lead_id="123"
+        )
+        assert should_sync is False
+        assert reason == "hotness_change_no_contact"
+
+    def test_no_sync_warm_to_hot_with_only_product(self):
+        """BUG FIX: Should NOT sync warm->hot with only product info (no contact)"""
+        should_sync, reason = _should_sync_to_bitrix(
+            fields_collected={"product": "Premium", "budget": "$1000"},
+            previous_fields={"product": "Premium"},
+            current_score=80,
+            previous_score=55,
+            crm_lead_id="123"
+        )
+        # Should sync because of new_budget, but if we had same fields...
+        # Let's test with no new fields
+        should_sync2, reason2 = _should_sync_to_bitrix(
+            fields_collected={"product": "Premium", "budget": "$1000"},
+            previous_fields={"product": "Premium", "budget": "$1000"},
+            current_score=80,
+            previous_score=55,
+            crm_lead_id="123"
+        )
+        assert should_sync2 is False
+        assert reason2 == "hotness_change_no_contact"
+
+    def test_sync_hotness_change_with_phone(self):
+        """Should sync on hotness change when phone number exists"""
+        should_sync, reason = _should_sync_to_bitrix(
+            fields_collected={"phone": "+998901234567"},
+            previous_fields={"phone": "+998901234567"},
+            current_score=75,
+            previous_score=50,
+            crm_lead_id="123"
+        )
+        assert should_sync is True
+        assert reason == "hotness_warm_to_hot"
+
+    def test_sync_hotness_change_with_name(self):
+        """Should sync on hotness change when name exists"""
+        should_sync, reason = _should_sync_to_bitrix(
+            fields_collected={"name": "Jamshid"},
+            previous_fields={"name": "Jamshid"},
+            current_score=75,
+            previous_score=50,
+            crm_lead_id="123"
+        )
+        assert should_sync is True
+        assert reason == "hotness_warm_to_hot"
+
+    def test_sync_hotness_change_with_email(self):
+        """Should sync on hotness change when email exists"""
+        should_sync, reason = _should_sync_to_bitrix(
+            fields_collected={"email": "customer@example.com"},
+            previous_fields={"email": "customer@example.com"},
+            current_score=75,
+            previous_score=50,
+            crm_lead_id="123"
+        )
+        assert should_sync is True
+        assert reason == "hotness_warm_to_hot"
+
+    def test_no_sync_hotness_downgrade_without_contact(self):
+        """BUG FIX: Should NOT sync hot->cold downgrade without contact"""
+        should_sync, reason = _should_sync_to_bitrix(
+            fields_collected={"product": "Widget"},
+            previous_fields={"product": "Widget"},
+            current_score=25,
+            previous_score=80,
+            crm_lead_id="123"
+        )
+        assert should_sync is False
+        assert reason == "hotness_change_no_contact"
+
     # ============ Skip Conditions ============
 
     def test_no_sync_when_no_changes(self):

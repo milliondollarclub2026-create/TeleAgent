@@ -1,0 +1,34 @@
+{
+  "name": "teleagent",
+  "version": "1.0.0",
+  "description": "LeadRelay - AI-powered Sales Agent Platform",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:report": "playwright show-report e2e/reports",
+    "test:crm": "playwright test crm-sync",
+    "test:leads": "playwright test lead-scoring lead-filters",
+    "test:contact": "playwright test contact-collection",
+    "test:product": "playwright test product-integrity",
+    "test:backend": "cd backend && python -m pytest tests/test_bitrix_sync.py -v"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/milliondollarclub2026-create/TeleAgent.git"
+  },
+  "keywords": ["leadrelay", "sales-agent", "telegram-bot", "ai", "crm"],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/milliondollarclub2026-create/TeleAgent/issues"
+  },
+  "homepage": "https://github.com/milliondollarclub2026-create/TeleAgent#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}
