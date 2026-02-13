@@ -54,9 +54,14 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
           </button>
           <button
             onClick={onBookDemo}
-            className="text-slate-600 hover:text-slate-900 px-8 py-4 font-semibold text-lg transition-all duration-200"
+            className="group text-slate-600 hover:text-emerald-700 px-8 py-4 font-semibold text-lg transition-all duration-300 rounded-full hover:bg-emerald-50 border border-transparent hover:border-emerald-200"
           >
-            Meet the team
+            <span className="flex items-center gap-2">
+              Meet the team
+              <svg className="w-4 h-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </span>
           </button>
         </div>
 

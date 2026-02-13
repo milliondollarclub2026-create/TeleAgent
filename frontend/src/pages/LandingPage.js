@@ -733,15 +733,15 @@ export default function LandingPage() {
                 description: 'Flip the switch. Your AI team handles conversations, qualifies leads, collects contacts, and logs every deal to your CRM. You focus on closing.',
               }
             ].map((item) => (
-              <div key={item.step} className="group flex flex-col cursor-default">
-                {/* Large step number — turns emerald on hover */}
+              <div key={item.step} className={`group flex flex-col cursor-default step-glow step-glow-${item.step}`}>
+                {/* Large step number — turns emerald on hover + glow pulse */}
                 <div className="mb-6">
-                  <span className="text-5xl font-bold text-slate-200 group-hover:text-emerald-500 transition-colors duration-300 font-['Plus_Jakarta_Sans']">
+                  <span className="step-number text-5xl font-bold text-slate-200 group-hover:text-emerald-500 transition-colors duration-300 font-['Plus_Jakarta_Sans']">
                     {item.step}
                   </span>
                 </div>
 
-                <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-emerald-100/50 group-hover:border-emerald-200 group-hover:-translate-y-1">
+                <div className="step-card flex-1 bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-emerald-100/50 group-hover:border-emerald-200 group-hover:-translate-y-1">
                   <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans']">
                     {item.title}
                   </h3>
@@ -976,6 +976,58 @@ export default function LandingPage() {
         .scroll-reveal.revealed {
           opacity: 1;
           transform: translateY(0);
+        }
+
+        /* Sequential emerald glow on step cards */
+        @keyframes step-glow-sweep {
+          0%, 15% {
+            box-shadow: 0 0 0 0 rgba(5, 150, 105, 0), 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            border-color: rgb(226, 232, 240);
+          }
+          30% {
+            box-shadow: 0 0 30px -5px rgba(5, 150, 105, 0.25), 0 20px 40px -10px rgba(5, 150, 105, 0.15);
+            border-color: rgb(167, 243, 208);
+          }
+          50%, 100% {
+            box-shadow: 0 0 0 0 rgba(5, 150, 105, 0), 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            border-color: rgb(226, 232, 240);
+          }
+        }
+        @keyframes step-number-sweep {
+          0%, 15% { color: rgb(226, 232, 240); }
+          30% { color: rgb(16, 185, 129); }
+          50%, 100% { color: rgb(226, 232, 240); }
+        }
+
+        .step-glow-1 .step-card {
+          animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          animation-delay: 0s;
+        }
+        .step-glow-1 .step-number {
+          animation: step-number-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          animation-delay: 0s;
+        }
+        .step-glow-2 .step-card {
+          animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          animation-delay: 2s;
+        }
+        .step-glow-2 .step-number {
+          animation: step-number-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          animation-delay: 2s;
+        }
+        .step-glow-3 .step-card {
+          animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          animation-delay: 4s;
+        }
+        .step-glow-3 .step-number {
+          animation: step-number-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          animation-delay: 4s;
+        }
+
+        /* Pause glow animation on hover (hover effect takes priority) */
+        .step-glow:hover .step-card,
+        .step-glow:hover .step-number {
+          animation-play-state: paused;
         }
       `}</style>
     </div>
