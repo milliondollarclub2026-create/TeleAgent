@@ -25,6 +25,9 @@ import LeadsPage from "./pages/LeadsPage";
 import AgentLeadsPage from "./pages/AgentLeadsPage";
 import AgentDialoguePage from "./pages/AgentDialoguePage";
 import ConnectionsPage from "./pages/ConnectionsPage";
+import GoogleSheetsSetupPage from "./pages/GoogleSheetsSetupPage";
+import TelegramSetupPage from "./pages/TelegramSetupPage";
+import BitrixSetupPage from "./pages/BitrixSetupPage";
 import SalesAgentPage from "./pages/SalesAgentPage";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
 import SettingsPage from "./pages/SettingsPage";
@@ -72,6 +75,9 @@ function AppRoutes() {
         <Route path="agents/:agentId/test-chat" element={<AgentTestChatPage />} />
         <Route path="agents/:agentId/knowledge" element={<KnowledgeBasePage />} />
         <Route path="agents/:agentId/connections" element={<ConnectionsPage />} />
+        <Route path="agents/:agentId/connections/google-sheets" element={<GoogleSheetsSetupPage />} />
+        <Route path="agents/:agentId/connections/telegram" element={<TelegramSetupPage />} />
+        <Route path="agents/:agentId/connections/bitrix" element={<BitrixSetupPage />} />
         <Route path="agents/:agentId/crm-chat" element={<CRMChatPage />} />
         <Route path="agents/:agentId/leads" element={<AgentLeadsPage />} />
         <Route path="agents/:agentId/dialogue" element={<AgentDialoguePage />} />

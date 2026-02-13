@@ -44,7 +44,8 @@ import {
   Shield,
   User,
   CreditCard,
-  ShieldCheck
+  ShieldCheck,
+  Table
 } from 'lucide-react';
 import {
   Tooltip,
@@ -135,6 +136,11 @@ const AgentOnboarding = () => {
   const [showClickSecret, setShowClickSecret] = useState(false);
   const [connectingClick, setConnectingClick] = useState(false);
   const [clickConnected, setClickConnected] = useState(false);
+
+  // Step 5: Connect - Google Sheets
+  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
+  const [connectingGSheets, setConnectingGSheets] = useState(false);
+  const [gSheetsConnected, setGSheetsConnected] = useState(false);
 
   const progress = (currentStep / STEPS.length) * 100;
 
@@ -398,6 +404,26 @@ const AgentOnboarding = () => {
       toast.error(error.response?.data?.detail || 'Failed to connect Click');
     } finally {
       setConnectingClick(false);
+    }
+  };
+
+  const connectGSheets = async () => {
+    if (!googleSheetUrl.trim()) {
+      toast.error('Please enter a Google Sheets share link');
+      return;
+    }
+
+    setConnectingGSheets(true);
+    try {
+      const response = await axios.post(`${API}/google-sheets/connect`, {
+        sheet_url: googleSheetUrl
+      });
+      setGSheetsConnected(true);
+      toast.success(response.data.message || 'Google Sheet connected successfully!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to connect Google Sheet');
+    } finally {
+      setConnectingGSheets(false);
     }
   };
 
@@ -1143,101 +1169,61 @@ const AgentOnboarding = () => {
                 </CardContent>
               </Card>
 
-              {/* Bitrix24 CRM Connection */}
+              {/* Bitrix24 CRM Connection - Simplified */}
               <Card className="bg-white border-slate-200/60 shadow-sm">
                 <CardContent className="p-5">
-                  {bitrixConnected ? (
-                    <div className="text-center py-4">
-                      <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 flex items-center justify-center mb-3">
-                        <Check className="w-6 h-6 text-emerald-600" strokeWidth={2} />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
+                        <Link2 className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
                       </div>
-                      <h3 className="font-semibold text-slate-900 mb-0.5">Bitrix24 Connected!</h3>
-                      <p className="text-slate-500 text-[13px]">
-                        Leads will automatically sync to your CRM
-                      </p>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-slate-900 text-[13px]">Bitrix24 CRM</h3>
+                          <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200 px-1.5 py-0">Optional</Badge>
+                        </div>
+                        <p className="text-[11px] text-slate-500">Sync leads and contacts</p>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
-                            <Link2 className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-slate-900 text-[13px]">Bitrix24 CRM</h3>
-                              <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200 px-1.5 py-0">Optional</Badge>
-                            </div>
-                            <p className="text-[11px] text-slate-500">Sync leads to your CRM</p>
-                          </div>
-                        </div>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button className="w-7 h-7 rounded-md hover:bg-slate-100 flex items-center justify-center transition-colors">
-                              <HelpCircle className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="left" className="max-w-[300px] p-3 bg-slate-900 text-white">
-                            <p className="text-[12px] font-semibold mb-2 text-white">How to get your webhook URL:</p>
-                            <ol className="text-[11px] text-slate-300 space-y-1 list-decimal list-inside">
-                              <li>Go to Developer Resources → Other → Inbound webhooks</li>
-                              <li>Click "Add webhook"</li>
-                              <li>Enable permissions: CRM, Lists (products)</li>
-                              <li>Copy the webhook URL</li>
-                            </ol>
-                            <p className="text-[10px] text-slate-400 mt-2">
-                              Format: https://your-portal.bitrix24.kz/rest/1/abc123/
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <Label className="text-slate-600 text-[12px] font-medium">Webhook URL</Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
-                            </TooltipTrigger>
-                            <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
-                              Encrypted & secured
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <div className="relative">
-                          <Input
-                            type={showBitrixUrl ? "text" : "password"}
-                            placeholder="https://your-portal.bitrix24.kz/rest/1/abc123/"
-                            value={bitrixWebhookUrl}
-                            onChange={(e) => setBitrixWebhookUrl(e.target.value)}
-                            className="h-9 text-[13px] border-slate-200 pr-10"
-                            data-testid="bitrix-webhook-input"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowBitrixUrl(!showBitrixUrl)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                          >
-                            {showBitrixUrl ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <Button
-                        className="w-full bg-slate-900 hover:bg-slate-800 h-9 text-[13px]"
-                        onClick={connectBitrix}
-                        disabled={connectingBitrix}
-                        data-testid="connect-bitrix-btn"
-                      >
-                        {connectingBitrix && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        Connect Bitrix24
-                      </Button>
-                    </div>
-                  )}
+                  </div>
+                  <p className="text-[12px] text-slate-400 mt-3">Set up in Connections after creating your agent</p>
                 </CardContent>
               </Card>
 
-              {/* Payment Gateways Section */}
+              {/* Data Sources Section */}
+              <div className="pt-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Data Sources</span>
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+              </div>
+
+              {/* Google Sheets Connection - Simplified */}
+              <Card className="bg-white border-slate-200/60 shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-[#0F9D58]/10 flex items-center justify-center">
+                        <Table className="w-5 h-5 text-[#0F9D58]" strokeWidth={1.75} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-slate-900 text-[13px]">Google Sheets</h3>
+                          <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-200 px-1.5 py-0">Optional</Badge>
+                        </div>
+                        <p className="text-[11px] text-slate-500">Product catalog & lead tracking</p>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[12px] text-slate-400 mt-3">
+                    Set up in Connections after creating your agent
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Payment Gateways Section - Hidden for now */}
+              {false && (<>
               <div className="pt-2">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="h-px flex-1 bg-slate-200" />
@@ -1473,6 +1459,7 @@ const AgentOnboarding = () => {
                   )}
                 </CardContent>
               </Card>
+              </>)}
 
               <p className="text-center text-[11px] text-slate-400">
                 You can skip this step and connect channels later

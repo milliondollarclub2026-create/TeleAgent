@@ -35,6 +35,10 @@ dist
 *token.json*
 *credentials.json*
 
+# Google Service Account credentials
+backend/credentials/
+*service_account*.json
+
 # Logs and debug files
 npm-debug.log*
 yarn-debug.log*

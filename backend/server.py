@@ -34,6 +34,18 @@ from document_processor import (
 # Import Bitrix24 CRM client
 from bitrix_crm import BitrixCRMClient, BitrixAPIError, create_bitrix_client
 
+# Import Google Sheets write service
+from google_sheets_service import (
+    get_service_account_email,
+    verify_sheet_access,
+    get_or_create_leads_worksheet,
+    append_lead_row,
+    update_lead_row,
+    find_lead_by_telegram,
+    read_product_catalog,
+    FIELD_LABEL_MAP,
+)
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -2340,48 +2352,65 @@ def _extract_sheet_id(url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+@api_router.get("/google-sheets/service-email")
+async def get_google_sheets_service_email(current_user: Dict = Depends(get_current_user)):
+    """Return the service account email for the user to share their sheet with."""
+    email = get_service_account_email()
+    if not email:
+        raise HTTPException(status_code=500, detail="Google Sheets service not configured")
+    return {"email": email}
+
+
 @api_router.post("/google-sheets/connect")
 async def connect_google_sheets(
     request: GoogleSheetsConnect,
     current_user: Dict = Depends(get_current_user)
 ):
-    """Connect a Google Sheet (must be shared as 'Anyone with link can view')"""
+    """Connect a Google Sheet via service account (must be shared with our bot email as Editor)."""
     tenant_id = current_user["tenant_id"]
 
     sheet_id = _extract_sheet_id(request.sheet_url)
     if not sheet_id:
         raise HTTPException(status_code=400, detail="Invalid Google Sheets URL. Please paste a valid share link.")
 
-    # Test that the sheet is publicly accessible by fetching first row as CSV
-    import httpx
-    test_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    # Verify access via service account (gspread)
+    access = verify_sheet_access(sheet_id)
+    if not access["ok"]:
+        raise HTTPException(status_code=400, detail=access["error"])
+
+    # Build field headers from tenant config
+    field_headers = []
     try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-            resp = await client.get(test_url)
-            if resp.status_code != 200:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Could not access the sheet. Make sure it's shared as 'Anyone with the link can view'."
-                )
-            # Verify it's actually CSV content (not an HTML error page)
-            content_type = resp.headers.get('content-type', '')
-            if 'text/csv' not in content_type and 'text/plain' not in content_type and 'application/csv' not in content_type:
-                # Google sometimes returns HTML login page for non-public sheets
-                if '<html' in resp.text[:200].lower():
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Sheet is not publicly accessible. Set sharing to 'Anyone with the link can view'."
-                    )
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=400, detail=f"Could not reach Google Sheets: {str(e)}")
+        config_result = supabase.table('tenant_configs').select('*').eq('tenant_id', tenant_id).execute()
+        if config_result.data:
+            config = config_result.data[0]
+            for field_key, label in FIELD_LABEL_MAP.items():
+                if config.get(field_key, False):
+                    field_headers.append(label)
+    except Exception as e:
+        logger.debug(f"Could not fetch tenant config for field headers: {e}")
+
+    # Default fields if none configured
+    if not field_headers:
+        field_headers = ["Name", "Phone", "Interest"]
+
+    # Create or verify the Leads worksheet
+    leads_result = get_or_create_leads_worksheet(sheet_id, field_headers)
+    if not leads_result["ok"]:
+        logger.warning(f"Could not setup Leads tab: {leads_result.get('error')}")
+        # Non-fatal — sheet still connected for read
 
     connected_at = datetime.utcnow().isoformat()
+    has_write = leads_result.get("ok", False)
 
     # Store in memory cache
     _google_sheets_cache[tenant_id] = {
         'sheet_url': request.sheet_url,
         'sheet_id': sheet_id,
-        'connected_at': connected_at
+        'connected_at': connected_at,
+        'sheet_title': access.get('title', ''),
+        'has_write': has_write,
+        'leads_headers': leads_result.get('headers', []),
     }
     logger.info(f"Stored Google Sheets config in cache for tenant {tenant_id}")
 
@@ -2403,8 +2432,12 @@ async def connect_google_sheets(
         "success": True,
         "message": "Google Sheet connected successfully!",
         "sheet_id": sheet_id,
+        "sheet_title": access.get("title", ""),
+        "tabs": access.get("tabs", []),
+        "has_write": has_write,
+        "leads_tab_created": leads_result.get("created", False),
         "connected_at": connected_at,
-        "persisted": saved_to_db
+        "persisted": saved_to_db,
     }
 
 
@@ -2415,11 +2448,14 @@ async def get_google_sheets_status(current_user: Dict = Depends(get_current_user
 
     # Check memory cache first
     if tenant_id in _google_sheets_cache:
+        cache = _google_sheets_cache[tenant_id]
         return {
             "connected": True,
-            "sheet_url": _google_sheets_cache[tenant_id].get('sheet_url'),
-            "sheet_id": _google_sheets_cache[tenant_id].get('sheet_id'),
-            "connected_at": _google_sheets_cache[tenant_id].get('connected_at'),
+            "sheet_url": cache.get('sheet_url'),
+            "sheet_id": cache.get('sheet_id'),
+            "sheet_title": cache.get('sheet_title', ''),
+            "has_write": cache.get('has_write', False),
+            "connected_at": cache.get('connected_at'),
             "source": "cache"
         }
 
@@ -2431,11 +2467,17 @@ async def get_google_sheets_status(current_user: Dict = Depends(get_current_user
             sheet_id = result.data[0].get('google_sheet_id')
             connected_at = result.data[0].get('google_sheet_connected_at')
 
-            # Populate memory cache from DB for future use (e.g., Telegram bot context)
+            # Check write access via service account
+            access = verify_sheet_access(sheet_id)
+            has_write = access.get("ok", False)
+
+            # Populate memory cache from DB
             _google_sheets_cache[tenant_id] = {
                 'sheet_url': sheet_url,
                 'sheet_id': sheet_id,
-                'connected_at': connected_at
+                'sheet_title': access.get('title', '') if has_write else '',
+                'has_write': has_write,
+                'connected_at': connected_at,
             }
             logger.info(f"Loaded Google Sheets config from database for tenant {tenant_id}")
 
@@ -2443,6 +2485,8 @@ async def get_google_sheets_status(current_user: Dict = Depends(get_current_user
                 "connected": True,
                 "sheet_url": sheet_url,
                 "sheet_id": sheet_id,
+                "sheet_title": access.get('title', '') if has_write else '',
+                "has_write": has_write,
                 "connected_at": connected_at,
                 "source": "database"
             }
@@ -2454,7 +2498,7 @@ async def get_google_sheets_status(current_user: Dict = Depends(get_current_user
 
 @api_router.post("/google-sheets/test")
 async def test_google_sheets_connection(current_user: Dict = Depends(get_current_user)):
-    """Test Google Sheets connection by fetching data"""
+    """Test Google Sheets connection via service account"""
     tenant_id = current_user["tenant_id"]
 
     sheet_id = None
@@ -2465,7 +2509,6 @@ async def test_google_sheets_connection(current_user: Dict = Depends(get_current
             result = supabase.table('tenant_configs').select('google_sheet_url, google_sheet_id, google_sheet_connected_at').eq('tenant_id', tenant_id).execute()
             if result.data and result.data[0].get('google_sheet_id'):
                 sheet_id = result.data[0]['google_sheet_id']
-                # Populate memory cache from DB
                 _google_sheets_cache[tenant_id] = {
                     'sheet_url': result.data[0].get('google_sheet_url', ''),
                     'sheet_id': sheet_id,
@@ -2477,21 +2520,22 @@ async def test_google_sheets_connection(current_user: Dict = Depends(get_current
     if not sheet_id:
         return {"ok": False, "message": "Google Sheets not connected"}
 
-    # Try to fetch the sheet
-    import httpx
-    test_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
-    try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-            resp = await client.get(test_url)
-            if resp.status_code == 200:
-                # Count rows for feedback
-                lines = resp.text.strip().split('\n')
-                row_count = len(lines) - 1  # exclude header
-                return {"ok": True, "message": f"Sheet accessible. {row_count} data rows found."}
-            else:
-                return {"ok": False, "message": "Sheet is no longer accessible. Check sharing settings."}
-    except Exception as e:
-        return {"ok": False, "message": f"Connection failed: {str(e)}"}
+    # Test via service account (gspread)
+    access = verify_sheet_access(sheet_id)
+    if access["ok"]:
+        tabs = access.get("tabs", [])
+        has_leads = "Leads" in tabs
+        tab_info = f"{len(tabs)} tabs"
+        if has_leads:
+            tab_info += " (Leads tab ready)"
+        return {
+            "ok": True,
+            "message": f"Connected! \"{access.get('title', '')}\" — {tab_info}",
+            "has_write": True,
+            "tabs": tabs,
+        }
+    else:
+        return {"ok": False, "message": access.get("error", "Connection failed")}
 
 
 @api_router.post("/google-sheets/disconnect")
@@ -2532,6 +2576,12 @@ def _build_dynamic_context_sections(
     """Build dynamic context sections for objection handling, closing, and contact collection."""
     sections = []
 
+    # CRITICAL FIX: Contact collection urgency goes FIRST for high-priority cases
+    # This ensures the AI sees the contact request instruction before anything else
+    is_high_priority_contact = contact_urgency and ("MANDATORY" in contact_urgency or "HIGH PRIORITY" in contact_urgency)
+    if is_high_priority_contact:
+        sections.append(contact_urgency)
+
     # Objection enforcement section
     if detected_objection and detected_objection.get('response_strategy'):
         sections.append(f"""## ⚠️ ACTIVE OBJECTION DETECTED: {detected_objection.get('objection', 'Unknown')}
@@ -2560,8 +2610,8 @@ CRITICAL: NEVER end a high-score conversation without:
 2. Collecting phone number for follow-up, OR
 3. Scheduling a specific follow-up time""")
 
-    # Contact collection urgency section
-    if contact_urgency:
+    # Contact collection urgency section (for non-high-priority cases)
+    if contact_urgency and not is_high_priority_contact:
         sections.append(contact_urgency)
 
     # Product context section
@@ -2621,6 +2671,16 @@ def get_enhanced_system_prompt(
     business_name = config.get('business_name', 'our company')
     business_description = config.get('business_description', '')
     products_services = config.get('products_services', '')
+
+    # CRITICAL FIX: Prevent AI hallucinations when products not configured
+    # If products_services is empty or too short, add explicit constraint
+    if not products_services or len(products_services.strip()) < 10:
+        products_services = """NO PRODUCTS CONFIGURED.
+CRITICAL: You MUST NOT mention any specific products, brands, models, or prices.
+Instead, ask the customer what they are looking for and collect their requirements.
+Example: "What type of product are you interested in?" or "Can you tell me more about what you need?"
+NEVER invent or assume products exist - only discuss what the customer mentions."""
+
     agent_tone = config.get('agent_tone', 'friendly_professional')
     collect_phone = config.get('collect_phone', True)
     primary_language = config.get('primary_language', 'uz')
@@ -3070,27 +3130,54 @@ def get_contact_collection_urgency(score: int, fields_collected: Dict, stage: st
 
     # Critical: Score 80+ without phone
     if score >= 80:
-        return """## CRITICAL: COLLECT CONTACT NOW
+        return """## 🚨🚨🚨 MANDATORY: COLLECT CONTACT NOW 🚨🚨🚨
 
-Score is 80+. This is a HOT lead. You MUST collect phone number in this response.
-Use assumptive language: "I'll process this for you. What's the best number to confirm your order?"
-Do NOT let this conversation end without phone number."""
+**Score: 80+ - This is a HOT lead ready to buy!**
+
+⚠️ THIS IS YOUR #1 PRIORITY IN THIS RESPONSE ⚠️
+
+Your reply MUST include a phone number request. Use assumptive language:
+- "I'll get this processed for you right away. What's the best number to reach you?"
+- "To confirm your order, I just need your phone number."
+- "Let me arrange this for you - which number should I call?"
+
+❌ DO NOT send another message without asking for phone/contact.
+❌ DO NOT let this conversation end without contact info.
+✅ BE DIRECT - This customer wants to buy, make it easy for them."""
 
     # High priority: Score 60-79
     if score >= 60:
-        priority = "HIGH" if score >= 70 else "MEDIUM"
-        return f"""## {priority} PRIORITY: Request Contact
+        priority = "🔴 HIGH" if score >= 70 else "🟠 MEDIUM"
+        return f"""## {priority} PRIORITY: Request Contact Information
 
-Score is {score}. This customer is engaged and showing buying interest.
-Naturally request phone number: "To provide you with the best service, may I have your phone number?"
-If they hesitate, explain benefit: "This helps us process your order faster and keep you updated." """
+**Score: {score} - Customer is engaged and showing buying signals!**
+
+⚠️ IMPORTANT: Include a contact request in your response!
+
+Natural ways to ask:
+- "To make sure you get the best service, may I have your phone number?"
+- "I'd love to help you further - what's your phone number?"
+- "Can I get your contact so I can send you more details?"
+
+If they hesitate, explain the value:
+- "This helps me process your request faster"
+- "I can send you exclusive offers directly"
+- "Our manager can answer any detailed questions"
+
+🎯 Goal: Get phone number or name before conversation ends."""
 
     # Moderate: Score 40-59 at consideration+ stage
     if score >= 40 and stage in ["consideration", "intent", "evaluation", "purchase"]:
-        return """## Contact Collection Reminder
+        return """## 📞 Contact Collection Reminder
 
-Customer is engaged. When appropriate, ask for contact information to follow up.
-Keep it natural and value-focused: "Would you like me to send you more details? I can reach you at..."  """
+Customer is engaged at {stage} stage. Look for opportunities to ask for contact info.
+
+Natural approaches:
+- "Would you like me to send you more details? What's your phone number?"
+- "I can have our specialist call you - what number works best?"
+- "Let me get your contact so we can follow up on this."
+
+Keep it conversational and value-focused."""
 
     return None
 
@@ -3808,6 +3895,19 @@ async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Op
 
         additional_notes = json.dumps(sales_intelligence) if sales_intelligence else None
 
+        # FIX: Build customer_name and customer_phone with proper fallback chain
+        # Priority: merged_fields (current) -> existing_lead (previous) -> customer table
+        customer_name = (
+            merged_fields.get("name") or
+            (existing_lead.get("customer_name") if existing_lead else None) or
+            customer.get("name")
+        )
+        customer_phone = (
+            merged_fields.get("phone") or
+            (existing_lead.get("customer_phone") if existing_lead else None) or
+            customer.get("phone")
+        )
+
         lead_data = {
             "tenant_id": tenant_id,
             "customer_id": customer['id'],
@@ -3821,8 +3921,8 @@ async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Op
             "product": merged_fields.get("product"),
             "budget": merged_fields.get("budget"),
             "timeline": merged_fields.get("timeline"),
-            "customer_name": merged_fields.get("name"),
-            "customer_phone": merged_fields.get("phone"),
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
             "fields_collected": merged_fields,
             "additional_notes": additional_notes,
             "source_channel": "telegram",
@@ -3985,7 +4085,16 @@ def _should_sync_to_bitrix(
     previous_hotness = _get_hotness_from_score(previous_score)
 
     if current_hotness != previous_hotness:
-        return True, f"hotness_{previous_hotness}_to_{current_hotness}"
+        # CRITICAL FIX: Only sync on hotness transition if we have contact info
+        # This prevents syncing HOT leads to CRM without any way to follow up
+        has_contact = bool(
+            fields_collected.get("phone") or
+            fields_collected.get("name") or
+            fields_collected.get("email")
+        )
+        if has_contact:
+            return True, f"hotness_{previous_hotness}_to_{current_hotness}"
+        return False, "hotness_change_no_contact"
 
     # No meaningful change
     return False, "no_change"
