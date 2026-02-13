@@ -124,20 +124,14 @@ const LoginPage = () => {
   // Gradient left panel (shared across all views)
   const GradientPanel = () => (
     <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-      {/* Dark slate gradient background */}
+      {/* Soft emerald gradient background — matching landing page tone */}
       <div className="absolute inset-0" style={{
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)'
+        background: 'linear-gradient(160deg, #ecfdf5 0%, #f0fdf4 30%, #f8fafc 55%, #f0fdfa 80%, #ecfdf5 100%)'
       }} />
 
-      {/* Subtle pattern overlay */}
-      <div className="absolute inset-0 opacity-[0.07]" style={{
-        backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)`,
-        backgroundSize: '32px 32px'
-      }} />
-
-      {/* Subtle emerald blurs */}
-      <div className="absolute top-1/4 -left-20 w-[400px] h-[400px] bg-emerald-500/10 rounded-full blur-[100px]" />
-      <div className="absolute bottom-1/4 -right-20 w-[350px] h-[350px] bg-emerald-500/10 rounded-full blur-[100px]" />
+      {/* Subtle blurred orbs */}
+      <div className="absolute top-1/4 -left-20 w-[400px] h-[400px] bg-emerald-200/30 rounded-full blur-[120px]" />
+      <div className="absolute bottom-1/4 -right-20 w-[350px] h-[350px] bg-teal-200/25 rounded-full blur-[100px]" />
 
       {/* Logo — pinned top-left */}
       <div className="absolute top-0 left-0 z-20 px-8 py-6">
@@ -148,8 +142,8 @@ const LoginPage = () => {
             className="h-9 w-9"
             style={{ objectFit: 'contain' }}
           />
-          <span className="text-2xl font-bold font-['Plus_Jakarta_Sans'] tracking-tight text-white">
-            LeadRelay
+          <span className="text-2xl font-bold font-['Plus_Jakarta_Sans'] tracking-tight">
+            <span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span>
           </span>
         </div>
       </div>
@@ -157,13 +151,13 @@ const LoginPage = () => {
       {/* Content */}
       <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 w-full">
         <div className="max-w-md" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
-          <h1 className={`text-4xl xl:text-5xl font-bold text-white font-['Plus_Jakarta_Sans'] mb-5 leading-tight tracking-tight transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <h1 className={`text-4xl xl:text-5xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-5 leading-tight tracking-tight transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             Your AI sales team,
             <br />
             always closing.
           </h1>
 
-          <p className={`text-slate-400 text-lg leading-relaxed mb-10 transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <p className={`text-slate-500 text-lg leading-relaxed mb-10 transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             Three AI employees that qualify leads, answer questions, and manage your CRM — in Uzbek, Russian, or English.
           </p>
 
@@ -175,10 +169,10 @@ const LoginPage = () => {
               'Syncs directly with Bitrix24'
             ].map((text, i) => (
               <div key={i} className="flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                  <Check className="w-3 h-3 text-emerald-600" strokeWidth={3} />
+                <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-3 h-3 text-white" strokeWidth={3} />
                 </div>
-                <span className="text-white text-sm font-medium">{text}</span>
+                <span className="text-slate-700 text-sm font-medium">{text}</span>
               </div>
             ))}
           </div>
