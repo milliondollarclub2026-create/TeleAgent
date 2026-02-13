@@ -120,9 +120,6 @@ export default function PricingSection({ onGetStarted }) {
       <div className="max-w-5xl mx-auto px-6 md:px-12">
         {/* Section Header */}
         <div className="text-center mb-12 scroll-reveal">
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-700 mb-6">
-            Pricing
-          </span>
           <h2 className="text-4xl md:text-5xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-4">
             Build your <span className="text-emerald-600">AI team</span>
           </h2>

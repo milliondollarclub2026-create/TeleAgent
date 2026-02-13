@@ -268,29 +268,10 @@ export default function PricingPage() {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="pt-36 pb-16 bg-white relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 relative">
-          <div
-            className={`text-center transform transition-all duration-700 ${
-              isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
-            }`}
-          >
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-700 mb-6">
-              Pricing
-            </span>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-6">
-              Hire your AI team. <span className="text-emerald-600">Pay per agent.</span>
-            </h1>
-            <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed">
-              $15 per agent, per month. Bundle all three for $40. Start with a 7-day free trial.
-            </p>
-          </div>
-        </div>
-      </section>
-
       {/* Pricing Configurator */}
-      <PricingSection onGetStarted={handleCTA} />
+      <div className="pt-36">
+        <PricingSection onGetStarted={handleCTA} />
+      </div>
 
       {/* Everything Included */}
       <section className="py-24 bg-white">
