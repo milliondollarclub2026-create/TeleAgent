@@ -16,18 +16,8 @@ import {
   Loader2,
   TrendingUp,
   Clock,
-  Zap,
-  ArrowUpRight,
   Calendar,
-  LayoutGrid,
-  List,
   Radio,
-  Search,
-  ChevronDown,
-  ChevronUp,
-  Megaphone,
-  BookOpen,
-  FolderSync,
   UserCircle2
 } from 'lucide-react';
 import {
@@ -48,6 +38,7 @@ import {
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
 import { toast } from 'sonner';
+import AiOrb from '../components/Orb/AiOrb';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -135,42 +126,40 @@ const getChannelInfo = (channel) => {
 };
 
 // Prebuilt AI Employees with Uzbek market personalities
+// Each has unique orb colors: [primary, secondary, tertiary]
 const prebuiltEmployees = [
   {
     id: 'prebuilt-sales',
     name: 'Jasur',
     role: 'the Sales Agent',
     description: 'Jasur handles customer conversations on Telegram, qualifies leads based on purchase intent, collects contact information, and never misses a sales opportunity. He speaks Uzbek and Russian fluently.',
-    icon: Megaphone,
     integration: 'telegram',
     integrationName: 'Telegram',
-    color: 'bg-slate-100',
-    iconColor: 'text-slate-600',
-    type: 'sales'
+    type: 'sales',
+    // Emerald/teal gradient - sales = growth = green
+    orbColors: ['#10b981', '#059669', '#14b8a6']
   },
   {
     id: 'prebuilt-faq',
     name: 'Nilufar',
     role: 'the FAQ Specialist',
     description: 'Nilufar answers customer questions instantly using your knowledge base. She handles common inquiries about products, pricing, delivery, and policies, freeing your team for complex issues.',
-    icon: BookOpen,
     integration: 'telegram',
     integrationName: 'Telegram',
-    color: 'bg-slate-100',
-    iconColor: 'text-slate-600',
-    type: 'faq'
+    type: 'faq',
+    // Blue/violet gradient - knowledge = wisdom = blue
+    orbColors: ['#6366f1', '#8b5cf6', '#3b82f6']
   },
   {
     id: 'prebuilt-crm',
     name: 'Bobur',
     role: 'the CRM Manager',
     description: 'Bobur syncs your leads to Bitrix24 CRM automatically. He updates contact info, tracks lead status, and ensures no customer falls through the cracks. Integrates seamlessly with your existing workflow.',
-    icon: FolderSync,
     integration: 'bitrix',
     integrationName: 'Bitrix24',
-    color: 'bg-slate-100',
-    iconColor: 'text-slate-600',
-    type: 'crm'
+    type: 'crm',
+    // Orange/amber gradient - matches Bitrix24 brand
+    orbColors: ['#f97316', '#ea580c', '#f59e0b']
   }
 ];
 
@@ -350,7 +339,6 @@ const AgentsPage = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Hired Prebuilt Employees */}
           {hiredPrebuiltEmployees.map((employee, index) => {
-            const Icon = employee.icon;
             return (
               <Card
                 key={employee.id}
@@ -398,11 +386,13 @@ const AgentsPage = () => {
                 </div>
 
                 <CardContent className="p-5">
-                  {/* Header - Icon only, no menu here anymore */}
+                  {/* Header - Animated Orb */}
                   <div className="mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center shadow-sm">
-                      <Icon className="w-6 h-6 text-slate-600" strokeWidth={1.75} />
-                    </div>
+                    <AiOrb
+                      size={48}
+                      colors={employee.orbColors}
+                      state="idle"
+                    />
                   </div>
 
                   {/* Name & Status */}
@@ -554,19 +544,20 @@ const AgentsPage = () => {
 {/* Prebuilt Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredPrebuilt.map((employee) => {
-            const Icon = employee.icon;
-            const isExpanded = expandedCards[employee.id];
-
             return (
               <Card
                 key={employee.id}
                 className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 group"
               >
                 <CardContent className="p-5">
-                  {/* Header: Icon + Name/Role */}
+                  {/* Header: Animated Orb + Name/Role */}
                   <div className="mb-4">
-                    <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center mb-3">
-                      <Icon className="w-7 h-7 text-slate-600" strokeWidth={1.75} />
+                    <div className="mb-3">
+                      <AiOrb
+                        size={56}
+                        colors={employee.orbColors}
+                        state="idle"
+                      />
                     </div>
                     <h3 className="font-semibold text-slate-900 text-[15px]">{employee.name}</h3>
                     <p className="text-[12px] text-slate-500">{employee.role}</p>

@@ -1,0 +1,320 @@
+/* ================================================================
+   AI ORB — Premium Animated Orb Component
+   Pure CSS animation. Zero dependencies. All browsers.
+   ================================================================ */
+
+/* ---- Container ---- */
+.ai-orb {
+  --orb-color-1: #4fd1c5;
+  --orb-color-2: #7c3aed;
+  --orb-color-3: #3b82f6;
+  --orb-bg: #0a0a1a;
+
+  position: relative;
+  width: var(--orb-size, 48px);
+  height: var(--orb-size, 48px);
+  border-radius: 50%;
+  isolation: isolate;
+  flex-shrink: 0;
+}
+
+.ai-orb[role='button'] {
+  cursor: pointer;
+  outline: none;
+}
+
+.ai-orb[role='button']:focus-visible {
+  box-shadow: 0 0 0 2px var(--orb-color-1);
+}
+
+/* ---- Outer Glow ---- */
+.ai-orb__glow {
+  position: absolute;
+  inset: -25%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--orb-color-1), transparent 70%);
+  opacity: 0.15;
+  animation: orb-breathe 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ---- Sphere (clips internal layers) ---- */
+.ai-orb__sphere {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+/* ---- Dark Core ---- */
+.ai-orb__core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 48%, #16162a 0%, var(--orb-bg) 65%, #050510 100%);
+}
+
+/* ---- Rotating Streak Rings ---- */
+.ai-orb__streaks {
+  position: absolute;
+  inset: -30%;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.ai-orb__streaks--1 {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    var(--orb-color-1) 5%,
+    transparent 12%,
+    transparent 30%,
+    var(--orb-color-2) 36%,
+    transparent 44%,
+    transparent 62%,
+    var(--orb-color-3) 68%,
+    transparent 76%,
+    transparent 100%
+  );
+  filter: blur(max(3px, calc(var(--orb-size, 48px) * 0.1)));
+  opacity: 0.65;
+  animation: orb-spin 8s linear infinite;
+}
+
+.ai-orb__streaks--2 {
+  background: conic-gradient(
+    from 150deg,
+    transparent 0%,
+    var(--orb-color-3) 7%,
+    transparent 15%,
+    transparent 48%,
+    var(--orb-color-1) 55%,
+    transparent 64%,
+    transparent 100%
+  );
+  filter: blur(max(4px, calc(var(--orb-size, 48px) * 0.14)));
+  opacity: 0.4;
+  animation: orb-spin 13s linear infinite reverse;
+}
+
+/* ---- Organic Floating Blobs ---- */
+.ai-orb__blob {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.ai-orb__blob--1 {
+  width: 50%;
+  height: 50%;
+  background: radial-gradient(circle, var(--orb-color-1), transparent 70%);
+  filter: blur(max(2px, calc(var(--orb-size, 48px) * 0.06)));
+  opacity: 0.75;
+  animation: blob-a 10s ease-in-out infinite;
+}
+
+.ai-orb__blob--2 {
+  width: 45%;
+  height: 45%;
+  background: radial-gradient(circle, var(--orb-color-2), transparent 70%);
+  filter: blur(max(3px, calc(var(--orb-size, 48px) * 0.1)));
+  opacity: 0.6;
+  animation: blob-b 13s ease-in-out infinite;
+}
+
+.ai-orb__blob--3 {
+  width: 40%;
+  height: 40%;
+  background: radial-gradient(circle, var(--orb-color-3), transparent 70%);
+  filter: blur(max(2px, calc(var(--orb-size, 48px) * 0.06)));
+  opacity: 0.5;
+  animation: blob-c 15s ease-in-out infinite;
+}
+
+/* ---- Specular Highlight (3D depth) ---- */
+.ai-orb__highlight {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 32% 26%,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(255, 255, 255, 0.03) 30%,
+    transparent 55%
+  );
+  pointer-events: none;
+}
+
+/* ---- Glass Rim ---- */
+.ai-orb__rim {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.1),
+    inset 0 -1px 3px rgba(0, 0, 0, 0.4),
+    0 1px 6px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ================================================================
+   KEYFRAMES
+   ================================================================ */
+
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orb-breathe {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes orb-breathe-fast {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.18);
+  }
+}
+
+@keyframes orb-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+/* Organic blob drift paths — asymmetric for natural feel */
+@keyframes blob-a {
+  0%,
+  100% {
+    transform: translate(25%, 15%) scale(1);
+  }
+  25% {
+    transform: translate(55%, -15%) scale(1.12);
+  }
+  50% {
+    transform: translate(15%, 52%) scale(0.92);
+  }
+  75% {
+    transform: translate(-8%, 20%) scale(1.08);
+  }
+}
+
+@keyframes blob-b {
+  0%,
+  100% {
+    transform: translate(48%, 48%) scale(1.05);
+  }
+  20% {
+    transform: translate(-5%, 28%) scale(0.95);
+  }
+  40% {
+    transform: translate(12%, -12%) scale(1.12);
+  }
+  60% {
+    transform: translate(55%, 8%) scale(0.98);
+  }
+  80% {
+    transform: translate(28%, 58%) scale(1.06);
+  }
+}
+
+@keyframes blob-c {
+  0%,
+  100% {
+    transform: translate(0%, 38%) scale(1);
+  }
+  33% {
+    transform: translate(52%, -8%) scale(1.1);
+  }
+  66% {
+    transform: translate(-12%, -5%) scale(0.92);
+  }
+}
+
+/* ================================================================
+   THINKING STATE
+   ================================================================ */
+
+.ai-orb--thinking {
+  animation: orb-pulse 2s ease-in-out infinite;
+}
+
+.ai-orb--thinking .ai-orb__glow {
+  animation: orb-breathe-fast 1.5s ease-in-out infinite;
+}
+
+.ai-orb--thinking .ai-orb__streaks--1 {
+  animation-duration: 3s;
+  opacity: 0.85;
+}
+
+.ai-orb--thinking .ai-orb__streaks--2 {
+  animation-duration: 4.5s;
+  opacity: 0.65;
+}
+
+.ai-orb--thinking .ai-orb__blob--1 {
+  animation-duration: 4s;
+  opacity: 0.95;
+}
+
+.ai-orb--thinking .ai-orb__blob--2 {
+  animation-duration: 5s;
+  opacity: 0.85;
+}
+
+.ai-orb--thinking .ai-orb__blob--3 {
+  animation-duration: 6s;
+  opacity: 0.75;
+}
+
+.ai-orb--thinking .ai-orb__highlight {
+  background: radial-gradient(
+    circle at 32% 26%,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.05) 30%,
+    transparent 55%
+  );
+}
+
+/* ================================================================
+   ACCESSIBILITY — Reduced Motion
+   ================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-orb,
+  .ai-orb__glow,
+  .ai-orb__streaks,
+  .ai-orb__blob {
+    animation: none;
+  }
+
+  .ai-orb--thinking .ai-orb__glow {
+    opacity: 0.4;
+  }
+}

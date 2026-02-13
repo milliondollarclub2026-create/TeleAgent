@@ -1,0 +1,73 @@
+import React from 'react';
+import './AiOrb.css';
+
+/**
+ * AiOrb — Premium animated orb for AI chat interfaces.
+ *
+ * @param {number}   size      - Diameter in px (default 48)
+ * @param {string}   state     - "idle" | "thinking"
+ * @param {string[]} colors    - [primary, secondary, tertiary] hex colors
+ * @param {string}   className - Extra CSS classes
+ * @param {function} onClick   - Click handler (makes it a button)
+ * @param {object}   style     - Additional inline styles
+ */
+const AiOrb = ({
+  size = 48,
+  state = 'idle',
+  colors,
+  className = '',
+  onClick,
+  style,
+}) => {
+  const colorVars = colors
+    ? {
+        '--orb-color-1': colors[0],
+        '--orb-color-2': colors[1] || colors[0],
+        '--orb-color-3': colors[2] || colors[0],
+      }
+    : {};
+
+  return (
+    <div
+      className={`ai-orb ai-orb--${state} ${className}`.trim()}
+      style={{
+        '--orb-size': `${size}px`,
+        ...colorVars,
+        ...style,
+      }}
+      onClick={onClick}
+      role={onClick ? 'button' : 'img'}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={state === 'thinking' ? 'AI is thinking' : 'AI assistant'}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick(e);
+              }
+            }
+          : undefined
+      }
+    >
+      {/* Soft outer glow */}
+      <div className="ai-orb__glow" />
+
+      {/* Sphere surface — clips all internal layers */}
+      <div className="ai-orb__sphere">
+        <div className="ai-orb__core" />
+        <div className="ai-orb__streaks ai-orb__streaks--1" />
+        <div className="ai-orb__streaks ai-orb__streaks--2" />
+        <div className="ai-orb__blob ai-orb__blob--1" />
+        <div className="ai-orb__blob ai-orb__blob--2" />
+        <div className="ai-orb__blob ai-orb__blob--3" />
+        <div className="ai-orb__highlight" />
+      </div>
+
+      {/* Glass rim */}
+      <div className="ai-orb__rim" />
+    </div>
+  );
+};
+
+export default AiOrb;
