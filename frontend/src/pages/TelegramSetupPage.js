@@ -128,8 +128,8 @@ const TelegramSetupPage = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <div className={`w-2 h-2 rounded-full ${status.connected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-            <span className={`text-xs font-medium ${status.connected ? 'text-emerald-600' : 'text-slate-500'}`}>
+            <div className={`w-2 h-2 rounded-full ${status.connected ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+            <span className={`text-xs font-medium ${status.connected ? 'text-emerald-700' : 'text-slate-500'}`}>
               {status.connected ? 'Connected' : 'Not connected'}
             </span>
           </div>
@@ -142,8 +142,8 @@ const TelegramSetupPage = () => {
             <Card className="bg-white border-slate-200 shadow-sm">
               <div className="p-6">
                 <div className="flex items-center gap-3.5 mb-5">
-                  <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-                    <Check className="w-5 h-5 text-emerald-600" strokeWidth={2} />
+                  <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                    <Check className="w-5 h-5 text-white" strokeWidth={2.5} />
                   </div>
                   <div>
                     <h2 className="font-semibold text-slate-900">
@@ -164,10 +164,10 @@ const TelegramSetupPage = () => {
                     <span className="text-xs font-medium text-slate-700">Messages</span>
                     <span className="text-[10px] text-slate-400 uppercase tracking-wide">Receive</span>
                   </div>
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
-                    <Zap className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />
-                    <span className="text-xs font-medium text-emerald-700">AI Replies</span>
-                    <span className="text-[10px] text-emerald-500 uppercase tracking-wide">Auto</span>
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600 shadow-sm">
+                    <Zap className="w-3.5 h-3.5 text-white" strokeWidth={1.75} />
+                    <span className="text-xs font-medium text-white">AI Replies</span>
+                    <span className="text-[10px] text-emerald-100 uppercase tracking-wide">Auto</span>
                   </div>
                 </div>
 
@@ -239,7 +239,7 @@ const TelegramSetupPage = () => {
                     <Label className="text-slate-700 text-xs font-medium">Bot Token</Label>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 cursor-help" strokeWidth={2} />
                       </TooltipTrigger>
                       <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
                         Encrypted & secured
@@ -386,8 +386,8 @@ const TelegramSetupPage = () => {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                    <Zap className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <Zap className="w-4 h-4 text-white" strokeWidth={1.75} />
                   </div>
                   <div>
                     <p className="text-[13px] font-medium text-slate-900">Auto-reply with AI</p>

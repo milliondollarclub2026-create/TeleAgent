@@ -34,6 +34,15 @@ from document_processor import (
 # Import Bitrix24 CRM client
 from bitrix_crm import BitrixCRMClient, BitrixAPIError, create_bitrix_client
 
+# Import Analytics Context for pre-aggregated CRM intelligence
+from analytics_context import (
+    AnalyticsContextBuilder,
+    match_pattern,
+    get_active_builder,
+    register_builder,
+    unregister_builder
+)
+
 # Import Google Sheets write service
 from google_sheets_service import (
     get_service_account_email,
@@ -1295,6 +1304,11 @@ class BitrixWebhookConnect(BaseModel):
 class CRMChatRequest(BaseModel):
     message: str = Field(..., description="User question about CRM data", min_length=1, max_length=4000)
     conversation_history: List[Dict] = Field(default=[], description="Previous messages in conversation")
+    tenant_id: Optional[str] = Field(default=None, description="Tenant ID for analytics context lookup")
+
+
+class AnalyticsInitRequest(BaseModel):
+    webhook_url: Optional[str] = Field(default=None, description="Bitrix24 webhook URL if not already connected")
 
 
 class PaymeConnect(BaseModel):
@@ -2014,6 +2028,12 @@ async def crm_chat(
 ):
     """
     CRM Chat - AI-powered chat interface for querying CRM data.
+
+    Uses a tiered response system:
+    1. Pattern matching (instant, $0) - For common queries with pre-aggregated data
+    2. GPT-4o-mini with aggregated context (fast, cheap) - For complex queries
+    3. GPT-4o with raw CRM data (slow, expensive) - Fallback
+
     Ask questions like:
     - "What are our top selling products?"
     - "Show me leads from this week"
@@ -2021,12 +2041,133 @@ async def crm_chat(
     - "How many deals are in the pipeline?"
     """
     tenant_id = current_user["tenant_id"]
-    
+
     client = await get_bitrix_client(tenant_id)
     if not client:
         raise HTTPException(status_code=400, detail="Bitrix24 not connected. Please connect your CRM first.")
-    
+
     try:
+        # ============ TIER 1: Pattern Matching (Instant, $0) ============
+        # Check if we have active analytics context with pre-aggregated data
+        builder = get_active_builder(tenant_id)
+        aggregations = None
+
+        if builder:
+            aggregations = await builder.get_aggregations()
+        else:
+            # Try to load from database if no active builder
+            try:
+                result = supabase.table("crm_analytics_context").select(
+                    "aggregations, is_active"
+                ).eq("tenant_id", tenant_id).execute()
+
+                if result.data and result.data[0].get("is_active"):
+                    aggregations = result.data[0].get("aggregations")
+            except Exception as e:
+                logger.debug(f"Could not load analytics context: {e}")
+
+        # Try pattern matching if we have aggregations
+        if aggregations:
+            match_result = match_pattern(request.message, aggregations)
+            if match_result:
+                reply_text, charts = match_result
+                logger.info(f"Pattern match hit for tenant {tenant_id}: {request.message[:50]}...")
+                return {
+                    "reply": reply_text,
+                    "charts": charts,
+                    "response_type": "instant",
+                    "crm_context_used": True,
+                    "data_sources": ["aggregated_analytics"]
+                }
+
+        # ============ TIER 2: GPT-4o-mini with Aggregated + Raw CRM Context ============
+        # Combines pre-aggregated metrics for speed with raw CRM data for depth
+        if aggregations:
+            aggregation_context = _build_aggregation_context(aggregations)
+
+            # ALSO fetch raw CRM data for detailed insights (best of both worlds)
+            crm_context = await client.get_context_for_ai(request.message)
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": f"""You are a helpful CRM assistant for a business using Bitrix24. You have access to both pre-aggregated analytics AND detailed CRM data.
+
+## Pre-Aggregated Analytics (Summary Metrics)
+{aggregation_context}
+
+## Detailed CRM Data (For In-Depth Analysis)
+{crm_context}
+
+## Response Guidelines
+
+### Formatting Rules (IMPORTANT):
+- **Always use markdown formatting** for better readability
+- Use **bold** for key metrics, names, and important numbers
+- Use numbered lists (1. 2. 3.) for ordered items like rankings
+- Use bullet points for unordered lists
+- Use tables when comparing multiple items
+- Add line breaks between sections
+
+### Structure Your Responses:
+- Start with a **direct answer** backed by specific numbers
+- Follow with **supporting details** and context from the data
+- Include **specific examples** from the CRM (lead names, deals, etc.)
+- End with **actionable insights or recommendations**
+
+### Content Rules:
+- Be comprehensive - provide depth, not just surface-level summaries
+- Reference specific leads, deals, or records when relevant
+- Explain trends and patterns you see in the data
+- Provide actionable business insights
+- If asked about specific items, show details from the raw data
+
+## Chart Visualization
+
+Include charts using this format when data benefits from visualization:
+```chart
+{{"type": "chart_type", "title": "Title", "data": [...]}}
+```
+
+Available types:
+- **bar** - Compare quantities (leads by status, sales by product)
+- **pie** - Show proportions (source breakdown, category splits)
+- **line** - Show trends over time (daily leads, revenue trends)
+- **funnel** - Pipeline stages (lead → qualified → won)
+- **kpi** - Single metric highlight (total leads, conversion rate)
+
+Language: Respond in the same language the user uses (English, Russian, or Uzbek)."""
+                }
+            ]
+
+            # Add conversation history
+            for msg in request.conversation_history[-6:]:
+                role = "assistant" if msg.get("role") == "assistant" else "user"
+                messages.append({"role": role, "content": msg.get("text", msg.get("content", ""))})
+
+            messages.append({"role": "user", "content": request.message})
+
+            response = await openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                temperature=0.3,
+                max_tokens=1500
+            )
+
+            reply = response.choices[0].message.content
+            charts = _parse_charts(reply)
+            clean_reply = _clean_chart_blocks(reply)
+
+            logger.info(f"GPT-4o-mini response for tenant {tenant_id}")
+            return {
+                "reply": clean_reply,
+                "charts": charts,
+                "response_type": "ai_assisted",
+                "crm_context_used": True,
+                "data_sources": ["aggregated_analytics", "raw_crm_data"]
+            }
+
+        # ============ TIER 3: GPT-4o with Raw CRM Data (Fallback) ============
         # Get relevant CRM context based on the question
         crm_context = await client.get_context_for_ai(request.message)
         
@@ -2065,6 +2206,50 @@ You have access to the following CRM data:
 - Keep responses concise but comprehensive
 - If data is insufficient, clearly state what's missing
 
+## Chart Visualization (IMPORTANT)
+
+When data would benefit from visualization, include a chart block using this format:
+
+```chart
+{{"type": "chart_type", "title": "Chart Title", "data": [...]}}
+```
+
+### Available Chart Types:
+
+1. **bar** - Compare quantities (leads by status, products by sales, leads by source)
+   ```chart
+   {{"type": "bar", "title": "Leads by Status", "data": [{{"label": "New", "value": 45}}, {{"label": "Won", "value": 18}}], "orientation": "vertical"}}
+   ```
+
+2. **pie** - Show proportions/distributions (source breakdown, category splits)
+   ```chart
+   {{"type": "pie", "title": "Lead Sources", "data": [{{"label": "Website", "value": 40}}, {{"label": "Referral", "value": 30}}]}}
+   ```
+
+3. **line** - Show trends over time (daily/weekly leads, revenue trends)
+   ```chart
+   {{"type": "line", "title": "Weekly Lead Trend", "data": [{{"label": "Mon", "value": 12}}, {{"label": "Tue", "value": 19}}]}}
+   ```
+
+4. **funnel** - Pipeline stages (lead → qualified → won)
+   ```chart
+   {{"type": "funnel", "title": "Sales Pipeline", "data": [{{"label": "Leads", "value": 100}}, {{"label": "Qualified", "value": 60}}, {{"label": "Won", "value": 12}}]}}
+   ```
+
+5. **kpi** - Single metric highlight (total leads, conversion rate)
+   ```chart
+   {{"type": "kpi", "title": "Total Leads", "value": 247, "change": "+12%", "changeDirection": "up"}}
+   ```
+
+### When to Use Charts:
+- Use charts when asked about breakdowns, distributions, trends, or comparisons
+- Include a chart when showing statistics that benefit from visual representation
+- Always provide text explanation alongside charts
+- For simple single-number answers, use KPI cards
+- For complex comparisons, use bar or pie charts
+- For time-based data, use line charts
+- For pipeline/conversion data, use funnel charts
+
 Language: Respond in the same language the user uses (English, Russian, or Uzbek)."""
             }
         ]
@@ -2082,22 +2267,230 @@ Language: Respond in the same language the user uses (English, Russian, or Uzbek
             model="gpt-4o",
             messages=messages,
             temperature=0.3,
-            max_tokens=1000
+            max_tokens=1500
         )
-        
+
         reply = response.choices[0].message.content
-        
+
+        # Parse chart blocks from response
+        charts = []
+        clean_reply = reply
+
+        import re
+        chart_pattern = r'```chart\s*\n(.*?)\n```'
+        for match in re.finditer(chart_pattern, reply, re.DOTALL):
+            try:
+                chart_json = match.group(1).strip()
+                chart_data = json.loads(chart_json)
+                charts.append(chart_data)
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse chart JSON: {e}")
+                continue
+
+        # Remove chart blocks from the text response
+        clean_reply = re.sub(chart_pattern, '', reply, flags=re.DOTALL).strip()
+        # Clean up extra newlines
+        clean_reply = re.sub(r'\n{3,}', '\n\n', clean_reply)
+
+        logger.info(f"GPT-4o fallback response for tenant {tenant_id}")
         return {
-            "reply": reply,
+            "reply": clean_reply,
+            "charts": charts,
+            "response_type": "full_context",
             "crm_context_used": True,
             "data_sources": ["leads", "deals", "products", "analytics"]
         }
-        
+
     except BitrixAPIError as e:
         raise HTTPException(status_code=500, detail=f"CRM error: {str(e)}")
     except Exception as e:
         logger.error(f"CRM Chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ Analytics Helper Functions ============
+
+def _build_aggregation_context(aggregations: Dict) -> str:
+    """Build a concise context string from aggregations for GPT-4o-mini."""
+    parts = []
+
+    # Key metrics
+    parts.append("## Key Metrics")
+    parts.append(f"- Total Leads: {aggregations.get('total_leads', 0)}")
+    parts.append(f"- Total Deals: {aggregations.get('total_deals', 0)}")
+    parts.append(f"- Conversion Rate: {aggregations.get('conversion_rate', 0):.1f}%")
+    parts.append(f"- Pipeline Value: {aggregations.get('total_pipeline_value', 0):,.0f}")
+    parts.append(f"- Leads This Week: {aggregations.get('this_week_leads', 0)}")
+    parts.append(f"- Leads This Month: {aggregations.get('this_month_leads', 0)}")
+
+    # Leads by status
+    if aggregations.get("leads_by_status"):
+        parts.append("\n## Leads by Status")
+        for item in aggregations["leads_by_status"][:6]:
+            parts.append(f"- {item['label']}: {item['value']}")
+
+    # Lead sources
+    if aggregations.get("leads_by_source"):
+        parts.append("\n## Lead Sources")
+        for item in aggregations["leads_by_source"][:6]:
+            parts.append(f"- {item['label']}: {item['value']}")
+
+    # Deals by stage
+    if aggregations.get("deals_by_stage"):
+        parts.append("\n## Deals by Stage")
+        for item in aggregations["deals_by_stage"][:6]:
+            parts.append(f"- {item['label']}: {item['value']}")
+
+    # Daily trend
+    if aggregations.get("leads_by_day"):
+        parts.append("\n## Daily Lead Trend (Last 7 Days)")
+        for item in aggregations["leads_by_day"]:
+            parts.append(f"- {item['label']}: {item['value']}")
+
+    return "\n".join(parts)
+
+
+def _parse_charts(reply: str) -> List[Dict]:
+    """Parse chart blocks from AI response."""
+    charts = []
+    chart_pattern = r'```chart\s*\n(.*?)\n```'
+    for match in re.finditer(chart_pattern, reply, re.DOTALL):
+        try:
+            chart_json = match.group(1).strip()
+            chart_data = json.loads(chart_json)
+            charts.append(chart_data)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse chart JSON: {e}")
+            continue
+    return charts
+
+
+def _clean_chart_blocks(reply: str) -> str:
+    """Remove chart blocks from response text."""
+    chart_pattern = r'```chart\s*\n(.*?)\n```'
+    clean_reply = re.sub(chart_pattern, '', reply, flags=re.DOTALL).strip()
+    clean_reply = re.sub(r'\n{3,}', '\n\n', clean_reply)
+    return clean_reply
+
+
+# ============ Analytics Context Endpoints ============
+
+@api_router.post("/analytics/initialize")
+async def initialize_analytics(
+    request: AnalyticsInitRequest,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Initialize analytics context when Bobur is hired.
+    This fetches CRM schema, computes aggregations, and starts background refresh.
+    """
+    tenant_id = current_user["tenant_id"]
+
+    # Get Bitrix client
+    client = await get_bitrix_client(tenant_id)
+    if not client:
+        raise HTTPException(status_code=400, detail="Bitrix24 not connected. Please connect your CRM first.")
+
+    try:
+        # Create analytics builder
+        builder = AnalyticsContextBuilder(tenant_id, supabase, client)
+
+        # Initialize (schema discovery + aggregation)
+        result = await builder.initialize()
+
+        # Start background refresh (every 2 minutes)
+        await builder.start_background_refresh(interval_seconds=120)
+
+        # Register builder for this tenant
+        register_builder(tenant_id, builder)
+
+        logger.info(f"Analytics context initialized for tenant {tenant_id}")
+
+        return {
+            "success": True,
+            "message": "Analytics context initialized",
+            **result
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to initialize analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/analytics/stop")
+async def stop_analytics(current_user: Dict = Depends(get_current_user)):
+    """
+    Stop analytics context when Bobur is fired.
+    This stops background refresh and marks the context as inactive.
+    """
+    tenant_id = current_user["tenant_id"]
+
+    # Get active builder
+    builder = get_active_builder(tenant_id)
+
+    if builder:
+        await builder.stop_background_refresh()
+        unregister_builder(tenant_id)
+        logger.info(f"Analytics context stopped for tenant {tenant_id}")
+    else:
+        # Still try to mark as inactive in database
+        try:
+            supabase.table("crm_analytics_context").update({
+                "is_active": False
+            }).eq("tenant_id", tenant_id).execute()
+        except Exception as e:
+            logger.debug(f"Could not mark analytics inactive: {e}")
+
+    return {
+        "success": True,
+        "message": "Analytics context stopped"
+    }
+
+
+@api_router.get("/analytics/status")
+async def get_analytics_status(current_user: Dict = Depends(get_current_user)):
+    """
+    Get analytics context status for current tenant.
+    """
+    tenant_id = current_user["tenant_id"]
+
+    # Check if builder is active in memory
+    builder = get_active_builder(tenant_id)
+
+    if builder:
+        aggregations = await builder.get_aggregations()
+        return {
+            "active": True,
+            "source": "memory",
+            "has_aggregations": aggregations is not None,
+            "total_leads": aggregations.get("total_leads") if aggregations else None,
+            "total_deals": aggregations.get("total_deals") if aggregations else None
+        }
+
+    # Check database
+    try:
+        result = supabase.table("crm_analytics_context").select(
+            "is_active, total_leads, total_deals, last_refreshed_at"
+        ).eq("tenant_id", tenant_id).execute()
+
+        if result.data:
+            context = result.data[0]
+            return {
+                "active": context.get("is_active", False),
+                "source": "database",
+                "has_aggregations": True,
+                "total_leads": context.get("total_leads"),
+                "total_deals": context.get("total_deals"),
+                "last_refreshed_at": context.get("last_refreshed_at")
+            }
+    except Exception as e:
+        logger.debug(f"Could not check analytics status: {e}")
+
+    return {
+        "active": False,
+        "source": None,
+        "has_aggregations": False
+    }
 
 
 # ============ Payment Gateway Endpoints ============

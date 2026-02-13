@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -140,24 +141,24 @@ const prebuiltEmployees = [
     orbColors: ['#10b981', '#059669', '#14b8a6']
   },
   {
-    id: 'prebuilt-faq',
+    id: 'prebuilt-onboarding',
     name: 'Nilufar',
-    role: 'the FAQ Specialist',
-    description: 'Nilufar answers customer questions instantly using your knowledge base. She handles common inquiries about products, pricing, delivery, and policies, freeing your team for complex issues.',
+    role: 'the Onboarding Agent',
+    description: 'Nilufar streamlines your hiring process by creating detailed application forms with personality assessments and IQ tests. She helps you find the best candidates for your sales department automatically.',
     integration: 'telegram',
     integrationName: 'Telegram',
-    type: 'faq',
-    // Blue/violet gradient - knowledge = wisdom = blue
+    type: 'onboarding',
+    // Blue/violet gradient - HR = professional = blue
     orbColors: ['#6366f1', '#8b5cf6', '#3b82f6']
   },
   {
-    id: 'prebuilt-crm',
+    id: 'prebuilt-analytics',
     name: 'Bobur',
-    role: 'the CRM Manager',
-    description: 'Bobur syncs your leads to Bitrix24 CRM automatically. He updates contact info, tracks lead status, and ensures no customer falls through the cracks. Integrates seamlessly with your existing workflow.',
+    role: 'the Analytics Engineer',
+    description: 'Bobur connects to your Bitrix24 CRM to analyze leads, visualize conversion rates, and generate insightful charts. He turns your raw sales data into actionable intelligence with beautiful plots.',
     integration: 'bitrix',
     integrationName: 'Bitrix24',
-    type: 'crm',
+    type: 'analytics',
     // Orange/amber gradient - matches Bitrix24 brand
     orbColors: ['#f97316', '#ea580c', '#f59e0b']
   }
@@ -175,6 +176,7 @@ const AgentsPage = () => {
   const [expandedCards, setExpandedCards] = useState({});
   const [hiredPrebuilt, setHiredPrebuilt] = useState([]);
   const navigate = useNavigate();
+  const { token } = useAuth();
 
   useEffect(() => {
     fetchAgents();
@@ -224,7 +226,7 @@ const AgentsPage = () => {
     setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleHirePrebuilt = (prebuilt) => {
+  const handleHirePrebuilt = async (prebuilt) => {
     // Check if already hired
     if (!hiredPrebuilt.includes(prebuilt.id)) {
       const newHired = [...hiredPrebuilt, prebuilt.id];
@@ -233,19 +235,66 @@ const AgentsPage = () => {
       toast.success(`${prebuilt.name} has joined your team!`);
     }
 
-    // CRM agent goes directly to standalone CRM Chat page
-    if (prebuilt.type === 'crm') {
-      navigate('/app/crm');
+    // Analytics agent: Initialize analytics context and go to Analytics Chat page
+    if (prebuilt.type === 'analytics') {
+      // Initialize analytics context in background (don't block navigation)
+      try {
+        fetch(`${API}/analytics/initialize`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({})
+        }).then(response => {
+          if (response.ok) {
+            console.log('Analytics context initialized');
+          }
+        }).catch(err => {
+          console.warn('Analytics initialization skipped (CRM may not be connected):', err);
+        });
+      } catch (e) {
+        // Silently fail - analytics will work when CRM is connected
+      }
+
+      navigate('/app/analytics');
       return;
     }
     // Other prebuilt types navigate to create new agent
     navigate('/app/agents/new', { state: { prebuiltType: prebuilt.type } });
   };
 
-  const handleFirePrebuilt = (prebuilt) => {
+  const handleFirePrebuilt = async (prebuilt) => {
     const newHired = hiredPrebuilt.filter(id => id !== prebuilt.id);
     setHiredPrebuilt(newHired);
     localStorage.setItem(HIRED_PREBUILT_KEY, JSON.stringify(newHired));
+
+    // Clear analytics chat history and stop background refresh when Analytics agent is removed
+    if (prebuilt.type === 'analytics') {
+      localStorage.removeItem('analytics_chat_history');
+      localStorage.removeItem('analytics_pending_question');
+
+      // Stop analytics context background refresh
+      try {
+        fetch(`${API}/analytics/stop`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({})
+        }).then(response => {
+          if (response.ok) {
+            console.log('Analytics context stopped');
+          }
+        }).catch(err => {
+          console.warn('Analytics stop failed:', err);
+        });
+      } catch (e) {
+        // Silently fail
+      }
+    }
+
     toast.success(`${prebuilt.name} has been removed from your team`);
   };
 
@@ -343,7 +392,7 @@ const AgentsPage = () => {
               <Card
                 key={employee.id}
                 className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group relative overflow-hidden"
-                onClick={() => employee.type === 'crm' ? navigate('/app/crm') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } })}
+                onClick={() => employee.type === 'analytics' ? navigate('/app/analytics') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } })}
                 data-testid={`hired-${employee.id}`}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
@@ -375,7 +424,7 @@ const AgentsPage = () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
                       <DropdownMenuItem
-                        onClick={(e) => { e.stopPropagation(); employee.type === 'crm' ? navigate('/app/crm') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } }); }}
+                        onClick={(e) => { e.stopPropagation(); employee.type === 'analytics' ? navigate('/app/analytics') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } }); }}
                         className="gap-2.5 text-[13px]"
                       >
                         <LayoutDashboard className="w-4 h-4 text-slate-500" strokeWidth={1.75} />

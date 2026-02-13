@@ -53,24 +53,24 @@ export default function AccountPage() {
         <p className="text-[13px] text-slate-500 mt-0.5">Manage your profile and account settings</p>
       </div>
 
-      {/* Profile Card - Hero style */}
+      {/* Profile Card - Light elegant style */}
       <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-6 py-8">
+        <div className="px-6 py-8 border-b border-slate-100">
           <div className="flex items-center gap-5">
-            {/* Large Avatar */}
-            <div className="w-20 h-20 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-xl">
+            {/* Large Avatar - Emerald accent */}
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-600/20">
               <span className="text-2xl font-bold text-white tracking-wide">
                 {getInitials(user?.name)}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-xl font-semibold text-white truncate">
+              <h2 className="text-xl font-semibold text-slate-900 truncate">
                 {user?.name || 'User'}
               </h2>
-              <p className="text-sm text-slate-300 mt-0.5 truncate">{user?.email}</p>
-              <div className="flex items-center gap-1.5 mt-2">
-                <div className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30">
-                  <span className="text-[10px] font-medium text-emerald-300 uppercase tracking-wide">Active</span>
+              <p className="text-sm text-slate-500 mt-0.5 truncate">{user?.email}</p>
+              <div className="flex items-center gap-1.5 mt-2.5">
+                <div className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200">
+                  <span className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Active</span>
                 </div>
               </div>
             </div>

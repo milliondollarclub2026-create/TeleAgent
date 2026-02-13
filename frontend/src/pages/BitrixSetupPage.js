@@ -83,9 +83,25 @@ const BitrixSetupPage = () => {
       toast.success(response.data.message || 'Bitrix24 connected successfully!');
       setWebhookUrl('');
 
-      // If there's a return URL, navigate back with connection state
+      // If there's a return URL, verify connection before navigating
       if (returnTo) {
-        navigate(returnTo, { state: { fromConnection: true } });
+        // Wait a moment for the connection to be fully persisted
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Verify the connection is actually saved before navigating
+        try {
+          const statusCheck = await axios.get(`${API}/bitrix-crm/status`);
+          if (statusCheck.data.connected) {
+            navigate(returnTo, { state: { fromConnection: true } });
+          } else {
+            // Connection succeeded but status not yet reflected, wait and retry
+            await new Promise(resolve => setTimeout(resolve, 500));
+            navigate(returnTo, { state: { fromConnection: true } });
+          }
+        } catch {
+          // Even if status check fails, navigate since connection succeeded
+          navigate(returnTo, { state: { fromConnection: true } });
+        }
       } else {
         fetchStatus();
       }
@@ -154,8 +170,8 @@ const BitrixSetupPage = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <div className={`w-2 h-2 rounded-full ${status.connected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-            <span className={`text-xs font-medium ${status.connected ? 'text-emerald-600' : 'text-slate-500'}`}>
+            <div className={`w-2 h-2 rounded-full ${status.connected ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+            <span className={`text-xs font-medium ${status.connected ? 'text-emerald-700' : 'text-slate-500'}`}>
               {status.connected ? 'Connected' : 'Not connected'}
             </span>
           </div>
@@ -168,8 +184,8 @@ const BitrixSetupPage = () => {
             <Card className="bg-white border-slate-200 shadow-sm">
               <div className="p-6">
                 <div className="flex items-center gap-3.5 mb-5">
-                  <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-                    <Check className="w-5 h-5 text-emerald-600" strokeWidth={2} />
+                  <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                    <Check className="w-5 h-5 text-white" strokeWidth={2.5} />
                   </div>
                   <div>
                     <h2 className="font-semibold text-slate-900">CRM Connected</h2>
@@ -183,10 +199,10 @@ const BitrixSetupPage = () => {
 
                 {/* Capability Badges */}
                 <div className="flex flex-wrap gap-2.5 mb-6">
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
-                    <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />
-                    <span className="text-xs font-medium text-emerald-700">Leads</span>
-                    <span className="text-[10px] text-emerald-500 uppercase tracking-wide">Auto-push</span>
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600 shadow-sm">
+                    <ArrowUpRight className="w-3.5 h-3.5 text-white" strokeWidth={1.75} />
+                    <span className="text-xs font-medium text-white">Leads</span>
+                    <span className="text-[10px] text-emerald-100 uppercase tracking-wide">Auto-push</span>
                   </div>
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
                     <RefreshCw className="w-3.5 h-3.5 text-slate-500" strokeWidth={1.75} />
@@ -255,7 +271,7 @@ const BitrixSetupPage = () => {
                     <Label className="text-slate-700 text-xs font-medium">Webhook URL</Label>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 cursor-help" strokeWidth={2} />
                       </TooltipTrigger>
                       <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
                         Encrypted & secured
@@ -360,7 +376,7 @@ const BitrixSetupPage = () => {
                         </p>
                         <div className="flex flex-wrap gap-1.5">
                           {['CRM', 'Lists', 'Users', 'Tasks'].map((perm) => (
-                            <span key={perm} className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[11px] font-medium text-emerald-700">
+                            <span key={perm} className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-600 text-[11px] font-medium text-white shadow-sm">
                               <Check className="w-2.5 h-2.5 mr-1" strokeWidth={2.5} />
                               {perm}
                             </span>
@@ -388,7 +404,7 @@ const BitrixSetupPage = () => {
                       </div>
                       <div className="pt-0.5">
                         <p className="text-[13px] text-slate-700 leading-relaxed">
-                          Paste your URL above and click <span className="font-semibold text-emerald-600">Connect Bitrix24</span>
+                          Paste your URL above and click <span className="font-semibold text-emerald-700">Connect Bitrix24</span>
                         </p>
                       </div>
                     </div>
@@ -402,8 +418,8 @@ const BitrixSetupPage = () => {
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-4">After connecting</p>
               <div className="grid gap-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                    <ArrowUpRight className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <ArrowUpRight className="w-4 h-4 text-white" strokeWidth={1.75} />
                   </div>
                   <div>
                     <p className="text-[13px] font-medium text-slate-900">Auto-push qualified leads</p>

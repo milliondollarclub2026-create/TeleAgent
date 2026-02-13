@@ -9,18 +9,28 @@ import {
   Check,
   Loader2,
   CircleDot,
-  Table
+  Sheet
 } from 'lucide-react';
+
+// Google Sheets icon (official-style)
+const GoogleSheetsIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none">
+    <rect x="4" y="2" width="16" height="20" rx="2" fill="#0F9D58" />
+    <rect x="7" y="6" width="10" height="2" rx="0.5" fill="white" />
+    <rect x="7" y="10" width="10" height="2" rx="0.5" fill="white" />
+    <rect x="7" y="14" width="6" height="2" rx="0.5" fill="white" />
+  </svg>
+);
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Status indicator component
+// Status indicator component - refined green for light theme
 const StatusDot = ({ connected }) => (
   <div className="flex items-center gap-2">
-    <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-    <span className={`text-xs font-medium ${connected ? 'text-emerald-600' : 'text-slate-500'}`}>
+    <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+    <span className={`text-xs font-medium ${connected ? 'text-emerald-700' : 'text-slate-500'}`}>
       {connected ? 'Connected' : 'Not connected'}
     </span>
   </div>
@@ -126,8 +136,8 @@ const ConnectionsPage = () => {
             {integrations?.telegram?.connected ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <Check className="w-4 h-4 text-emerald-600" strokeWidth={2} />
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                    <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900 truncate">
@@ -187,8 +197,8 @@ const ConnectionsPage = () => {
             {bitrixStatus?.connected ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <Check className="w-4 h-4 text-emerald-600" strokeWidth={2} />
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                    <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900">CRM Connected</p>
@@ -240,8 +250,8 @@ const ConnectionsPage = () => {
             {/* Header */}
             <div className="flex items-start justify-between mb-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#0F9D58]/10 flex items-center justify-center">
-                  <Table className="w-5 h-5 text-[#0F9D58]" strokeWidth={1.75} />
+                <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+                  <GoogleSheetsIcon className="w-6 h-6" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-900 text-sm">Google Sheets</h3>
@@ -255,8 +265,8 @@ const ConnectionsPage = () => {
             {gSheetsStatus?.connected ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <Check className="w-4 h-4 text-emerald-600" strokeWidth={2} />
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                    <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900">

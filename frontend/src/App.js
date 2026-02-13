@@ -97,7 +97,7 @@ function AppRoutes() {
         <Route path="agents/:agentId/dialogue" element={<AgentDialoguePage />} />
         <Route path="agents/:agentId/dialogue/:customerId" element={<AgentDialoguePage />} />
         <Route path="leads" element={<LeadsPage />} />
-        <Route path="crm" element={<CRMChatPage />} />
+        <Route path="analytics" element={<CRMChatPage />} />
         <Route path="dialogue" element={<AgentDialoguePage />} />
         <Route path="dialogue/:customerId" element={<AgentDialoguePage />} />
         <Route path="settings" element={<SettingsPage />} />

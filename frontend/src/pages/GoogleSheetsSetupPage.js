@@ -7,7 +7,6 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import {
   ArrowLeft,
-  Table,
   Check,
   Copy,
   Loader2,
@@ -15,6 +14,16 @@ import {
   FileSpreadsheet,
   Zap,
 } from 'lucide-react';
+
+// Google Sheets icon (official-style)
+const GoogleSheetsIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none">
+    <rect x="4" y="2" width="16" height="20" rx="2" fill="#0F9D58" />
+    <rect x="7" y="6" width="10" height="2" rx="0.5" fill="white" />
+    <rect x="7" y="10" width="10" height="2" rx="0.5" fill="white" />
+    <rect x="7" y="14" width="6" height="2" rx="0.5" fill="white" />
+  </svg>
+);
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -151,8 +160,8 @@ const GoogleSheetsSetupPage = () => {
       {/* Page Header */}
       <div className="flex items-start justify-between mb-8">
         <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-[#0F9D58]/10 flex items-center justify-center">
-            <Table className="w-5.5 h-5.5 text-[#0F9D58]" strokeWidth={1.75} />
+          <div className="w-11 h-11 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+            <GoogleSheetsIcon className="w-7 h-7" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Google Sheets</h1>
@@ -160,8 +169,8 @@ const GoogleSheetsSetupPage = () => {
           </div>
         </div>
         <div className="flex items-center gap-2 mt-1">
-          <div className={`w-2 h-2 rounded-full ${status.connected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-          <span className={`text-xs font-medium ${status.connected ? 'text-emerald-600' : 'text-slate-500'}`}>
+          <div className={`w-2 h-2 rounded-full ${status.connected ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+          <span className={`text-xs font-medium ${status.connected ? 'text-emerald-700' : 'text-slate-500'}`}>
             {status.connected ? 'Connected' : 'Not connected'}
           </span>
         </div>
@@ -174,8 +183,8 @@ const GoogleSheetsSetupPage = () => {
           <Card className="bg-white border-slate-200 shadow-sm">
             <div className="p-6">
               <div className="flex items-center gap-3.5 mb-5">
-                <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-                  <Check className="w-5 h-5 text-emerald-600" strokeWidth={2} />
+                <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                  <Check className="w-5 h-5 text-white" strokeWidth={2.5} />
                 </div>
                 <div>
                   <h2 className="font-semibold text-slate-900">
@@ -197,10 +206,10 @@ const GoogleSheetsSetupPage = () => {
                   <span className="text-[10px] text-slate-400 uppercase tracking-wide">Read</span>
                 </div>
                 {status.has_write && (
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />
-                    <span className="text-xs font-medium text-emerald-700">Lead Tracking</span>
-                    <span className="text-[10px] text-emerald-500 uppercase tracking-wide">Write</span>
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600 shadow-sm">
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-white" strokeWidth={1.75} />
+                    <span className="text-xs font-medium text-white">Lead Tracking</span>
+                    <span className="text-[10px] text-emerald-100 uppercase tracking-wide">Write</span>
                   </div>
                 )}
               </div>
@@ -333,7 +342,7 @@ const GoogleSheetsSetupPage = () => {
                       <span className="text-[10px] font-semibold text-slate-600">4</span>
                     </div>
                     <p className="text-[13px] text-slate-600 pt-0.5">
-                      Set role to <span className="inline-flex items-center ml-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[11px] font-medium text-emerald-700">Editor</span>
+                      Set role to <span className="inline-flex items-center ml-1 px-2 py-0.5 rounded bg-emerald-600 text-[11px] font-medium text-white shadow-sm">Editor</span>
                     </p>
                   </div>
                   <div className="flex gap-4">
@@ -401,8 +410,8 @@ const GoogleSheetsSetupPage = () => {
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <FileSpreadsheet className="w-4 h-4 text-white" strokeWidth={1.75} />
                 </div>
                 <div>
                   <p className="text-[13px] font-medium text-slate-900">Automatic lead tracking</p>
