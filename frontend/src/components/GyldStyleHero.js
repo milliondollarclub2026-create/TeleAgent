@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ChevronDown } from 'lucide-react';
 
 export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
   const capabilities = [
@@ -19,7 +19,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
           style={{ animationDelay: '0ms' }}
         >
           <span className="text-sm font-medium text-slate-600">
-            Now hiring AI sales agents
+            Your AI workforce, ready in 10 minutes
           </span>
         </div>
 
@@ -54,14 +54,10 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
           </button>
           <button
             onClick={onBookDemo}
-            className="group text-slate-600 hover:text-emerald-700 px-8 py-4 font-semibold text-lg transition-all duration-300 rounded-full hover:bg-emerald-50 border border-transparent hover:border-emerald-200"
+            className="meet-team-btn flex items-center gap-2 text-slate-600 px-8 py-4 font-semibold text-lg rounded-full border border-transparent"
           >
-            <span className="flex items-center gap-2">
-              Meet the team
-              <svg className="w-4 h-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </span>
+            Meet the team
+            <ChevronDown className="meet-team-icon w-5 h-5" strokeWidth={2} />
           </button>
         </div>
 
@@ -111,6 +107,24 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
 
         .delay-400 {
           animation-delay: 400ms;
+        }
+
+        /* Meet the team hover */
+        .meet-team-btn {
+          transition: all 0.3s ease;
+        }
+        .meet-team-btn:hover {
+          color: #047857;
+          background-color: #ecfdf5;
+          border-color: #a7f3d0;
+        }
+        .meet-team-icon {
+          transition: transform 0.3s ease, opacity 0.3s ease;
+          opacity: 0.5;
+        }
+        .meet-team-btn:hover .meet-team-icon {
+          opacity: 1;
+          transform: translateY(3px);
         }
       `}</style>
     </section>
