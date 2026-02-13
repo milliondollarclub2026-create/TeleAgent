@@ -351,7 +351,7 @@ const AgentsPage = () => {
                 <div
                   className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
                   style={{
-                    background: `radial-gradient(circle at 20% 20%, ${employee.orbColors[0]}08 0%, transparent 50%)`
+                    background: `radial-gradient(circle at 15% 15%, ${employee.orbColors[0]}25 0%, ${employee.orbColors[0]}10 40%, transparent 70%)`
                   }}
                 />
 
@@ -562,7 +562,7 @@ const AgentsPage = () => {
                 <div
                   className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
                   style={{
-                    background: `radial-gradient(circle at 20% 20%, ${employee.orbColors[0]}08 0%, transparent 50%)`
+                    background: `radial-gradient(circle at 15% 15%, ${employee.orbColors[0]}25 0%, ${employee.orbColors[0]}10 40%, transparent 70%)`
                   }}
                 />
 
