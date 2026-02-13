@@ -134,7 +134,12 @@ function CRMChatSection() {
   };
 
   return (
-    <section ref={sectionRef} className="py-28 bg-white overflow-hidden relative">
+    <section ref={sectionRef} className="py-28 bg-slate-50 overflow-hidden relative">
+      {/* Subtle dot pattern */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{
+        backgroundImage: `radial-gradient(circle at 1px 1px, rgb(100 116 139) 0.5px, transparent 0)`,
+        backgroundSize: '24px 24px'
+      }} />
       <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Left Side - Content */}
@@ -583,7 +588,12 @@ export default function LandingPage() {
       {/* ================================================================ */}
       {/* FEATURES SECTION - Agent Grid + Feature Grid                     */}
       {/* ================================================================ */}
-      <section id="features" className="py-32 bg-white relative overflow-hidden">
+      <section id="features" className="py-32 bg-slate-50 relative overflow-hidden">
+        {/* Subtle dot pattern */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: `radial-gradient(circle at 1px 1px, rgb(100 116 139) 0.5px, transparent 0)`,
+          backgroundSize: '24px 24px'
+        }} />
         <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
           {/* Section Header */}
           <div className="text-center mb-20 scroll-reveal">
