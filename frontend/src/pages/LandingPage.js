@@ -623,7 +623,7 @@ export default function LandingPage() {
                 Handles customer conversations on Telegram, qualifies leads based on purchase intent, collects contact information, and never misses a sales opportunity. Speaks Uzbek and Russian fluently.
               </p>
               <div className="flex flex-wrap gap-2">
-                {['Telegram', 'Lead Qualification', 'Multi-Language'].map((tag) => (
+                {['Telegram', 'Lead Gen', 'Multilingual'].map((tag) => (
                   <span
                     key={tag}
                     className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
@@ -647,7 +647,7 @@ export default function LandingPage() {
                 Streamlines your hiring process by creating detailed application forms with personality assessments and IQ tests. Helps you find the best candidates for your sales department automatically.
               </p>
               <div className="flex flex-wrap gap-2">
-                {['HR Forms', 'Assessments', 'Auto-Screening'].map((tag) => (
+                {['Telegram', 'HR Forms', 'Screening'].map((tag) => (
                   <span
                     key={tag}
                     className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
@@ -671,7 +671,7 @@ export default function LandingPage() {
                 Connects to your Bitrix24 CRM to analyze leads, visualize conversion rates, and generate insightful charts. Turns your raw sales data into actionable intelligence.
               </p>
               <div className="flex flex-wrap gap-2">
-                {['Bitrix24', 'Charts', 'Analytics'].map((tag) => (
+                {['Bitrix24', 'Reports', 'Analytics'].map((tag) => (
                   <span
                     key={tag}
                     className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
