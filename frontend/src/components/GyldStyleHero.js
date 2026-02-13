@@ -13,16 +13,6 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
     <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden bg-white">
       {/* Content container */}
       <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
-        {/* Badge */}
-        <div
-          className="animate-fadeUp opacity-0 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-100 border border-slate-200 mb-8"
-          style={{ animationDelay: '0ms' }}
-        >
-          <span className="text-sm font-medium text-slate-600">
-            Your AI workforce, ready in 10 minutes
-          </span>
-        </div>
-
         {/* Headline */}
         <h1
           className="animate-fadeUp opacity-0 delay-100 text-[40px] sm:text-[56px] md:text-[72px] font-bold tracking-[-1.8px] leading-[1] font-['Plus_Jakarta_Sans'] mb-6"

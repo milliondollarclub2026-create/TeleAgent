@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Check, ArrowRight, Sparkles } from 'lucide-react';
+import { Check, ArrowRight } from 'lucide-react';
+import AiOrb from './Orb/AiOrb';
 
 const AGENT_PRICE = 15;
 const BUNDLE_DISCOUNT = 5;
@@ -11,18 +12,21 @@ const agents = [
     name: 'Jasur',
     role: 'Sales Agent',
     desc: 'Qualifies leads and collects contacts on Telegram around the clock.',
+    orbColors: ['#10b981', '#059669', '#14b8a6'],
   },
   {
     id: 'nilufar',
     name: 'Nilufar',
-    role: 'Knowledge Specialist',
-    desc: 'Answers customer questions from your docs in Uzbek, Russian, or English.',
+    role: 'Onboarding Agent',
+    desc: 'Streamlines hiring with application forms, assessments, and auto-screening.',
+    orbColors: ['#6366f1', '#8b5cf6', '#3b82f6'],
   },
   {
     id: 'bobur',
     name: 'Bobur',
-    role: 'CRM Analyst',
-    desc: 'Syncs leads and conversations to your Bitrix24 CRM in real time.',
+    role: 'Analytics Engineer',
+    desc: 'Connects to Bitrix24 to analyze leads and generate insightful charts.',
+    orbColors: ['#f97316', '#ea580c', '#f59e0b'],
   },
 ];
 
@@ -181,14 +185,8 @@ export default function PricingSection({ onGetStarted }) {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-start gap-4 min-w-0">
-                          {/* Avatar */}
-                          <div
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 transition-colors duration-200 ${
-                              isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
-                            }`}
-                          >
-                            {agent.name[0]}
-                          </div>
+                          {/* Orb Avatar */}
+                          <AiOrb size={40} colors={agent.orbColors} />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-semibold text-slate-900 font-['Plus_Jakarta_Sans']">
@@ -229,7 +227,6 @@ export default function PricingSection({ onGetStarted }) {
                   onClick={hireAll}
                   className="w-full mt-3 flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-semibold hover:bg-emerald-100 transition-colors duration-200"
                 >
-                  <Sparkles className="w-4 h-4" strokeWidth={2} />
                   Hire all 3 and save ${BUNDLE_DISCOUNT}/month
                 </button>
               ) : (

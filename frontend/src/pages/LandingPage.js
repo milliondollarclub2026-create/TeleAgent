@@ -486,13 +486,6 @@ export default function LandingPage() {
             <div className="hidden md:flex items-center gap-4">
               <button
                 onClick={handleCTA}
-                className="text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100"
-                data-testid="nav-login-btn"
-              >
-                Log in
-              </button>
-              <button
-                onClick={handleCTA}
                 className="bg-slate-900 hover:bg-slate-800 text-white rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 flex items-center gap-2"
                 data-testid="nav-cta-btn"
               >
@@ -534,12 +527,6 @@ export default function LandingPage() {
               Pricing
             </Link>
             <div className="pt-4 border-t border-slate-200 space-y-3">
-              <button
-                onClick={handleCTA}
-                className="block w-full text-center text-slate-600 hover:text-slate-900 py-3 font-medium rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Log in
-              </button>
               <button
                 onClick={handleCTA}
                 className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-full py-3.5 font-semibold transition-all"
