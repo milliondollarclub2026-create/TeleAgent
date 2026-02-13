@@ -1,203 +1,407 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Check, MessageSquare, Bot, Database, Globe, BarChart3, Headphones, FileText, Zap } from 'lucide-react';
+import { Check, ArrowRight, Sparkles } from 'lucide-react';
 
-const CHANNEL_PRICE = 30;
+const AGENT_PRICE = 15;
+const BUNDLE_DISCOUNT = 5;
+const MESSAGES_PER_AGENT = 500;
 
-const channels = [
+const agents = [
   {
-    id: 'telegram',
-    name: 'Telegram',
-    icon: (
-      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
-      </svg>
-    ),
-    available: true,
+    id: 'jasur',
+    name: 'Jasur',
+    role: 'Sales Agent',
+    desc: 'Qualifies leads and collects contacts on Telegram around the clock.',
   },
   {
-    id: 'whatsapp',
-    name: 'WhatsApp',
-    icon: (
-      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-      </svg>
-    ),
-    available: false,
+    id: 'nilufar',
+    name: 'Nilufar',
+    role: 'Knowledge Specialist',
+    desc: 'Answers customer questions from your docs in Uzbek, Russian, or English.',
   },
   {
-    id: 'instagram',
-    name: 'Instagram',
-    icon: (
-      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
-      </svg>
-    ),
-    available: false,
+    id: 'bobur',
+    name: 'Bobur',
+    role: 'CRM Analyst',
+    desc: 'Syncs leads and conversations to your Bitrix24 CRM in real time.',
   },
 ];
 
-const includedFeatures = [
-  { icon: MessageSquare, title: 'Unlimited AI messages' },
-  { icon: Bot, title: 'Unlimited AI agents' },
-  { icon: Database, title: 'Bitrix24 CRM integration' },
-  { icon: FileText, title: 'Knowledge base training' },
-  { icon: Globe, title: 'Multi-language (UZ/RU/EN)' },
-  { icon: Zap, title: 'Google Sheets export' },
-  { icon: BarChart3, title: 'Advanced analytics' },
-  { icon: Headphones, title: 'Priority support' },
+const channelOptions = [
+  { id: 'telegram', label: 'Telegram', price: 0, note: 'Included', available: true },
+  { id: 'tg_ig', label: 'Telegram + Instagram', price: 25, note: '+$25/mo', available: true },
+  { id: 'ig_only', label: 'Instagram Only', price: 10, note: '+$10/mo', available: true },
+  { id: 'whatsapp', label: 'WhatsApp', price: 0, note: 'Coming soon', available: false },
+];
+
+const billingOptions = [
+  { id: 'monthly', label: 'Monthly', months: 1, discount: 0 },
+  { id: 'semi', label: '6 Months', months: 6, discount: 0.10, badge: 'Save 10%' },
+  { id: 'annual', label: '12 Months', months: 12, discount: 0.25, badge: 'Save 25%' },
 ];
 
 export default function PricingSection({ onGetStarted }) {
-  const [selectedChannels, setSelectedChannels] = useState(['telegram']);
-  const [displayPrice, setDisplayPrice] = useState(CHANNEL_PRICE);
-  const priceRef = useRef(null);
+  const [selectedAgents, setSelectedAgents] = useState(['jasur', 'nilufar', 'bobur']);
+  const [selectedChannel, setSelectedChannel] = useState('telegram');
+  const [selectedBilling, setSelectedBilling] = useState('monthly');
+  const [displayPrice, setDisplayPrice] = useState(40);
+  const targetPriceRef = useRef(40);
 
-  const totalPrice = selectedChannels.length * CHANNEL_PRICE;
+  // Calculations
+  const agentCount = selectedAgents.length;
+  const isFullTeam = agentCount === 3;
+  const rawAgentCost = agentCount * AGENT_PRICE;
+  const agentCost = isFullTeam ? rawAgentCost - BUNDLE_DISCOUNT : rawAgentCost;
+  const channel = channelOptions.find((c) => c.id === selectedChannel);
+  const channelCost = channel?.price || 0;
+  const billing = billingOptions.find((b) => b.id === selectedBilling);
+  const discount = billing?.discount || 0;
+  const subtotal = agentCost + channelCost;
+  const monthlyPrice = subtotal * (1 - discount);
+  const totalBilled = monthlyPrice * (billing?.months || 1);
+  const savedAmount = subtotal * discount * (billing?.months || 1);
+  const totalMessages = agentCount * MESSAGES_PER_AGENT;
 
+  // Animate price counter
   useEffect(() => {
-    // Animate price change
-    const start = displayPrice;
-    const end = totalPrice;
-    if (start === end) return;
+    const start = targetPriceRef.current;
+    const end = monthlyPrice;
+    if (Math.abs(start - end) < 0.01) {
+      setDisplayPrice(end);
+      return;
+    }
 
-    const duration = 300;
+    const duration = 350;
     const startTime = performance.now();
 
     const animate = (currentTime) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      // Ease out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplayPrice(Math.round(start + (end - start) * eased));
+      setDisplayPrice(start + (end - start) * eased);
       if (progress < 1) {
         requestAnimationFrame(animate);
+      } else {
+        targetPriceRef.current = end;
       }
     };
 
     requestAnimationFrame(animate);
+  }, [monthlyPrice]);
+
+  // Set initial display price
+  useEffect(() => {
+    setDisplayPrice(monthlyPrice);
+    targetPriceRef.current = monthlyPrice;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalPrice]);
+  }, []);
 
-  const toggleChannel = (channelId) => {
-    const channel = channels.find((c) => c.id === channelId);
-    if (!channel?.available) return;
-
-    setSelectedChannels((prev) => {
-      if (prev.includes(channelId)) {
-        // Don't allow deselecting the last channel
+  const toggleAgent = (agentId) => {
+    setSelectedAgents((prev) => {
+      if (prev.includes(agentId)) {
         if (prev.length === 1) return prev;
-        return prev.filter((id) => id !== channelId);
+        return prev.filter((id) => id !== agentId);
       }
-      return [...prev, channelId];
+      return [...prev, agentId];
     });
+  };
+
+  const hireAll = () => setSelectedAgents(agents.map((a) => a.id));
+
+  const formatPrice = (p) => {
+    const rounded = Math.round(p * 100) / 100;
+    return rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(2);
   };
 
   return (
     <section id="pricing" className="py-24 bg-[#F5F7F6]">
-      <div className="max-w-4xl mx-auto px-6 md:px-12">
+      <div className="max-w-5xl mx-auto px-6 md:px-12">
         {/* Section Header */}
         <div className="text-center mb-12 scroll-reveal">
           <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-700 mb-6">
             Pricing
           </span>
           <h2 className="text-4xl md:text-5xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-4">
-            Simple, per-channel <span className="text-emerald-600">pricing</span>
+            Build your <span className="text-emerald-600">AI team</span>
           </h2>
           <p className="text-lg text-slate-500 max-w-xl mx-auto">
-            Activate a channel. Your entire AI team works across it. Everything included.
+            Pick your agents, choose your channels, set your billing. Start with a 7-day free trial.
           </p>
         </div>
 
-        {/* Price Display */}
-        <div className="text-center mb-10 scroll-reveal">
-          <div className="inline-flex items-baseline gap-1">
-            <span className="text-6xl md:text-7xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tabular-nums" ref={priceRef}>
-              ${displayPrice}
-            </span>
-            <span className="text-xl text-slate-400 font-medium">/month</span>
-          </div>
-          {selectedChannels.length > 0 && (
-            <p className="text-sm text-slate-500 mt-2">
-              {selectedChannels.length} {selectedChannels.length === 1 ? 'channel' : 'channels'} &times; ${CHANNEL_PRICE}/mo
-            </p>
-          )}
-        </div>
-
-        {/* Channel Selector Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12 scroll-reveal">
-          {channels.map((channel) => {
-            const isSelected = selectedChannels.includes(channel.id);
-            const isComingSoon = !channel.available;
-
-            return (
+        {/* Billing Period Toggle */}
+        <div className="flex justify-center mb-12 scroll-reveal">
+          <div className="inline-flex items-center bg-white border border-slate-200 rounded-full p-1.5 gap-1 shadow-sm">
+            {billingOptions.map((option) => (
               <button
-                key={channel.id}
-                onClick={() => toggleChannel(channel.id)}
-                disabled={isComingSoon}
-                className={`relative rounded-2xl p-6 text-left transition-all duration-200 ${
-                  isComingSoon
-                    ? 'bg-white border border-slate-100 opacity-60 cursor-not-allowed'
-                    : isSelected
-                    ? 'bg-white border-2 border-emerald-500 shadow-md cursor-pointer'
-                    : 'bg-white border border-slate-200 hover:border-slate-300 cursor-pointer'
+                key={option.id}
+                onClick={() => setSelectedBilling(option.id)}
+                className={`relative px-4 sm:px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap ${
+                  selectedBilling === option.id
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                {/* Selected check */}
-                {isSelected && (
-                  <div className="absolute top-4 right-4 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
-                    <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-                  </div>
-                )}
-
-                {/* Coming Soon badge */}
-                {isComingSoon && (
-                  <span className="absolute top-4 right-4 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                    Coming Soon
+                <span>{option.label}</span>
+                {option.badge && (
+                  <span
+                    className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full hidden sm:inline ${
+                      selectedBilling === option.id
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-emerald-50 text-emerald-600'
+                    }`}
+                  >
+                    {option.badge}
                   </span>
                 )}
-
-                <div className={`mb-3 ${isComingSoon ? 'text-slate-300' : isSelected ? 'text-emerald-600' : 'text-slate-400'}`}>
-                  {channel.icon}
-                </div>
-                <h3 className={`text-lg font-semibold font-['Plus_Jakarta_Sans'] ${isComingSoon ? 'text-slate-400' : 'text-slate-900'}`}>
-                  {channel.name}
-                </h3>
-                <p className={`text-sm mt-1 ${isComingSoon ? 'text-slate-300' : 'text-slate-500'}`}>
-                  ${CHANNEL_PRICE}/month
-                </p>
               </button>
-            );
-          })}
-        </div>
-
-        {/* Included Features */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 mb-10 scroll-reveal">
-          <h3 className="text-lg font-semibold text-slate-900 font-['Plus_Jakarta_Sans'] mb-6">
-            Everything included
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {includedFeatures.map((feature) => (
-              <div key={feature.title} className="flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <Check className="w-3 h-3 text-emerald-600" strokeWidth={2.5} />
-                </div>
-                <span className="text-slate-700 text-sm">{feature.title}</span>
-              </div>
             ))}
           </div>
         </div>
 
-        {/* CTA */}
-        <div className="text-center scroll-reveal">
-          <button
-            onClick={onGetStarted}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-10 py-4 text-lg font-semibold transition-all duration-200 shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-200"
-          >
-            Hire Your Team
-          </button>
-          <p className="text-slate-400 text-sm mt-4">
-            10-minute setup &middot; Cancel anytime
-          </p>
+        {/* Two-column: Configurator + Summary */}
+        <div className="grid lg:grid-cols-5 gap-8 items-start">
+          {/* Left: Configuration */}
+          <div className="lg:col-span-3 space-y-8">
+            {/* Agent Selection */}
+            <div className="scroll-reveal">
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
+                Choose your agents
+              </h3>
+              <div className="space-y-3">
+                {agents.map((agent) => {
+                  const isSelected = selectedAgents.includes(agent.id);
+                  return (
+                    <button
+                      key={agent.id}
+                      onClick={() => toggleAgent(agent.id)}
+                      className={`w-full text-left rounded-2xl p-5 transition-all duration-200 ${
+                        isSelected
+                          ? 'bg-white border-2 border-emerald-500 shadow-md shadow-emerald-50'
+                          : 'bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-4 min-w-0">
+                          {/* Avatar */}
+                          <div
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 transition-colors duration-200 ${
+                              isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
+                            }`}
+                          >
+                            {agent.name[0]}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-slate-900 font-['Plus_Jakarta_Sans']">
+                                {agent.name}
+                              </span>
+                              <span
+                                className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                  isSelected ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                                }`}
+                              >
+                                {agent.role}
+                              </span>
+                            </div>
+                            <p className="text-sm text-slate-500 mt-1 leading-relaxed">{agent.desc}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0 pt-0.5">
+                          <span className="text-sm font-semibold text-slate-900 hidden sm:block">
+                            ${AGENT_PRICE}/mo
+                          </span>
+                          <div
+                            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 ${
+                              isSelected ? 'bg-emerald-500' : 'border-2 border-slate-200'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Hire-all banner */}
+              {!isFullTeam ? (
+                <button
+                  onClick={hireAll}
+                  className="w-full mt-3 flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-semibold hover:bg-emerald-100 transition-colors duration-200"
+                >
+                  <Sparkles className="w-4 h-4" strokeWidth={2} />
+                  Hire all 3 and save ${BUNDLE_DISCOUNT}/month
+                </button>
+              ) : (
+                <div className="mt-3 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-medium">
+                  <Check className="w-4 h-4" strokeWidth={2.5} />
+                  Full team hired. ${BUNDLE_DISCOUNT}/month bundle discount applied.
+                </div>
+              )}
+            </div>
+
+            {/* Channel Selection */}
+            <div className="scroll-reveal" style={{ transitionDelay: '100ms' }}>
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4">
+                Choose your channel
+              </h3>
+              <div className="space-y-2">
+                {channelOptions.map((ch) => {
+                  const isSelected = selectedChannel === ch.id;
+                  const isDisabled = !ch.available;
+
+                  return (
+                    <button
+                      key={ch.id}
+                      onClick={() => !isDisabled && setSelectedChannel(ch.id)}
+                      disabled={isDisabled}
+                      className={`w-full text-left rounded-xl px-5 py-4 flex items-center justify-between transition-all duration-200 ${
+                        isDisabled
+                          ? 'bg-slate-50 border border-slate-100 opacity-50 cursor-not-allowed'
+                          : isSelected
+                          ? 'bg-white border-2 border-emerald-500 shadow-sm'
+                          : 'bg-white border border-slate-200 hover:border-slate-300 cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Radio indicator */}
+                        <div
+                          className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                            isSelected ? 'border-2 border-emerald-500' : 'border-2 border-slate-200'
+                          }`}
+                        >
+                          {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />}
+                        </div>
+                        <span className={`font-medium ${isDisabled ? 'text-slate-400' : 'text-slate-900'}`}>
+                          {ch.label}
+                        </span>
+                        {isDisabled && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                            Coming soon
+                          </span>
+                        )}
+                      </div>
+                      <span
+                        className={`text-sm font-medium ${
+                          isDisabled
+                            ? 'text-slate-300'
+                            : ch.price === 0
+                            ? 'text-emerald-600'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        {!isDisabled && ch.note}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Summary Card */}
+          <div className="lg:col-span-2 scroll-reveal" style={{ transitionDelay: '150ms' }}>
+            <div className="bg-white border border-slate-200 rounded-2xl p-7 lg:sticky lg:top-28 shadow-sm">
+              {/* Price Display */}
+              <div className="text-center mb-6 pb-6 border-b border-slate-100">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                  Your plan
+                </p>
+                <div className="inline-flex items-baseline gap-1">
+                  <span className="text-5xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tabular-nums">
+                    ${formatPrice(displayPrice)}
+                  </span>
+                  <span className="text-lg text-slate-400 font-medium">/mo</span>
+                </div>
+                {discount > 0 && (
+                  <div className="mt-2 flex items-center justify-center gap-2">
+                    <span className="text-sm text-slate-400 line-through">${formatPrice(subtotal)}/mo</span>
+                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      Save {Math.round(discount * 100)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Breakdown */}
+              <div className="space-y-3 text-sm mb-6">
+                <div className="flex justify-between text-slate-600">
+                  <span>
+                    {agentCount} {agentCount === 1 ? 'agent' : 'agents'} &times; ${AGENT_PRICE}
+                  </span>
+                  <span className="font-medium text-slate-900">${rawAgentCost}</span>
+                </div>
+                {isFullTeam && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Bundle discount</span>
+                    <span className="font-medium">&minus;${BUNDLE_DISCOUNT}</span>
+                  </div>
+                )}
+                {channelCost > 0 ? (
+                  <div className="flex justify-between text-slate-600">
+                    <span>{channel?.label}</span>
+                    <span className="font-medium text-slate-900">+${channelCost}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-slate-600">
+                    <span>Telegram</span>
+                    <span className="font-medium text-emerald-600">Included</span>
+                  </div>
+                )}
+                {discount > 0 && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>{billing?.label} discount</span>
+                    <span className="font-medium">&minus;{Math.round(discount * 100)}%</span>
+                  </div>
+                )}
+                <div className="border-t border-slate-100 pt-3 flex justify-between font-semibold text-slate-900">
+                  <span>Monthly total</span>
+                  <span>${formatPrice(monthlyPrice)}</span>
+                </div>
+              </div>
+
+              {/* Billing total (only for multi-month) */}
+              {billing?.months > 1 && (
+                <div className="bg-slate-50 rounded-xl px-4 py-3 mb-6 text-center">
+                  <p className="text-sm text-slate-600">
+                    Billed{' '}
+                    <span className="font-semibold text-slate-900">${formatPrice(totalBilled)}</span> every{' '}
+                    {billing.months} months
+                  </p>
+                  {savedAmount > 0 && (
+                    <p className="text-xs text-emerald-600 font-medium mt-1">
+                      You save ${formatPrice(savedAmount)}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Messages info */}
+              <div className="bg-slate-50 rounded-xl px-4 py-3 mb-6">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600">
+                    <span className="font-semibold text-slate-900">{totalMessages.toLocaleString()}</span> messages/mo
+                  </span>
+                  <span className="text-slate-400">|</span>
+                  <span className="text-slate-500">Extra: $5 per 500</span>
+                </div>
+              </div>
+
+              {/* CTA */}
+              <button
+                onClick={onGetStarted}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-full py-4 text-base font-semibold transition-all duration-200 flex items-center justify-center gap-2 group shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-200"
+              >
+                Start 7-Day Free Trial
+                <ArrowRight
+                  className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-200"
+                  strokeWidth={2}
+                />
+              </button>
+              <p className="text-center text-sm text-slate-400 mt-3">Cancel anytime. No commitment.</p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
