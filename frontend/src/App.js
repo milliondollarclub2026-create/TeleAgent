@@ -78,17 +78,21 @@ function AppRoutes() {
         <Route path="agents/:agentId/connections/google-sheets" element={<GoogleSheetsSetupPage />} />
         <Route path="agents/:agentId/connections/telegram" element={<TelegramSetupPage />} />
         <Route path="agents/:agentId/connections/bitrix" element={<BitrixSetupPage />} />
-        <Route path="agents/:agentId/crm-chat" element={<CRMChatPage />} />
         <Route path="agents/:agentId/leads" element={<AgentLeadsPage />} />
         <Route path="agents/:agentId/dialogue" element={<AgentDialoguePage />} />
         <Route path="agents/:agentId/dialogue/:customerId" element={<AgentDialoguePage />} />
         <Route path="leads" element={<LeadsPage />} />
+        <Route path="crm" element={<CRMChatPage />} />
         <Route path="dialogue" element={<AgentDialoguePage />} />
         <Route path="dialogue/:customerId" element={<AgentDialoguePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="account" element={<SettingsPage />} />
-        {/* Legacy routes kept for backward compatibility */}
+        {/* Global connections routes */}
         <Route path="connections" element={<ConnectionsPage />} />
+        <Route path="connections/telegram" element={<TelegramSetupPage />} />
+        <Route path="connections/bitrix" element={<BitrixSetupPage />} />
+        <Route path="connections/google-sheets" element={<GoogleSheetsSetupPage />} />
+        {/* Legacy routes kept for backward compatibility */}
         <Route path="sales-agent" element={<SalesAgentPage />} />
         <Route path="knowledge-base" element={<KnowledgeBasePage />} />
       </Route>

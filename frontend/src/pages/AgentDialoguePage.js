@@ -220,7 +220,7 @@ const AgentDialoguePage = () => {
     <div className="h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] flex flex-col animate-fade-in" data-testid="dialogue-page">
       {/* Header */}
       <div className="mb-2 flex-shrink-0">
-        <h1 className="text-xl font-semibold font-['Plus_Jakarta_Sans'] text-slate-900">Dialogue</h1>
+        <h1 className="text-xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900">Dialogue</h1>
         <p className="text-slate-500 text-sm mt-0.5">View all conversations with your customers</p>
       </div>
 

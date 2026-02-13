@@ -38,6 +38,14 @@ const ConnectionsPage = () => {
   // Google Sheets state
   const [gSheetsStatus, setGSheetsStatus] = useState({ connected: false });
 
+  // Helper to get the correct path (works with or without agentId)
+  const getConnectionPath = (service) => {
+    if (agentId) {
+      return `/app/agents/${agentId}/connections/${service}`;
+    }
+    return `/app/connections/${service}`;
+  };
+
   useEffect(() => {
     fetchIntegrations();
     fetchBitrixStatus();
@@ -90,7 +98,7 @@ const ConnectionsPage = () => {
     <div className="space-y-6 animate-fade-in" data-testid="connections-page">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Connections</h1>
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Connections</h1>
         <p className="text-[13px] text-slate-500 mt-0.5">Manage your integrations with external services</p>
       </div>
 
@@ -136,7 +144,7 @@ const ConnectionsPage = () => {
                   variant="outline"
                   size="sm"
                   className="h-8 text-xs border-slate-200"
-                  onClick={() => navigate(`/app/agents/${agentId}/connections/telegram`)}
+                  onClick={() => navigate(getConnectionPath('telegram'))}
                 >
                   Manage
                 </Button>
@@ -148,7 +156,7 @@ const ConnectionsPage = () => {
                 </p>
                 <Button
                   className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
-                  onClick={() => navigate(`/app/agents/${agentId}/connections/telegram`)}
+                  onClick={() => navigate(getConnectionPath('telegram'))}
                   data-testid="setup-telegram-btn"
                 >
                   Connect
@@ -195,7 +203,7 @@ const ConnectionsPage = () => {
                   variant="outline"
                   size="sm"
                   className="h-8 text-xs border-slate-200"
-                  onClick={() => navigate(`/app/agents/${agentId}/connections/bitrix`)}
+                  onClick={() => navigate(getConnectionPath('bitrix'))}
                 >
                   Manage
                 </Button>
@@ -207,7 +215,7 @@ const ConnectionsPage = () => {
                 </p>
                 <Button
                   className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
-                  onClick={() => navigate(`/app/agents/${agentId}/connections/bitrix`)}
+                  onClick={() => navigate(getConnectionPath('bitrix'))}
                   data-testid="setup-bitrix-btn"
                 >
                   Connect
@@ -265,7 +273,7 @@ const ConnectionsPage = () => {
                   variant="outline"
                   size="sm"
                   className="h-8 text-xs border-slate-200"
-                  onClick={() => navigate(`/app/agents/${agentId}/connections/google-sheets`)}
+                  onClick={() => navigate(getConnectionPath('google-sheets'))}
                 >
                   Manage
                 </Button>
@@ -277,7 +285,7 @@ const ConnectionsPage = () => {
                 </p>
                 <Button
                   className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
-                  onClick={() => navigate(`/app/agents/${agentId}/connections/google-sheets`)}
+                  onClick={() => navigate(getConnectionPath('google-sheets'))}
                   data-testid="setup-gsheets-btn"
                 >
                   Connect

@@ -252,7 +252,7 @@ const AgentDashboard = () => {
           </div>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                 {agentInfo?.name}
               </h1>
               {agentInfo?.telegram_connected ? (

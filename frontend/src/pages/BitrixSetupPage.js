@@ -127,7 +127,7 @@ const BitrixSetupPage = () => {
       <div className="max-w-2xl mx-auto py-2">
         {/* Back Navigation */}
         <button
-          onClick={() => navigate(`/app/agents/${agentId}/connections`)}
+          onClick={() => navigate(agentId ? `/app/agents/${agentId}/connections` : '/app/connections')}
           className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors mb-6 group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" strokeWidth={1.75} />
@@ -141,7 +141,7 @@ const BitrixSetupPage = () => {
               <Link2 className="w-5.5 h-5.5 text-slate-600" strokeWidth={1.75} />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Bitrix24 CRM</h1>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Bitrix24 CRM</h1>
               <p className="text-sm text-slate-500 mt-0.5">Sync leads and contacts with your CRM</p>
             </div>
           </div>
@@ -287,61 +287,138 @@ const BitrixSetupPage = () => {
               </div>
             </Card>
 
-            {/* Instructions Box */}
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-5">
-              <p className="text-xs font-medium text-slate-700 mb-3">How to get your webhook URL:</p>
-
-              {/* Admin Notice */}
-              <div className="flex items-start gap-2 mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" strokeWidth={1.75} />
-                <p className="text-[12px] text-amber-700">Requires <span className="font-medium text-amber-800">admin privileges</span> on your Bitrix24 portal</p>
-              </div>
-
-              <div className="space-y-2.5">
-                <div className="flex items-start gap-2.5">
-                  <span className="text-slate-400 font-medium shrink-0 text-[13px]">1.</span>
-                  <p className="text-[13px] text-slate-500">
-                    Go to <span className="font-medium text-slate-700">Applications</span> → <span className="font-medium text-slate-700">Developer resources</span> → <span className="font-medium text-slate-700">Other</span> → <span className="font-medium text-slate-700">Inbound webhook</span>
-                  </p>
+            {/* Setup Guide Card */}
+            <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+              {/* Header with admin badge */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-[15px] font-semibold text-slate-900">Setup Guide</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Follow these steps in your Bitrix24 portal</p>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="text-slate-400 font-medium shrink-0 text-[13px]">2.</span>
-                  <p className="text-[13px] text-slate-500">
-                    Click <span className="font-medium text-slate-700">Inbound webhook</span> → <span className="font-medium text-slate-700">Add</span> and name it (e.g., "LeadRelay Integration")
-                  </p>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="text-slate-400 font-medium shrink-0 text-[13px]">3.</span>
-                  <p className="text-[13px] text-slate-500">
-                    In <span className="font-medium text-slate-700">Setting up rights</span>, click <span className="font-medium text-slate-700">+ Select</span> and enable: <span className="font-medium text-slate-700">CRM, Lists, Users, Tasks</span>
-                  </p>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="text-slate-400 font-medium shrink-0 text-[13px]">4.</span>
-                  <p className="text-[13px] text-slate-500">Click <span className="font-medium text-slate-700">Save</span> and copy the webhook URL</p>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="text-slate-400 font-medium shrink-0 text-[13px]">5.</span>
-                  <p className="text-[13px] text-slate-500">Paste it above and click <span className="font-medium text-slate-700">Connect Bitrix24</span></p>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200">
+                  <ShieldCheck className="w-3 h-3 text-slate-500" strokeWidth={2} />
+                  <span className="text-[10px] font-medium text-slate-600 uppercase tracking-wide">Admin Required</span>
                 </div>
               </div>
-            </div>
 
-            {/* What happens box */}
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-5">
-              <p className="text-xs font-medium text-slate-700 mb-3">What happens when you connect:</p>
-              <div className="space-y-2.5">
-                <div className="flex items-start gap-2.5">
-                  <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" strokeWidth={1.75} />
-                  <p className="text-[13px] text-slate-500">Qualified leads are <span className="font-medium text-slate-700">automatically pushed</span> to your Bitrix24 CRM</p>
+              {/* Steps Timeline */}
+              <div className="p-6">
+                <div className="relative">
+                  {/* Vertical connecting line */}
+                  <div className="absolute left-[11px] top-6 bottom-6 w-px bg-gradient-to-b from-slate-200 via-slate-200 to-transparent" />
+
+                  <div className="space-y-5">
+                    {/* Step 1 */}
+                    <div className="flex gap-4 group">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">1</span>
+                      </div>
+                      <div className="pt-0.5">
+                        <p className="text-[13px] text-slate-700 leading-relaxed">
+                          Navigate to <span className="font-medium text-slate-900">Applications</span>
+                          <span className="text-slate-400 mx-1.5">→</span>
+                          <span className="font-medium text-slate-900">Developer resources</span>
+                          <span className="text-slate-400 mx-1.5">→</span>
+                          <span className="font-medium text-slate-900">Other</span>
+                          <span className="text-slate-400 mx-1.5">→</span>
+                          <span className="font-medium text-slate-900">Inbound webhook</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="flex gap-4 group">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">2</span>
+                      </div>
+                      <div className="pt-0.5">
+                        <p className="text-[13px] text-slate-700 leading-relaxed">
+                          Click <span className="font-medium text-slate-900">Inbound webhook</span>
+                          <span className="text-slate-400 mx-1.5">→</span>
+                          <span className="font-medium text-slate-900">Add</span> and name it
+                          <span className="inline-flex items-center ml-1.5 px-2 py-0.5 rounded bg-slate-100 text-[11px] font-mono text-slate-600">LeadRelay Integration</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className="flex gap-4 group">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">3</span>
+                      </div>
+                      <div className="pt-0.5">
+                        <p className="text-[13px] text-slate-700 leading-relaxed mb-2">
+                          In <span className="font-medium text-slate-900">Setting up rights</span>, click <span className="font-medium text-slate-900">+ Select</span> and enable:
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {['CRM', 'Lists', 'Users', 'Tasks'].map((perm) => (
+                            <span key={perm} className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[11px] font-medium text-emerald-700">
+                              <Check className="w-2.5 h-2.5 mr-1" strokeWidth={2.5} />
+                              {perm}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Step 4 */}
+                    <div className="flex gap-4 group">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">4</span>
+                      </div>
+                      <div className="pt-0.5">
+                        <p className="text-[13px] text-slate-700 leading-relaxed">
+                          Click <span className="font-medium text-slate-900">Save</span> and copy the generated webhook URL
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 5 */}
+                    <div className="flex gap-4 group">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <Check className="w-3 h-3 text-white" strokeWidth={2.5} />
+                      </div>
+                      <div className="pt-0.5">
+                        <p className="text-[13px] text-slate-700 leading-relaxed">
+                          Paste your URL above and click <span className="font-semibold text-emerald-600">Connect Bitrix24</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <Users className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" strokeWidth={1.75} />
-                  <p className="text-[13px] text-slate-500">Contact details are <span className="font-medium text-slate-700">synced in real-time</span> as conversations happen</p>
+              </div>
+            </Card>
+
+            {/* What happens - Refined info section */}
+            <div className="rounded-xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-5">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-4">After connecting</p>
+              <div className="grid gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                    <ArrowUpRight className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-medium text-slate-900">Auto-push qualified leads</p>
+                    <p className="text-[12px] text-slate-500 mt-0.5">Hot leads sent to CRM instantly</p>
+                  </div>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <RefreshCw className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" strokeWidth={1.75} />
-                  <p className="text-[13px] text-slate-500">Existing CRM customers are <span className="font-medium text-slate-700">matched automatically</span> to avoid duplicates</p>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                    <Users className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-medium text-slate-900">Real-time contact sync</p>
+                    <p className="text-[12px] text-slate-500 mt-0.5">Details update as conversations happen</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                    <RefreshCw className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-medium text-slate-900">Smart duplicate detection</p>
+                    <p className="text-[12px] text-slate-500 mt-0.5">Existing customers matched automatically</p>
+                  </div>
                 </div>
               </div>
             </div>

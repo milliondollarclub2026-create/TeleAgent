@@ -34,9 +34,10 @@ export const SidebarContext = createContext();
 export const useSidebar = () => useContext(SidebarContext);
 
 const mainNavItems = [
-  { path: '/app/agents', icon: Bot, label: 'Agents' },
+  { path: '/app/agents', icon: Bot, label: 'AI Employees' },
   { path: '/app/leads', icon: Users, label: 'All Leads' },
   { path: '/app/dialogue', icon: MessagesSquare, label: 'Dialogue' },
+  { path: '/app/connections', icon: Plug, label: 'Connections' },
 ];
 
 const agentNavItems = [
@@ -49,7 +50,6 @@ const agentNavItems = [
 
 const chatNavItems = [
   { path: '/test-chat', icon: MessageSquare, label: 'Test Bot', relative: true },
-  { path: '/crm-chat', icon: MessageCircle, label: 'CRM Chat', relative: true },
 ];
 
 export const SidebarProvider = ({ children }) => {

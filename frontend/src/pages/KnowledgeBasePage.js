@@ -301,7 +301,7 @@ const KnowledgeBasePage = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Knowledge Base</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Knowledge Base</h1>
           <p className="text-[13px] text-slate-500 mt-0.5">Upload documents to help your AI understand your business</p>
         </div>
         <Button

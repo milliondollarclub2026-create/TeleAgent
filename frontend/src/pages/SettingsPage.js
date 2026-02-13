@@ -74,7 +74,7 @@ export default function SettingsPage() {
     <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-500" data-testid="settings-page">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-slate-900 tracking-tight font-['Plus_Jakarta_Sans']">Settings</h1>
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight font-['Plus_Jakarta_Sans']">Settings</h1>
         <p className="text-[13px] text-slate-500 mt-0.5">Manage your account and preferences</p>
       </div>
 

@@ -240,7 +240,7 @@ const AgentSettingsPage = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Settings</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Settings</h1>
           <p className="text-[13px] text-slate-500 mt-0.5">Configure your AI agent's behavior and personality</p>
         </div>
         <Button

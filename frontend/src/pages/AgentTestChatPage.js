@@ -182,7 +182,7 @@ const AgentTestChatPage = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-2 flex-shrink-0">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Test Bot</h1>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Test Bot</h1>
           <p className="text-[13px] text-slate-500 mt-0.5">Preview how your AI agent responds to customers</p>
         </div>
         <Button

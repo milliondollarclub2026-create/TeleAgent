@@ -141,7 +141,7 @@ const GoogleSheetsSetupPage = () => {
     <div className="max-w-2xl mx-auto py-2">
       {/* Back Navigation */}
       <button
-        onClick={() => navigate(`/app/agents/${agentId}/connections`)}
+        onClick={() => navigate(agentId ? `/app/agents/${agentId}/connections` : '/app/connections')}
         className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors mb-6 group"
       >
         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" strokeWidth={1.75} />
@@ -155,7 +155,7 @@ const GoogleSheetsSetupPage = () => {
             <Table className="w-5.5 h-5.5 text-[#0F9D58]" strokeWidth={1.75} />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Google Sheets</h1>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Google Sheets</h1>
             <p className="text-sm text-slate-500 mt-0.5">Connect your spreadsheet for product data and lead tracking</p>
           </div>
         </div>
@@ -253,46 +253,51 @@ const GoogleSheetsSetupPage = () => {
       ) : (
         /* ============ SETUP STATE ============ */
         <div className="space-y-5">
-          {/* Step 1: Share with LeadRelay */}
-          <Card className="bg-white border-slate-200 shadow-sm">
-            <div className="p-6">
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center">
-                  <span className="text-[11px] font-semibold text-white">1</span>
+          {/* Setup Guide Card - Step 1 */}
+          <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-full bg-slate-900 flex items-center justify-center">
+                  <span className="text-[12px] font-semibold text-white">1</span>
                 </div>
-                <h2 className="font-semibold text-slate-900 text-[15px]">Share your sheet with LeadRelay</h2>
+                <div>
+                  <h3 className="text-[15px] font-semibold text-slate-900">Share your sheet with LeadRelay</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Grant editor access to sync data</p>
+                </div>
               </div>
+            </div>
 
-              <p className="text-[13px] text-slate-500 mb-4">
-                Add this email as an <span className="font-medium text-slate-700">Editor</span> on your Google Sheet:
-              </p>
-
-              {/* Email Copy Field */}
-              <div className="mb-5">
+            <div className="p-6">
+              {/* Email Copy Field - Premium style */}
+              <div className="mb-6">
+                <p className="text-[13px] text-slate-600 mb-3">
+                  Add this email as an <span className="font-semibold text-slate-900">Editor</span> on your Google Sheet:
+                </p>
                 {loadingEmail ? (
-                  <div className="h-10 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center">
+                  <div className="h-12 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center">
                     <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
                   </div>
                 ) : (
-                  <div className="flex items-center gap-0 rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
-                    <div className="flex-1 px-3.5 py-2.5 min-w-0">
-                      <p className="text-[13px] text-slate-700 font-mono truncate select-all">
+                  <div className="flex items-center gap-0 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden shadow-sm">
+                    <div className="flex-1 px-4 py-3 min-w-0">
+                      <p className="text-[13px] text-slate-800 font-mono truncate select-all font-medium">
                         {serviceEmail}
                       </p>
                     </div>
                     <button
                       onClick={handleCopyEmail}
-                      className="flex items-center gap-1.5 px-3.5 py-2.5 border-l border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                      className="flex items-center gap-2 px-4 py-3 border-l border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                     >
                       {copied ? (
                         <>
-                          <Check className="w-3.5 h-3.5 text-emerald-600" strokeWidth={2} />
-                          <span className="text-xs font-medium text-emerald-600">Copied</span>
+                          <Check className="w-4 h-4 text-emerald-600" strokeWidth={2} />
+                          <span className="text-[13px] font-medium text-emerald-600">Copied!</span>
                         </>
                       ) : (
                         <>
-                          <Copy className="w-3.5 h-3.5" strokeWidth={1.75} />
-                          <span className="text-xs font-medium">Copy</span>
+                          <Copy className="w-4 h-4" strokeWidth={1.75} />
+                          <span className="text-[13px] font-medium">Copy</span>
                         </>
                       )}
                     </button>
@@ -300,45 +305,64 @@ const GoogleSheetsSetupPage = () => {
                 )}
               </div>
 
-              {/* Instructions */}
-              <div className="rounded-lg bg-slate-50 border border-slate-100 p-4">
-                <p className="text-xs font-medium text-slate-600 mb-2.5">How to do this:</p>
-                <ol className="space-y-2 text-[13px] text-slate-500">
-                  <li className="flex gap-2.5">
-                    <span className="text-slate-400 font-medium shrink-0">1.</span>
-                    Open your Google Sheet
-                  </li>
-                  <li className="flex gap-2.5">
-                    <span className="text-slate-400 font-medium shrink-0">2.</span>
-                    Click <span className="font-medium text-slate-700">Share</span> (top right)
-                  </li>
-                  <li className="flex gap-2.5">
-                    <span className="text-slate-400 font-medium shrink-0">3.</span>
-                    Paste the email above into the <span className="font-medium text-slate-700">"Add people"</span> field
-                  </li>
-                  <li className="flex gap-2.5">
-                    <span className="text-slate-400 font-medium shrink-0">4.</span>
-                    Change role from "Viewer" to <span className="font-medium text-slate-700">Editor</span>
-                  </li>
-                  <li className="flex gap-2.5">
-                    <span className="text-slate-400 font-medium shrink-0">5.</span>
-                    Uncheck "Notify people" and click <span className="font-medium text-slate-700">Send</span>
-                  </li>
-                </ol>
+              {/* Steps Timeline */}
+              <div className="relative">
+                <div className="absolute left-[11px] top-4 bottom-4 w-px bg-gradient-to-b from-slate-200 via-slate-200 to-transparent" />
+
+                <div className="space-y-4">
+                  <div className="flex gap-4">
+                    <div className="relative z-10 w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-semibold text-slate-600">1</span>
+                    </div>
+                    <p className="text-[13px] text-slate-600 pt-0.5">Open your Google Sheet</p>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="relative z-10 w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-semibold text-slate-600">2</span>
+                    </div>
+                    <p className="text-[13px] text-slate-600 pt-0.5">Click <span className="font-medium text-slate-900">Share</span> (top right corner)</p>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="relative z-10 w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-semibold text-slate-600">3</span>
+                    </div>
+                    <p className="text-[13px] text-slate-600 pt-0.5">Paste the email above into <span className="font-medium text-slate-900">"Add people"</span></p>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="relative z-10 w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] font-semibold text-slate-600">4</span>
+                    </div>
+                    <p className="text-[13px] text-slate-600 pt-0.5">
+                      Set role to <span className="inline-flex items-center ml-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[11px] font-medium text-emerald-700">Editor</span>
+                    </p>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="relative z-10 w-6 h-6 rounded-full bg-[#0F9D58] flex items-center justify-center flex-shrink-0">
+                      <Check className="w-3 h-3 text-white" strokeWidth={2.5} />
+                    </div>
+                    <p className="text-[13px] text-slate-600 pt-0.5">Uncheck "Notify people" and click <span className="font-medium text-slate-900">Send</span></p>
+                  </div>
+                </div>
               </div>
             </div>
           </Card>
 
           {/* Step 2: Paste Link */}
-          <Card className="bg-white border-slate-200 shadow-sm">
-            <div className="p-6">
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center">
-                  <span className="text-[11px] font-semibold text-white">2</span>
+          <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-full bg-slate-900 flex items-center justify-center">
+                  <span className="text-[12px] font-semibold text-white">2</span>
                 </div>
-                <h2 className="font-semibold text-slate-900 text-[15px]">Paste your sheet link</h2>
+                <div>
+                  <h3 className="text-[15px] font-semibold text-slate-900">Paste your sheet link</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Connect your spreadsheet to LeadRelay</p>
+                </div>
               </div>
+            </div>
 
+            <div className="p-6">
               <div className="space-y-1.5 mb-4">
                 <Label className="text-slate-700 text-xs font-medium">Sheet URL</Label>
                 <Input
@@ -346,7 +370,7 @@ const GoogleSheetsSetupPage = () => {
                   placeholder="https://docs.google.com/spreadsheets/d/..."
                   value={sheetUrl}
                   onChange={(e) => setSheetUrl(e.target.value)}
-                  className="h-10 text-[13px] border-slate-200 focus:border-slate-400 focus:ring-slate-400"
+                  className="h-11 text-[13px] border-slate-200 focus:border-[#0F9D58] focus:ring-[#0F9D58]"
                   onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
                 />
                 <p className="text-[11px] text-slate-400">Paste the full URL from your browser's address bar</p>
@@ -363,21 +387,36 @@ const GoogleSheetsSetupPage = () => {
             </div>
           </Card>
 
-          {/* Info Box */}
-          <div className="rounded-xl bg-slate-50 border border-slate-200 p-5">
-            <p className="text-xs font-medium text-slate-700 mb-3">What happens when you connect:</p>
-            <div className="space-y-2.5">
-              <div className="flex items-start gap-2.5">
-                <BookOpen className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" strokeWidth={1.75} />
-                <p className="text-[13px] text-slate-500">Your first tab is used as <span className="font-medium text-slate-700">product catalog data</span> for the AI agent</p>
+          {/* What happens - Refined info section */}
+          <div className="rounded-xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-5">
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-4">After connecting</p>
+            <div className="grid gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[#0F9D58]/10 flex items-center justify-center flex-shrink-0">
+                  <BookOpen className="w-4 h-4 text-[#0F9D58]" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <p className="text-[13px] font-medium text-slate-900">Product catalog sync</p>
+                  <p className="text-[12px] text-slate-500 mt-0.5">First tab becomes your AI's knowledge</p>
+                </div>
               </div>
-              <div className="flex items-start gap-2.5">
-                <FileSpreadsheet className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" strokeWidth={1.75} />
-                <p className="text-[13px] text-slate-500">A <span className="font-medium text-slate-700">"Leads" tab</span> is auto-created for lead tracking</p>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <p className="text-[13px] font-medium text-slate-900">Automatic lead tracking</p>
+                  <p className="text-[12px] text-slate-500 mt-0.5">"Leads" tab created for you</p>
+                </div>
               </div>
-              <div className="flex items-start gap-2.5">
-                <Zap className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" strokeWidth={1.75} />
-                <p className="text-[13px] text-slate-500">New leads from Telegram are <span className="font-medium text-slate-700">saved in real-time</span></p>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <p className="text-[13px] font-medium text-slate-900">Real-time updates</p>
+                  <p className="text-[12px] text-slate-500 mt-0.5">New leads saved as they come in</p>
+                </div>
               </div>
             </div>
           </div>

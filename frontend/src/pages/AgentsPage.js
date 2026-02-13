@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
 import {
   Plus,
   MessageSquare,
@@ -20,7 +21,14 @@ import {
   Calendar,
   LayoutGrid,
   List,
-  Radio
+  Radio,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  Megaphone,
+  BookOpen,
+  FolderSync,
+  UserCircle2
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -108,6 +116,13 @@ const BitrixIcon = ({ size = 'sm' }) => {
   );
 };
 
+// Telegram icon for prebuilt cards
+const TelegramIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1.01.54-1.45.53-.48-.01-1.39-.27-2.07-.49-.84-.27-1.51-.42-1.45-.89.03-.25.38-.51 1.07-.78 4.18-1.82 6.97-3.02 8.38-3.61 3.99-1.66 4.83-1.95 5.37-1.96.12 0 .38.03.55.17.14.12.18.28.2.45-.01.06.01.24 0 .38z"/>
+  </svg>
+);
+
 // Get channel display info (hover disabled for non-interactive badges)
 const getChannelInfo = (channel) => {
   const channels = {
@@ -119,16 +134,70 @@ const getChannelInfo = (channel) => {
   return channels[channel] || { name: channel, color: 'bg-slate-100 text-slate-600 hover:bg-slate-100 cursor-default' };
 };
 
+// Prebuilt AI Employees with Uzbek market personalities
+const prebuiltEmployees = [
+  {
+    id: 'prebuilt-sales',
+    name: 'Jasur',
+    role: 'the Sales Agent',
+    description: 'Jasur handles customer conversations on Telegram, qualifies leads based on purchase intent, collects contact information, and never misses a sales opportunity. He speaks Uzbek and Russian fluently.',
+    icon: Megaphone,
+    integration: 'telegram',
+    integrationName: 'Telegram',
+    color: 'bg-slate-100',
+    iconColor: 'text-slate-600',
+    type: 'sales'
+  },
+  {
+    id: 'prebuilt-faq',
+    name: 'Nilufar',
+    role: 'the FAQ Specialist',
+    description: 'Nilufar answers customer questions instantly using your knowledge base. She handles common inquiries about products, pricing, delivery, and policies, freeing your team for complex issues.',
+    icon: BookOpen,
+    integration: 'telegram',
+    integrationName: 'Telegram',
+    color: 'bg-slate-100',
+    iconColor: 'text-slate-600',
+    type: 'faq'
+  },
+  {
+    id: 'prebuilt-crm',
+    name: 'Bobur',
+    role: 'the CRM Manager',
+    description: 'Bobur syncs your leads to Bitrix24 CRM automatically. He updates contact info, tracks lead status, and ensures no customer falls through the cracks. Integrates seamlessly with your existing workflow.',
+    icon: FolderSync,
+    integration: 'bitrix',
+    integrationName: 'Bitrix24',
+    color: 'bg-slate-100',
+    iconColor: 'text-slate-600',
+    type: 'crm'
+  }
+];
+
+// Storage key for hired prebuilt employees
+const HIRED_PREBUILT_KEY = 'hired_prebuilt_employees';
+
 const AgentsPage = () => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState(null);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'card'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedCards, setExpandedCards] = useState({});
+  const [hiredPrebuilt, setHiredPrebuilt] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchAgents();
+    // Load hired prebuilt employees from localStorage
+    const savedHired = localStorage.getItem(HIRED_PREBUILT_KEY);
+    if (savedHired) {
+      try {
+        setHiredPrebuilt(JSON.parse(savedHired));
+      } catch (e) {
+        console.error('Failed to parse hired prebuilt:', e);
+      }
+    }
   }, []);
 
   const fetchAgents = async () => {
@@ -152,15 +221,55 @@ const AgentsPage = () => {
     if (!agentToDelete) return;
     try {
       await axios.delete(`${API}/agents/${agentToDelete.id}`);
-      toast.success('Agent deleted');
+      toast.success('AI Employee deleted');
       fetchAgents();
     } catch (error) {
-      toast.error('Failed to delete agent');
+      toast.error('Failed to delete AI Employee');
     } finally {
       setDeleteDialogOpen(false);
       setAgentToDelete(null);
     }
   };
+
+  const toggleExpand = (id) => {
+    setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleHirePrebuilt = (prebuilt) => {
+    // Check if already hired
+    if (!hiredPrebuilt.includes(prebuilt.id)) {
+      const newHired = [...hiredPrebuilt, prebuilt.id];
+      setHiredPrebuilt(newHired);
+      localStorage.setItem(HIRED_PREBUILT_KEY, JSON.stringify(newHired));
+      toast.success(`${prebuilt.name} has joined your team!`);
+    }
+
+    // CRM agent goes directly to standalone CRM Chat page
+    if (prebuilt.type === 'crm') {
+      navigate('/app/crm');
+      return;
+    }
+    // Other prebuilt types navigate to create new agent
+    navigate('/app/agents/new', { state: { prebuiltType: prebuilt.type } });
+  };
+
+  const handleFirePrebuilt = (prebuilt) => {
+    const newHired = hiredPrebuilt.filter(id => id !== prebuilt.id);
+    setHiredPrebuilt(newHired);
+    localStorage.setItem(HIRED_PREBUILT_KEY, JSON.stringify(newHired));
+    toast.success(`${prebuilt.name} has been removed from your team`);
+  };
+
+  // Get hired prebuilt employee objects
+  const hiredPrebuiltEmployees = prebuiltEmployees.filter(emp => hiredPrebuilt.includes(emp.id));
+  const availablePrebuiltEmployees = prebuiltEmployees.filter(emp => !hiredPrebuilt.includes(emp.id));
+
+  // Filter available (not hired) prebuilt employees based on search
+  const filteredPrebuilt = availablePrebuiltEmployees.filter(emp =>
+    emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.integrationName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Dropdown menu component to avoid duplication
   const AgentDropdownMenu = ({ agent }) => (
@@ -209,229 +318,127 @@ const AgentsPage = () => {
     );
   }
 
-  // Empty state - Premium and inviting
-  if (agents.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-[70vh]" data-testid="agents-empty-state">
-        <div className="text-center max-w-md">
-          {/* Elegant abstract icon */}
-          <div className="relative w-20 h-20 mx-auto mb-6">
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl rotate-6" />
-            <div className="absolute inset-0 bg-white rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-center">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
-                <Zap className="w-5 h-5 text-white" strokeWidth={2} />
-              </div>
-            </div>
-          </div>
-
-          <h1 className="text-2xl font-semibold text-slate-900 mb-2 tracking-tight">
-            Create your first agent
-          </h1>
-          <p className="text-[14px] text-slate-500 mb-8 leading-relaxed max-w-sm mx-auto">
-            Deploy an AI-powered sales agent that handles conversations, qualifies leads, and never sleeps.
-          </p>
-
-          <Button
-            className="bg-slate-900 hover:bg-slate-800 h-11 px-6 text-[14px] font-medium shadow-sm"
-            onClick={() => navigate('/app/agents/new')}
-            data-testid="create-first-agent-btn"
-          >
-            <Plus className="w-4 h-4 mr-2" strokeWidth={2.5} />
-            Create Agent
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Agents list
   return (
-    <div className="space-y-6" data-testid="agents-page">
-      {/* Header */}
+    <div className="space-y-8" data-testid="agents-page">
+      {/* Header - Your AI Employees */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Agents</h1>
-          <p className="text-[13px] text-slate-500 mt-0.5">
-            {agents.length} agent{agents.length !== 1 ? 's' : ''} deployed
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* View Toggle */}
-          <div className="hidden sm:flex items-center border border-slate-200 rounded-lg p-0.5 bg-white">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-md transition-all ${
-                viewMode === 'list'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-400 hover:text-slate-600'
-              }`}
-              title="List view"
-            >
-              <List className="w-4 h-4" strokeWidth={1.75} />
-            </button>
-            <button
-              onClick={() => setViewMode('card')}
-              className={`p-1.5 rounded-md transition-all ${
-                viewMode === 'card'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-400 hover:text-slate-600'
-              }`}
-              title="Card view"
-            >
-              <LayoutGrid className="w-4 h-4" strokeWidth={1.75} />
-            </button>
-          </div>
-
-          <Button
-            className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
-            onClick={() => navigate('/app/agents/new')}
-            data-testid="create-agent-btn"
-          >
-            <Plus className="w-4 h-4 mr-1.5" strokeWidth={2.5} />
-            New Agent
-          </Button>
-        </div>
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Your AI Employees</h1>
+        <Button
+          className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm text-white"
+          onClick={() => navigate('/app/agents/new')}
+          data-testid="create-agent-btn"
+        >
+          <Plus className="w-4 h-4 mr-1.5" strokeWidth={2.5} />
+          Create AI Employee
+        </Button>
       </div>
 
-      {/* List View */}
-      {viewMode === 'list' && (
-        <div className="grid gap-3">
-          {agents.map((agent, index) => (
-            <Card
-              key={agent.id}
-              className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group overflow-hidden"
-              onClick={() => navigate(`/app/agents/${agent.id}`)}
-              data-testid={`agent-card-${agent.id}`}
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <CardContent className="p-0">
-                <div className="flex items-stretch">
-                  {/* Left Section - Avatar & Core Info */}
-                  <div className="flex items-center gap-4 p-4 flex-1 min-w-0">
-                    {/* Agent Avatar */}
-                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${getAgentGradient(agent.name)} flex items-center justify-center shadow-sm flex-shrink-0`}>
-                      <span className="text-[14px] font-semibold text-white tracking-wide">
-                        {getInitials(agent.name)}
-                      </span>
-                    </div>
-
-                    {/* Agent Details */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-slate-900 text-[14px] truncate group-hover:text-slate-700 transition-colors">
-                          {agent.name}
-                        </h3>
-                        {agent.status === 'active' ? (
-                          <Badge className="bg-emerald-50 text-emerald-600 border-0 text-[10px] font-medium px-1.5 py-0 gap-1 hover:bg-emerald-50 cursor-default">
-                            <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                            Active
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-slate-100 text-slate-500 border-0 text-[10px] font-medium px-1.5 py-0 hover:bg-slate-100 cursor-default">
-                            Inactive
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Metadata Row */}
-                      <div className="flex items-center gap-2.5 text-[12px] text-slate-500">
-                        {agent.channel && (
-                          <>
-                            <Badge className={`${getChannelInfo(agent.channel).color} border-0 text-[10px] font-medium px-1.5 py-0 gap-1`}>
-                              <ChannelIcon channel={agent.channel} size="sm" />
-                              {getChannelInfo(agent.channel).name}
-                            </Badge>
-                          </>
-                        )}
-                        {agent.bitrix_connected && (
-                          <>
-                            <Badge className="bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
-                              <BitrixIcon size="sm" />
-                              Bitrix24
-                            </Badge>
-                          </>
-                        )}
-                        {(agent.channel || agent.bitrix_connected) && (
-                          <span className="text-slate-300">·</span>
-                        )}
-                        <div className="flex items-center gap-1">
-                          <MessageSquare className="w-3.5 h-3.5" strokeWidth={2} />
-                          <span>{agent.conversations_count || 0}</span>
-                        </div>
-                        <span className="text-slate-300">·</span>
-                        <div className="flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5" strokeWidth={2} />
-                          <span>{agent.leads_count || 0}</span>
-                        </div>
-                        {agent.created_at && (
-                          <>
-                            <span className="text-slate-300 hidden sm:inline">·</span>
-                            <div className="hidden sm:flex items-center gap-1">
-                              <Calendar className="w-3.5 h-3.5" strokeWidth={2} />
-                              <span>{formatDate(agent.created_at)}</span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Section - Stats & Actions */}
-                  <div className="hidden md:flex items-center border-l border-slate-100 bg-slate-50/50">
-                    {/* Stats Grid */}
-                    <div className="flex items-center divide-x divide-slate-100">
-                      <div className="px-4 py-3 text-center min-w-[80px]">
-                        <div className="flex items-center justify-center gap-1 mb-0.5">
-                          <TrendingUp className="w-3 h-3 text-slate-400" strokeWidth={2} />
-                          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">Conv.</span>
-                        </div>
-                        <p className="text-[14px] font-semibold text-slate-900 tabular-nums">
-                          {agent.conversion_rate || 0}%
-                        </p>
-                      </div>
-                      <div className="px-4 py-3 text-center min-w-[80px]">
-                        <div className="flex items-center justify-center gap-1 mb-0.5">
-                          <Clock className="w-3 h-3 text-slate-400" strokeWidth={2} />
-                          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">Resp.</span>
-                        </div>
-                        <p className="text-[14px] font-semibold text-slate-900 tabular-nums">
-                          {agent.avg_response_time ? `${agent.avg_response_time}s` : '-'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="px-3 flex items-center">
-                      <AgentDropdownMenu agent={agent} />
-                    </div>
-                  </div>
-
-                  {/* Mobile Actions */}
-                  <div className="md:hidden flex items-center pr-3">
-                    <AgentDropdownMenu agent={agent} />
-                  </div>
-
-                  {/* Hover Arrow */}
-                  <div className="hidden md:flex items-center pr-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ArrowUpRight className="w-4 h-4 text-slate-400" strokeWidth={2} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+      {/* Your AI Employees Section */}
+      {agents.length === 0 && hiredPrebuiltEmployees.length === 0 ? (
+        /* Empty State */
+        <div className="flex flex-col items-center justify-center py-16 px-4" data-testid="agents-empty-state">
+          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+            <UserCircle2 className="w-8 h-8 text-slate-400" strokeWidth={1.5} />
+          </div>
+          <h2 className="text-[15px] font-medium text-slate-900 mb-1">No AI employees yet</h2>
+          <p className="text-[13px] text-slate-500 text-center max-w-sm">
+            Create your first AI employee or hire a prebuilt one below
+          </p>
         </div>
-      )}
-
-      {/* Card View */}
-      {viewMode === 'card' && (
+      ) : (
+        /* Agents Grid - includes both user-created and hired prebuilt */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Hired Prebuilt Employees */}
+          {hiredPrebuiltEmployees.map((employee, index) => {
+            const Icon = employee.icon;
+            return (
+              <Card
+                key={employee.id}
+                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group"
+                onClick={() => employee.type === 'crm' ? navigate('/app/crm') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } })}
+                data-testid={`hired-${employee.id}`}
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <CardContent className="p-5">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center shadow-sm">
+                      <Icon className="w-6 h-6 text-slate-600" strokeWidth={1.75} />
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-200/50"
+                        >
+                          <MoreVertical className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem
+                          onClick={(e) => { e.stopPropagation(); employee.type === 'crm' ? navigate('/app/crm') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } }); }}
+                          className="gap-2.5 text-[13px]"
+                        >
+                          <LayoutDashboard className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                          Open
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="gap-2.5 text-[13px] text-red-600 focus:text-red-600 focus:bg-red-50"
+                          onClick={(e) => { e.stopPropagation(); handleFirePrebuilt(employee); }}
+                        >
+                          <Trash2 className="w-4 h-4" strokeWidth={1.75} />
+                          Remove
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  {/* Name & Status */}
+                  <div className="mb-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-slate-900 text-[15px] truncate group-hover:text-slate-700 transition-colors">
+                        {employee.name}
+                      </h3>
+                    </div>
+                    <p className="text-[12px] text-slate-500 mb-2">{employee.role}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge className="bg-emerald-50 text-emerald-600 border-0 text-[10px] font-medium px-1.5 py-0 gap-1 hover:bg-emerald-50 cursor-default">
+                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
+                        Hired
+                      </Badge>
+                      {employee.integration === 'telegram' ? (
+                        <Badge className="bg-[#0088cc]/10 text-[#0088cc] hover:bg-[#0088cc]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                          <TelegramIcon className="w-3 h-3" />
+                          Telegram
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                          <BitrixIcon size="sm" />
+                          Bitrix24
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-2">
+                    {employee.description}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
+
+          {/* User-created Agents */}
           {agents.map((agent, index) => (
             <Card
               key={agent.id}
               className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group"
               onClick={() => navigate(`/app/agents/${agent.id}`)}
               data-testid={`agent-card-${agent.id}`}
-              style={{ animationDelay: `${index * 50}ms` }}
+              style={{ animationDelay: `${(hiredPrebuiltEmployees.length + index) * 50}ms` }}
             >
               <CardContent className="p-5">
                 {/* Header */}
@@ -530,11 +537,80 @@ const AgentsPage = () => {
         </div>
       )}
 
+      {/* Prebuilt AI Employees Section - only show if there are available employees */}
+      {availablePrebuiltEmployees.length > 0 && (
+      <div className="pt-6 border-t border-slate-200">
+        <div className="mb-6">
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight mb-1">Prebuilt AI Employees</h2>
+          <p className="text-[13px] text-slate-500">
+            Get started quickly with these ready-to-use AI employee templates
+          </p>
+        </div>
+
+{/* Prebuilt Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredPrebuilt.map((employee) => {
+            const Icon = employee.icon;
+            const isExpanded = expandedCards[employee.id];
+
+            return (
+              <Card
+                key={employee.id}
+                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 group"
+              >
+                <CardContent className="p-5">
+                  {/* Header: Icon + Name/Role */}
+                  <div className="mb-4">
+                    <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center mb-3">
+                      <Icon className="w-7 h-7 text-slate-600" strokeWidth={1.75} />
+                    </div>
+                    <h3 className="font-semibold text-slate-900 text-[15px]">{employee.name}</h3>
+                    <p className="text-[12px] text-slate-500">{employee.role}</p>
+                  </div>
+
+                  {/* Description */}
+                  <div className="mb-4">
+                    <p className="text-[13px] text-slate-500 leading-relaxed">
+                      {employee.description}
+                    </p>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                    {employee.integration === 'telegram' ? (
+                      <TelegramIcon className="w-[18px] h-[18px] text-[#0088cc]" />
+                    ) : (
+                      <svg className="w-[18px] h-[18px] text-[#FF5722]" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                    <Button
+                      onClick={() => handleHirePrebuilt(employee)}
+                      className="bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium h-7 px-3 rounded-md shadow-sm"
+                    >
+                      Hire
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* No results */}
+        {filteredPrebuilt.length === 0 && searchQuery && (
+          <div className="text-center py-12">
+            <p className="text-[13px] text-slate-500">No employees found matching "{searchQuery}"</p>
+          </div>
+        )}
+      </div>
+      )}
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="sm:max-w-[400px]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-slate-900">Delete this agent?</AlertDialogTitle>
+            <AlertDialogTitle className="text-slate-900">Delete this AI employee?</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-500 text-[13px]">
               This will permanently delete "{agentToDelete?.name}" and all associated data including conversations and leads.
             </AlertDialogDescription>

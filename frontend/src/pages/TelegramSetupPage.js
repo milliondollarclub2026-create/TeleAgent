@@ -109,7 +109,7 @@ const TelegramSetupPage = () => {
       <div className="max-w-2xl mx-auto py-2">
         {/* Back Navigation */}
         <button
-          onClick={() => navigate(`/app/agents/${agentId}/connections`)}
+          onClick={() => navigate(agentId ? `/app/agents/${agentId}/connections` : '/app/connections')}
           className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors mb-6 group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" strokeWidth={1.75} />
@@ -119,11 +119,11 @@ const TelegramSetupPage = () => {
         {/* Page Header */}
         <div className="flex items-start justify-between mb-8">
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center">
-              <Bot className="w-5.5 h-5.5 text-slate-600" strokeWidth={1.75} />
+            <div className="w-11 h-11 rounded-xl bg-[#0088cc]/10 flex items-center justify-center">
+              <Bot className="w-5.5 h-5.5 text-[#0088cc]" strokeWidth={1.75} />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-slate-900 tracking-tight">Telegram Bot</h1>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Telegram Bot</h1>
               <p className="text-sm text-slate-500 mt-0.5">Connect your Telegram bot to receive messages</p>
             </div>
           </div>
@@ -279,56 +279,129 @@ const TelegramSetupPage = () => {
               </div>
             </Card>
 
-            {/* Info Box */}
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-5">
-              <p className="text-xs font-medium text-slate-700 mb-3">How to get your bot token:</p>
-              <div className="space-y-2.5">
-                <div className="flex items-start gap-2.5">
-                  <span className="text-slate-400 font-medium shrink-0 text-[13px]">1.</span>
-                  <p className="text-[13px] text-slate-500">
-                    Open{' '}
-                    <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-700 underline underline-offset-2">
-                      @BotFather
-                    </a>{' '}
-                    in Telegram
-                  </p>
+            {/* Setup Guide Card */}
+            <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-[15px] font-semibold text-slate-900">Setup Guide</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Get your bot token from BotFather</p>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="text-slate-400 font-medium shrink-0 text-[13px]">2.</span>
-                  <p className="text-[13px] text-slate-500">
-                    Send <code className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[11px] font-mono">/newbot</code> to create a new bot
-                  </p>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="text-slate-400 font-medium shrink-0 text-[13px]">3.</span>
-                  <p className="text-[13px] text-slate-500">Choose a <span className="font-medium text-slate-700">name</span> and <span className="font-medium text-slate-700">username</span> for your bot</p>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="text-slate-400 font-medium shrink-0 text-[13px]">4.</span>
-                  <p className="text-[13px] text-slate-500">Copy the <span className="font-medium text-slate-700">API token</span> provided</p>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <span className="text-slate-400 font-medium shrink-0 text-[13px]">5.</span>
-                  <p className="text-[13px] text-slate-500">Paste it above and click <span className="font-medium text-slate-700">Connect Bot</span></p>
+                <a
+                  href="https://t.me/BotFather"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#0088cc]/10 border border-[#0088cc]/20 text-[10px] font-medium text-[#0088cc] hover:bg-[#0088cc]/20 transition-colors"
+                >
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1.01.54-1.45.53-.48-.01-1.39-.27-2.07-.49-.84-.27-1.51-.42-1.45-.89.03-.25.38-.51 1.07-.78 4.18-1.82 6.97-3.02 8.38-3.61 3.99-1.66 4.83-1.95 5.37-1.96.12 0 .38.03.55.17.14.12.18.28.2.45-.01.06.01.24 0 .38z"/>
+                  </svg>
+                  @BotFather
+                </a>
+              </div>
+
+              {/* Steps Timeline */}
+              <div className="p-6">
+                <div className="relative">
+                  {/* Vertical connecting line */}
+                  <div className="absolute left-[11px] top-6 bottom-6 w-px bg-gradient-to-b from-slate-200 via-slate-200 to-transparent" />
+
+                  <div className="space-y-5">
+                    {/* Step 1 */}
+                    <div className="flex gap-4 group">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">1</span>
+                      </div>
+                      <div className="pt-0.5">
+                        <p className="text-[13px] text-slate-700 leading-relaxed">
+                          Open <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="font-medium text-[#0088cc] hover:underline">@BotFather</a> in Telegram
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="flex gap-4 group">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">2</span>
+                      </div>
+                      <div className="pt-0.5">
+                        <p className="text-[13px] text-slate-700 leading-relaxed">
+                          Send the command
+                          <span className="inline-flex items-center ml-1.5 px-2 py-0.5 rounded bg-slate-100 text-[11px] font-mono text-slate-600">/newbot</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className="flex gap-4 group">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">3</span>
+                      </div>
+                      <div className="pt-0.5">
+                        <p className="text-[13px] text-slate-700 leading-relaxed">
+                          Choose a <span className="font-medium text-slate-900">name</span> and <span className="font-medium text-slate-900">username</span> for your bot
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 4 */}
+                    <div className="flex gap-4 group">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">4</span>
+                      </div>
+                      <div className="pt-0.5">
+                        <p className="text-[13px] text-slate-700 leading-relaxed">
+                          Copy the <span className="font-medium text-slate-900">API token</span> BotFather provides
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 5 */}
+                    <div className="flex gap-4 group">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-[#0088cc] flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <Check className="w-3 h-3 text-white" strokeWidth={2.5} />
+                      </div>
+                      <div className="pt-0.5">
+                        <p className="text-[13px] text-slate-700 leading-relaxed">
+                          Paste your token above and click <span className="font-semibold text-[#0088cc]">Connect Bot</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            </Card>
 
-            {/* What happens box */}
-            <div className="rounded-xl bg-slate-50 border border-slate-200 p-5">
-              <p className="text-xs font-medium text-slate-700 mb-3">What happens when you connect:</p>
-              <div className="space-y-2.5">
-                <div className="flex items-start gap-2.5">
-                  <MessageSquare className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" strokeWidth={1.75} />
-                  <p className="text-[13px] text-slate-500">Your bot starts <span className="font-medium text-slate-700">receiving messages</span> from Telegram users</p>
+            {/* What happens - Refined info section */}
+            <div className="rounded-xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-5">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-4">After connecting</p>
+              <div className="grid gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-[#0088cc]/10 flex items-center justify-center flex-shrink-0">
+                    <MessageSquare className="w-4 h-4 text-[#0088cc]" strokeWidth={1.75} />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-medium text-slate-900">Receive messages instantly</p>
+                    <p className="text-[12px] text-slate-500 mt-0.5">All Telegram messages forwarded to your AI</p>
+                  </div>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <Zap className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" strokeWidth={1.75} />
-                  <p className="text-[13px] text-slate-500">AI agent <span className="font-medium text-slate-700">auto-replies</span> based on your settings and knowledge base</p>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                    <Zap className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-medium text-slate-900">Auto-reply with AI</p>
+                    <p className="text-[12px] text-slate-500 mt-0.5">Responses based on your knowledge base</p>
+                  </div>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <Globe className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" strokeWidth={1.75} />
-                  <p className="text-[13px] text-slate-500">Leads are <span className="font-medium text-slate-700">qualified and tracked</span> automatically</p>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                    <Globe className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-medium text-slate-900">Track & qualify leads</p>
+                    <p className="text-[12px] text-slate-500 mt-0.5">Automatic lead scoring and tracking</p>
+                  </div>
                 </div>
               </div>
             </div>
