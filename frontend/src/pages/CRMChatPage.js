@@ -73,6 +73,22 @@ const thinkingMessages = [
   "Almost there",
 ];
 
+// Helper to check if a chart has valid data (prevents empty chart rendering)
+const chartHasValidData = (chart) => {
+  if (!chart || !chart.type) return false;
+
+  const type = chart.type.toLowerCase();
+
+  // KPI cards need a value
+  if (type === 'kpi' || type === 'metric') {
+    return chart.value !== undefined && chart.value !== null;
+  }
+
+  // All other charts need a non-empty data array with valid entries
+  return Array.isArray(chart.data) && chart.data.length > 0 &&
+         chart.data.some(d => d && d.label !== undefined && d.value !== undefined);
+};
+
 export default function CRMChatPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -543,14 +559,17 @@ export default function CRMChatPage() {
                         </ReactMarkdown>
                       </div>
                     )}
-                    {/* Charts - Smart grid layout */}
+                    {/* Charts - Smart grid layout (only show charts with valid data) */}
                     {msg.charts && msg.charts.length > 0 && (
                       <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         {(() => {
-                          // Separate KPIs from other charts
-                          const kpis = msg.charts.filter(c => c.type?.toLowerCase() === 'kpi' || c.type?.toLowerCase() === 'metric');
-                          const smallCharts = msg.charts.filter(c => ['pie', 'donut', 'bar'].includes(c.type?.toLowerCase()));
-                          const wideCharts = msg.charts.filter(c => ['line', 'area', 'funnel'].includes(c.type?.toLowerCase()));
+                          // Filter out charts without valid data, then separate by type
+                          const validCharts = msg.charts.filter(chartHasValidData);
+                          if (validCharts.length === 0) return null;
+
+                          const kpis = validCharts.filter(c => c.type?.toLowerCase() === 'kpi' || c.type?.toLowerCase() === 'metric');
+                          const smallCharts = validCharts.filter(c => ['pie', 'donut', 'bar'].includes(c.type?.toLowerCase()));
+                          const wideCharts = validCharts.filter(c => ['line', 'area', 'funnel'].includes(c.type?.toLowerCase()));
 
                           return (
                             <>

@@ -2080,24 +2080,31 @@ async def crm_chat(
                     "data_sources": ["aggregated_analytics"]
                 }
 
-        # ============ TIER 2: GPT-4o-mini with Aggregated + Raw CRM Context ============
-        # Combines pre-aggregated metrics for speed with raw CRM data for depth
+        # ============ TIER 2: GPT-4o-mini with Aggregated Context ============
+        # Uses pre-aggregated metrics for fast responses (< 5 seconds)
+        # Only fetches raw CRM data when query asks for specific details
         if aggregations:
             aggregation_context = _build_aggregation_context(aggregations)
 
-            # ALSO fetch raw CRM data for detailed insights (best of both worlds)
-            crm_context = await client.get_context_for_ai(request.message)
+            # Check if query needs detailed raw data (specific names, individual records, etc.)
+            detail_keywords = ["who", "which", "name", "list", "show me all", "specific", "detail", "individual", "recent leads", "recent deals"]
+            needs_detail = any(kw in request.message.lower() for kw in detail_keywords)
+
+            # Only fetch raw CRM data if query explicitly needs it (saves ~20 seconds)
+            crm_context = ""
+            if needs_detail:
+                crm_context = await client.get_context_for_ai(request.message)
+                detail_section = f"\n\n## Detailed CRM Records (For Specific Questions)\n{crm_context}"
+            else:
+                detail_section = ""
 
             messages = [
                 {
                     "role": "system",
-                    "content": f"""You are a helpful CRM assistant for a business using Bitrix24. You have access to both pre-aggregated analytics AND detailed CRM data.
+                    "content": f"""You are a helpful CRM assistant for a business using Bitrix24. You have access to pre-aggregated analytics data.
 
 ## Pre-Aggregated Analytics (Summary Metrics)
-{aggregation_context}
-
-## Detailed CRM Data (For In-Depth Analysis)
-{crm_context}
+{aggregation_context}{detail_section}
 
 ## Response Guidelines
 
@@ -2122,19 +2129,32 @@ async def crm_chat(
 - Provide actionable business insights
 - If asked about specific items, show details from the raw data
 
-## Chart Visualization
+## Chart Visualization (CRITICAL - MUST FOLLOW)
 
-Include charts using this format when data benefits from visualization:
+When asked for charts or visualizations, you MUST include actual chart code blocks with real data.
+
+### MANDATORY FORMAT - Always use this exact structure:
 ```chart
-{{"type": "chart_type", "title": "Title", "data": [...]}}
+{{"type": "chart_type", "title": "Title", "data": [{{"label": "Name", "value": 123}}, ...]}}
 ```
 
-Available types:
-- **bar** - Compare quantities (leads by status, sales by product)
-- **pie** - Show proportions (source breakdown, category splits)
-- **line** - Show trends over time (daily leads, revenue trends)
-- **funnel** - Pipeline stages (lead → qualified → won)
-- **kpi** - Single metric highlight (total leads, conversion rate)
+### Chart Types with REQUIRED data format:
+
+1. **bar** - `{{"type": "bar", "title": "Leads by Status", "data": [{{"label": "New", "value": 50}}, {{"label": "Won", "value": 12}}]}}`
+
+2. **pie** - `{{"type": "pie", "title": "Lead Sources", "data": [{{"label": "Website", "value": 40}}, {{"label": "Referral", "value": 25}}]}}`
+
+3. **line** - `{{"type": "line", "title": "Daily Leads", "data": [{{"label": "Mon", "value": 5}}, {{"label": "Tue", "value": 8}}]}}`
+
+4. **funnel** - `{{"type": "funnel", "title": "Sales Pipeline", "data": [{{"label": "Leads", "value": 100}}, {{"label": "Qualified", "value": 40}}, {{"label": "Won", "value": 10}}]}}`
+
+5. **kpi** - `{{"type": "kpi", "title": "Total Leads", "value": 50, "change": "+15%", "changeDirection": "up"}}`
+
+### CRITICAL RULES:
+- ALWAYS populate the "data" array with ACTUAL values from the CRM data provided above
+- NEVER describe a chart without including the actual ```chart code block
+- If user asks for a chart, output BOTH text explanation AND the chart code block
+- Use the pre-aggregated analytics data to populate chart values
 
 Language: Respond in the same language the user uses (English, Russian, or Uzbek)."""
                 }
@@ -2158,13 +2178,13 @@ Language: Respond in the same language the user uses (English, Russian, or Uzbek
             charts = _parse_charts(reply)
             clean_reply = _clean_chart_blocks(reply)
 
-            logger.info(f"GPT-4o-mini response for tenant {tenant_id}")
+            logger.info(f"GPT-4o-mini response for tenant {tenant_id} (detail={needs_detail})")
             return {
                 "reply": clean_reply,
                 "charts": charts,
                 "response_type": "ai_assisted",
                 "crm_context_used": True,
-                "data_sources": ["aggregated_analytics", "raw_crm_data"]
+                "data_sources": ["aggregated_analytics"] + (["raw_crm_data"] if needs_detail else [])
             }
 
         # ============ TIER 3: GPT-4o with Raw CRM Data (Fallback) ============
@@ -2241,10 +2261,14 @@ When data would benefit from visualization, include a chart block using this for
    {{"type": "kpi", "title": "Total Leads", "value": 247, "change": "+12%", "changeDirection": "up"}}
    ```
 
+### CRITICAL RULES (MUST FOLLOW):
+- When asked for a chart, ALWAYS include the actual ```chart code block with real data
+- ALWAYS populate the "data" array with ACTUAL values from the CRM data provided above
+- NEVER just describe a chart in text - include the JSON code block
+- Provide text explanation alongside each chart
+
 ### When to Use Charts:
 - Use charts when asked about breakdowns, distributions, trends, or comparisons
-- Include a chart when showing statistics that benefit from visual representation
-- Always provide text explanation alongside charts
 - For simple single-number answers, use KPI cards
 - For complex comparisons, use bar or pie charts
 - For time-based data, use line charts
