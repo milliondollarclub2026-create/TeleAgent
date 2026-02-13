@@ -6,7 +6,7 @@ const pricingTiers = [
     name: 'Starter',
     price: '$50',
     period: '/month',
-    description: 'Perfect for small businesses getting started with AI sales',
+    description: 'For small businesses ready to automate their first Telegram sales channel',
     features: [
       { text: '250 AI messages/month', icon: MessageSquare },
       { text: '2 AI Agents', icon: Bot },
@@ -19,7 +19,7 @@ const pricingTiers = [
     name: 'Professional',
     price: '$100',
     period: '/month',
-    description: 'For growing teams that need full CRM integration',
+    description: 'For growing teams that need unlimited agents and full Bitrix24 CRM integration',
     features: [
       { text: '600 AI messages/month', icon: MessageSquare },
       { text: 'Unlimited AI Agents', icon: Bot },
@@ -46,7 +46,7 @@ export default function PricingSection({ onGetStarted }) {
             Simple, transparent <span className="text-emerald-600">pricing</span>
           </h2>
           <p className="text-lg text-slate-500 max-w-2xl mx-auto">
-            Choose the plan that fits your business. Start selling smarter today.
+            Choose the plan that fits your business. No hidden fees, no long-term contracts.
           </p>
         </div>
 

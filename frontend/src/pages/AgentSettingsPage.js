@@ -552,19 +552,19 @@ const AgentSettingsPage = () => {
                       <SelectItem value="none">
                         <div className="flex items-center gap-2">
                           <span>No discounts</span>
-                          <span className="text-[11px] text-slate-400">— Agent cannot offer any discounts</span>
+                          <span className="text-[11px] text-slate-400">- Agent cannot offer any discounts</span>
                         </div>
                       </SelectItem>
                       <SelectItem value="manager_only">
                         <div className="flex items-center gap-2">
                           <span>Manager only</span>
-                          <span className="text-[11px] text-slate-400">— Refers to manager for pricing</span>
+                          <span className="text-[11px] text-slate-400">- Refers to manager for pricing</span>
                         </div>
                       </SelectItem>
                       <SelectItem value="agent_can_offer">
                         <div className="flex items-center gap-2">
                           <span>Agent can offer</span>
-                          <span className="text-[11px] text-slate-400">— Can offer configured promos</span>
+                          <span className="text-[11px] text-slate-400">- Can offer configured promos</span>
                         </div>
                       </SelectItem>
                     </SelectContent>
@@ -767,7 +767,7 @@ const AgentSettingsPage = () => {
                               <div className="flex items-center gap-2">
                                 <FieldIcon className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
                                 <span className="text-[13px]">{label}</span>
-                                <span className="text-[11px] text-slate-400">— {desc}</span>
+                                <span className="text-[11px] text-slate-400">- {desc}</span>
                               </div>
                             </SelectItem>
                           ))}

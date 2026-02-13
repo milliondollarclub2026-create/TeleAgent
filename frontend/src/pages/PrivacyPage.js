@@ -1,34 +1,47 @@
 // === PRIVACY PAGE ===
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Zap, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 export default function PrivacyPage() {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#F5F7F6]">
       {/* Navigation */}
-      <nav className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6">
+      <nav className="bg-white/90 backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 md:px-12">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-9 h-9 bg-emerald-600 rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-white" strokeWidth={2} />
-              </div>
+            <Link to="/" className="flex items-center gap-3 group">
+              <img
+                src="/logo.svg"
+                alt="LeadRelay"
+                className="h-9 w-9 transition-transform duration-300 group-hover:scale-110"
+                style={{ objectFit: 'contain' }}
+              />
               <span className="text-xl font-bold tracking-tight font-['Plus_Jakarta_Sans']">
                 <span className="text-emerald-600">Lead</span>
                 <span className="text-slate-900">Relay</span>
               </span>
             </Link>
 
-            {/* Back to Home */}
-            <Link
-              to="/"
-              className="flex items-center gap-2 text-sm text-slate-500 hover:text-emerald-600 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" strokeWidth={1.75} />
-              Back to Home
-            </Link>
+            <div className="flex items-center gap-6">
+              <Link
+                to="/terms"
+                className="hidden sm:inline text-sm text-slate-500 hover:text-slate-900 transition-colors"
+              >
+                Terms of Service
+              </Link>
+              <Link
+                to="/"
+                className="flex items-center gap-2 text-sm text-slate-500 hover:text-emerald-600 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                Back to Home
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
@@ -38,7 +51,7 @@ export default function PrivacyPage() {
         <h1 className="text-4xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-2">
           Privacy Policy
         </h1>
-        <p className="text-slate-500 mb-8">Last updated: February 9, 2026</p>
+        <p className="text-slate-500 mb-8">Last updated: February 13, 2026</p>
 
         <div className="prose prose-slate max-w-none">
           {/* Introduction */}
@@ -107,7 +120,8 @@ export default function PrivacyPage() {
               We collect and store:
             </p>
             <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
-              <li>All messages exchanged between your AI agents and your customers via Telegram</li>
+              <li>All messages exchanged between your AI agents and your customers via Telegram,
+                WhatsApp Business, and Instagram Direct</li>
               <li>Customer contact information collected during conversations (names, phone numbers, email addresses)</li>
               <li>Conversation metadata (timestamps, message IDs, delivery status)</li>
               <li>AI-generated responses and recommendations</li>
@@ -139,6 +153,11 @@ export default function PrivacyPage() {
             <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2">
               <li>Telegram Bot API tokens and webhook configurations</li>
               <li>Bitrix24 OAuth tokens and webhook URLs</li>
+              <li>Google OAuth2 refresh tokens (for Google Sheets export functionality)</li>
+              <li>Google Sheets spreadsheet IDs and sheet metadata (headers, sheet names)</li>
+              <li>WhatsApp Business API access tokens and phone number IDs</li>
+              <li>Instagram Professional Account tokens and page connections</li>
+              <li>Meta Platform API tokens for WhatsApp and Instagram integrations</li>
               <li>Integration status and synchronization logs</li>
             </ul>
           </section>
@@ -279,6 +298,21 @@ export default function PrivacyPage() {
                 OpenAI to generate AI responses. See Section 3 for details.</li>
               <li><strong>Supabase:</strong> Our database infrastructure provider that stores your data.
                 Supabase maintains SOC 2 Type II compliance and implements industry-standard security.</li>
+              <li><strong>Google (Google Sheets API):</strong> When you enable Google Sheets export, we
+                transmit lead data (names, contact details, lead scores, conversation summaries) to
+                your designated Google Sheets spreadsheet. Google processes this data according to the{' '}
+                <a href="https://policies.google.com/privacy" className="text-emerald-600 hover:text-emerald-700 underline"
+                  target="_blank" rel="noopener noreferrer">Google Privacy Policy</a>.</li>
+              <li><strong>Meta Platforms (WhatsApp Business API):</strong> When you enable WhatsApp
+                messaging, customer messages, contact details, and conversation metadata are transmitted
+                through Meta's WhatsApp Business API. Meta processes this data according to the{' '}
+                <a href="https://www.whatsapp.com/legal/privacy-policy" className="text-emerald-600 hover:text-emerald-700 underline"
+                  target="_blank" rel="noopener noreferrer">WhatsApp Privacy Policy</a>.</li>
+              <li><strong>Meta Platforms (Instagram Messaging API):</strong> When you enable Instagram
+                messaging, customer messages and profile information are transmitted through Meta's
+                Instagram API. Meta processes this data according to the{' '}
+                <a href="https://privacycenter.instagram.com/policy" className="text-emerald-600 hover:text-emerald-700 underline"
+                  target="_blank" rel="noopener noreferrer">Instagram Privacy Policy</a>.</li>
             </ul>
 
             <p className="text-slate-600 leading-relaxed mb-4">
@@ -492,7 +526,7 @@ export default function PrivacyPage() {
               <strong>7.7 Exercising Your Rights</strong>
             </p>
             <p className="text-slate-600 leading-relaxed mb-4">
-              To exercise any of these rights, please contact us at privacy@leadrelay.com. We will
+              To exercise any of these rights, please contact us at privacy@leadrelay.net. We will
               respond to your request within 30 days. We may need to verify your identity before
               processing your request.
             </p>
@@ -597,7 +631,7 @@ export default function PrivacyPage() {
               The Service is not intended for use by children under the age of 18. We do not
               knowingly collect personal information from children under 18. If you are a parent
               or guardian and believe that your child has provided us with personal information,
-              please contact us at privacy@leadrelay.com.
+              please contact us at privacy@leadrelay.net.
             </p>
             <p className="text-slate-600 leading-relaxed">
               If we become aware that we have collected personal information from a child under
@@ -632,14 +666,190 @@ export default function PrivacyPage() {
             </p>
             <p className="text-slate-600 leading-relaxed">
               If you need a formal Data Processing Agreement (DPA) for compliance purposes, please
-              contact us at legal@leadrelay.com.
+              contact us at legal@leadrelay.net.
             </p>
           </section>
 
-          {/* Section 12 */}
+          {/* Section 12 - Google API Services */}
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mt-8 mb-4 font-['Plus_Jakarta_Sans']">
-              12. Changes to This Privacy Policy
+              12. Google API Services User Data Policy
+            </h2>
+            <p className="text-slate-600 leading-relaxed mb-4">
+              LeadRelay's use and transfer to any other app of information received from Google APIs
+              will adhere to the{' '}
+              <a href="https://developers.google.com/terms/api-services-user-data-policy"
+                className="text-emerald-600 hover:text-emerald-700 underline"
+                target="_blank" rel="noopener noreferrer">
+                Google API Services User Data Policy
+              </a>
+              , including the Limited Use requirements.
+            </p>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>12.1 Data We Access from Google</strong>
+            </p>
+            <p className="text-slate-600 leading-relaxed mb-4">
+              When you connect your Google account to LeadRelay for Google Sheets export, we request
+              access to the following scopes:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li><strong>Google Sheets API (spreadsheets scope):</strong> To read spreadsheet structure
+                (headers, sheet names) and write lead data to your designated spreadsheet(s)</li>
+            </ul>
+            <p className="text-slate-600 leading-relaxed mb-4">
+              We do not request access to your Gmail, Google Drive files (beyond the specific
+              spreadsheet), Google Calendar, Google Contacts, or any other Google service.
+            </p>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>12.2 How We Use Google Data</strong>
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>Write lead and customer data to the Google Sheets spreadsheet(s) you designate</li>
+              <li>Read spreadsheet headers and structure to ensure correct data mapping</li>
+              <li>Maintain your Google Sheets connection using a securely stored OAuth2 refresh token</li>
+            </ul>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>12.3 Limited Use Disclosure</strong>
+            </p>
+            <p className="text-slate-600 leading-relaxed mb-4">
+              In compliance with Google's Limited Use requirements:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>We only use Google data to provide and improve the Google Sheets export feature
+                that you explicitly enabled</li>
+              <li>We do not use Google data for serving advertisements or for any advertising purpose</li>
+              <li>We do not allow humans to read your Google data unless: (a) we have your affirmative
+                agreement for specific messages, (b) it is necessary for security purposes such as
+                investigating abuse, (c) it is necessary to comply with applicable law, or (d) our
+                use is limited to internal operations and the data has been aggregated and anonymized</li>
+              <li>We do not transfer Google data to third parties except as necessary to provide
+                the Service, to comply with applicable laws, or as part of a merger, acquisition,
+                or asset sale with adequate data protection commitments</li>
+            </ul>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>12.4 Revoking Google Access</strong>
+            </p>
+            <p className="text-slate-600 leading-relaxed mb-4">
+              You may revoke LeadRelay's access to your Google data at any time by:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>Disconnecting the Google Sheets integration from your LeadRelay account settings</li>
+              <li>Removing LeadRelay from your Google account's third-party app access at{' '}
+                <a href="https://myaccount.google.com/permissions"
+                  className="text-emerald-600 hover:text-emerald-700 underline"
+                  target="_blank" rel="noopener noreferrer">
+                  myaccount.google.com/permissions
+                </a>
+              </li>
+            </ul>
+            <p className="text-slate-600 leading-relaxed">
+              Upon revocation, we will delete your Google OAuth tokens from our systems within 24 hours.
+              Data previously exported to your Google Sheets will remain in your spreadsheet as it is
+              under your control.
+            </p>
+          </section>
+
+          {/* Section 13 - Meta Platform Data */}
+          <section>
+            <h2 className="text-2xl font-semibold text-slate-900 mt-8 mb-4 font-['Plus_Jakarta_Sans']">
+              13. Meta Platform Data (WhatsApp and Instagram)
+            </h2>
+            <p className="text-slate-600 leading-relaxed mb-4">
+              LeadRelay integrates with Meta Platform APIs to provide WhatsApp Business and Instagram
+              Direct messaging capabilities. Our handling of Meta Platform data complies with the{' '}
+              <a href="https://developers.facebook.com/terms/"
+                className="text-emerald-600 hover:text-emerald-700 underline"
+                target="_blank" rel="noopener noreferrer">
+                Meta Platform Terms
+              </a>
+              {' '}and{' '}
+              <a href="https://developers.facebook.com/devpolicy/"
+                className="text-emerald-600 hover:text-emerald-700 underline"
+                target="_blank" rel="noopener noreferrer">
+                Meta Developer Policies
+              </a>.
+            </p>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>13.1 Data We Collect from Meta Platforms</strong>
+            </p>
+            <p className="text-slate-600 leading-relaxed mb-4">
+              When you connect WhatsApp Business or Instagram to LeadRelay, we may collect:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>Customer messages sent to your WhatsApp Business number or Instagram Professional Account</li>
+              <li>Customer profile information (name, profile picture URL) as provided by the platform</li>
+              <li>Message metadata (timestamps, message IDs, delivery and read receipts)</li>
+              <li>WhatsApp phone numbers of customers who initiate conversations with your business</li>
+              <li>Instagram usernames and account IDs of customers who message your business</li>
+              <li>Media files (images, documents) shared by customers during conversations</li>
+            </ul>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>13.2 How We Use Meta Platform Data</strong>
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>Process customer messages through our AI system to generate contextual responses</li>
+              <li>Store conversation history for your review and lead management</li>
+              <li>Qualify leads and extract relevant business information from conversations</li>
+              <li>Synchronize lead data with your connected CRM (Bitrix24) and spreadsheets (Google Sheets)</li>
+              <li>Generate analytics and performance reports for your AI agents</li>
+            </ul>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>13.3 Meta Data Restrictions</strong>
+            </p>
+            <p className="text-slate-600 leading-relaxed mb-4">
+              In compliance with Meta's policies, we commit to the following:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>We do not sell, license, or purchase data obtained from Meta Platform APIs</li>
+              <li>We do not use Meta Platform data for advertising targeting, profiling, or behavioral analysis
+                unrelated to the Service</li>
+              <li>We do not transfer Meta Platform data to any data broker, advertising network,
+                ad exchange, or data reseller</li>
+              <li>We do not use Meta Platform data to discriminate against any individual or group</li>
+              <li>We do not combine Meta Platform data with data from other sources for purposes
+                beyond providing the Service</li>
+              <li>We retain Meta Platform data only for as long as necessary to provide the Service
+                and in compliance with our data retention policies (see Section 5)</li>
+            </ul>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>13.4 Data Deletion and Account Disconnection</strong>
+            </p>
+            <p className="text-slate-600 leading-relaxed mb-4">
+              You may disconnect your WhatsApp Business or Instagram account from LeadRelay at any
+              time through your account settings. Upon disconnection:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>We will stop receiving new messages from the disconnected platform</li>
+              <li>Your API tokens for the disconnected platform will be deleted within 24 hours</li>
+              <li>Previously collected conversation data will be retained according to our standard
+                retention policy (Section 5) unless you request deletion</li>
+              <li>You may request complete deletion of all platform-specific data by contacting
+                privacy@leadrelay.net</li>
+            </ul>
+
+            <p className="text-slate-600 leading-relaxed">
+              <strong>13.5 Meta Data Deletion Callbacks</strong>
+            </p>
+            <p className="text-slate-600 leading-relaxed">
+              LeadRelay implements Meta's required data deletion callback URL. When a user removes
+              our app from their Facebook/Instagram settings, we receive a callback and will delete
+              all data associated with that user within 30 days. You can verify the status of a
+              data deletion request by contacting privacy@leadrelay.net with your confirmation code.
+            </p>
+          </section>
+
+          {/* Section 14 - Changes to This Privacy Policy */}
+          <section>
+            <h2 className="text-2xl font-semibold text-slate-900 mt-8 mb-4 font-['Plus_Jakarta_Sans']">
+              14. Changes to This Privacy Policy
             </h2>
             <p className="text-slate-600 leading-relaxed mb-4">
               We may update this Privacy Policy from time to time. We will notify you of any
@@ -661,10 +871,10 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          {/* Section 13 */}
+          {/* Section 15 */}
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mt-8 mb-4 font-['Plus_Jakarta_Sans']">
-              13. Contact Information
+              15. Contact Information
             </h2>
             <p className="text-slate-600 leading-relaxed mb-4">
               If you have any questions, concerns, or requests regarding this Privacy Policy or
@@ -674,37 +884,37 @@ export default function PrivacyPage() {
               <p>
                 <strong>Privacy Inquiries:</strong>{' '}
                 <a
-                  href="mailto:privacy@leadrelay.com"
+                  href="mailto:privacy@leadrelay.net"
                   className="text-emerald-600 hover:text-emerald-700 underline"
                 >
-                  privacy@leadrelay.com
+                  privacy@leadrelay.net
                 </a>
               </p>
               <p>
                 <strong>General Support:</strong>{' '}
                 <a
-                  href="mailto:support@leadrelay.com"
+                  href="mailto:support@leadrelay.net"
                   className="text-emerald-600 hover:text-emerald-700 underline"
                 >
-                  support@leadrelay.com
+                  support@leadrelay.net
                 </a>
               </p>
               <p>
                 <strong>Legal Department:</strong>{' '}
                 <a
-                  href="mailto:legal@leadrelay.com"
+                  href="mailto:legal@leadrelay.net"
                   className="text-emerald-600 hover:text-emerald-700 underline"
                 >
-                  legal@leadrelay.com
+                  legal@leadrelay.net
                 </a>
               </p>
               <p>
                 <strong>Data Protection Officer:</strong>{' '}
                 <a
-                  href="mailto:dpo@leadrelay.com"
+                  href="mailto:dpo@leadrelay.net"
                   className="text-emerald-600 hover:text-emerald-700 underline"
                 >
-                  dpo@leadrelay.com
+                  dpo@leadrelay.net
                 </a>
               </p>
             </div>
@@ -713,14 +923,14 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          {/* Section 14 */}
+          {/* Section 16 */}
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mt-8 mb-4 font-['Plus_Jakarta_Sans']">
-              14. Jurisdiction-Specific Disclosures
+              16. Jurisdiction-Specific Disclosures
             </h2>
 
             <p className="text-slate-600 leading-relaxed mb-4">
-              <strong>14.1 California Residents (CCPA/CPRA)</strong>
+              <strong>16.1 California Residents (CCPA/CPRA)</strong>
             </p>
             <p className="text-slate-600 leading-relaxed mb-4">
               If you are a California resident, you have additional rights under the California
@@ -739,7 +949,7 @@ export default function PrivacyPage() {
             </p>
 
             <p className="text-slate-600 leading-relaxed mb-4">
-              <strong>14.2 European Economic Area, UK, and Switzerland (GDPR)</strong>
+              <strong>16.2 European Economic Area, UK, and Switzerland (GDPR)</strong>
             </p>
             <p className="text-slate-600 leading-relaxed mb-4">
               If you are in the EEA, UK, or Switzerland, you have additional rights under the
@@ -760,12 +970,22 @@ export default function PrivacyPage() {
         </div>
       </main>
 
-      {/* Simple Footer */}
-      <footer className="bg-white border-t border-slate-200 py-8">
-        <div className="max-w-3xl mx-auto px-6 text-center">
-          <p className="text-sm text-slate-400">
-            &copy; 2026 LeadRelay. All rights reserved.
-          </p>
+      {/* Footer */}
+      <footer className="bg-white border-t border-slate-200 py-10">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <p className="text-sm text-slate-400">
+              &copy; {new Date().getFullYear()} LeadRelay. All rights reserved.
+            </p>
+            <div className="flex items-center gap-6">
+              <Link to="/terms" className="text-sm text-slate-400 hover:text-emerald-600 transition-colors">
+                Terms of Service
+              </Link>
+              <a href="mailto:support@leadrelay.net" className="text-sm text-slate-400 hover:text-emerald-600 transition-colors">
+                Contact Us
+              </a>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

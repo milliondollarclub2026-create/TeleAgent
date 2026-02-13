@@ -38,7 +38,14 @@ import PricingPage from "./pages/PricingPage";
 
 // Protected route wrapper - redirects to landing if not authenticated
 function ProtectedRoute({ children }) {
-  const { token } = useAuth();
+  const { token, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#F5F7F6]">
+        <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
   if (!token) {
     return <Navigate to="/" replace />;
   }
@@ -47,7 +54,14 @@ function ProtectedRoute({ children }) {
 
 // Public route wrapper - redirects to agents if already authenticated
 function PublicRoute({ children }) {
-  const { token } = useAuth();
+  const { token, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#F5F7F6]">
+        <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
   if (token) {
     return <Navigate to="/app/agents" replace />;
   }

@@ -1,34 +1,47 @@
 // === TERMS PAGE ===
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Zap, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 export default function TermsPage() {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#F5F7F6]">
       {/* Navigation */}
-      <nav className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6">
+      <nav className="bg-white/90 backdrop-blur-xl border-b border-slate-200/50 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 md:px-12">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-9 h-9 bg-emerald-600 rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-white" strokeWidth={2} />
-              </div>
+            <Link to="/" className="flex items-center gap-3 group">
+              <img
+                src="/logo.svg"
+                alt="LeadRelay"
+                className="h-9 w-9 transition-transform duration-300 group-hover:scale-110"
+                style={{ objectFit: 'contain' }}
+              />
               <span className="text-xl font-bold tracking-tight font-['Plus_Jakarta_Sans']">
                 <span className="text-emerald-600">Lead</span>
                 <span className="text-slate-900">Relay</span>
               </span>
             </Link>
 
-            {/* Back to Home */}
-            <Link
-              to="/"
-              className="flex items-center gap-2 text-sm text-slate-500 hover:text-emerald-600 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" strokeWidth={1.75} />
-              Back to Home
-            </Link>
+            <div className="flex items-center gap-6">
+              <Link
+                to="/privacy"
+                className="hidden sm:inline text-sm text-slate-500 hover:text-slate-900 transition-colors"
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                to="/"
+                className="flex items-center gap-2 text-sm text-slate-500 hover:text-emerald-600 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                Back to Home
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
@@ -38,7 +51,7 @@ export default function TermsPage() {
         <h1 className="text-4xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-2">
           Terms of Service
         </h1>
-        <p className="text-slate-500 mb-8">Last updated: February 9, 2026</p>
+        <p className="text-slate-500 mb-8">Last updated: February 13, 2026</p>
 
         <div className="prose prose-slate max-w-none">
           {/* Section 1 */}
@@ -90,6 +103,10 @@ export default function TermsPage() {
                 interactions and AI performance metrics</li>
               <li><strong>Multi-Language Support:</strong> AI conversations in Uzbek, Russian, and English languages</li>
               <li><strong>Lead Qualification:</strong> Automated assessment and scoring of potential customers</li>
+              <li><strong>Google Sheets Export:</strong> Automatic export of lead and customer data to
+                Google Sheets spreadsheets you designate</li>
+              <li><strong>Multi-Channel Messaging:</strong> Support for customer communications across
+                Telegram, WhatsApp Business, and Instagram Direct (channel availability varies by plan)</li>
             </ul>
             <p className="text-slate-600 leading-relaxed mb-4">
               The Service utilizes third-party artificial intelligence services, including OpenAI's
@@ -122,7 +139,7 @@ export default function TermsPage() {
               <li>Maintaining the confidentiality of your account credentials, including passwords,
                 API keys, and integration tokens</li>
               <li>All activities that occur under your account, whether authorized by you or not</li>
-              <li>Immediately notifying us at security@leadrelay.com of any unauthorized access
+              <li>Immediately notifying us at security@leadrelay.net of any unauthorized access
                 to or use of your account</li>
               <li>Ensuring that all persons who access the Service through your account comply
                 with these Terms</li>
@@ -190,7 +207,7 @@ export default function TermsPage() {
             <p className="text-slate-600 leading-relaxed">
               <strong>4.8 Refunds.</strong> No refunds will be issued for partial months of service, downgrade
               refunds, or unused message allocations. Refund requests for extenuating circumstances
-              may be submitted to billing@leadrelay.com and will be reviewed on a case-by-case basis.
+              may be submitted to billing@leadrelay.net and will be reviewed on a case-by-case basis.
             </p>
           </section>
 
@@ -366,6 +383,15 @@ export default function TermsPage() {
                 Telegram's Terms of Service and Bot API Terms</li>
               <li><strong>Bitrix24:</strong> For CRM integration, lead management, and deal synchronization,
                 subject to Bitrix24's Terms of Service</li>
+              <li><strong>Google (Google Sheets API):</strong> For exporting lead data to Google Sheets
+                spreadsheets you designate. Subject to Google's Terms of Service and the Google API
+                Services User Data Policy, including the Limited Use requirements</li>
+              <li><strong>Meta Platforms (WhatsApp Business API):</strong> For automated customer
+                messaging via WhatsApp Business. Subject to the WhatsApp Business Terms of Service,
+                Meta Platform Terms, and Meta's Data Policy</li>
+              <li><strong>Meta Platforms (Instagram Messaging API):</strong> For automated customer
+                messaging via Instagram Direct. Subject to the Instagram Platform Policy, Meta Platform
+                Terms, and Meta's Data Policy</li>
               <li><strong>OpenAI:</strong> For AI processing and natural language generation, subject to
                 OpenAI's Usage Policies and Terms of Use</li>
               <li><strong>Supabase:</strong> For data storage and authentication services</li>
@@ -380,11 +406,125 @@ export default function TermsPage() {
               tokens, or credentials you provide for third-party integrations. We are not responsible
               for any issues arising from incorrect, invalid, or compromised third-party credentials.
             </p>
-            <p className="text-slate-600 leading-relaxed">
+            <p className="text-slate-600 leading-relaxed mb-4">
               <strong>9.4 No Endorsement.</strong> Our integration with third-party services does not
               constitute an endorsement of those services. We are not responsible for the availability,
               accuracy, or quality of third-party services.
             </p>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>9.5 Google API Services Compliance.</strong> LeadRelay's use and transfer of
+              information received from Google APIs adheres to the{' '}
+              <a href="https://developers.google.com/terms/api-services-user-data-policy"
+                className="text-emerald-600 hover:text-emerald-700 underline"
+                target="_blank" rel="noopener noreferrer">
+                Google API Services User Data Policy
+              </a>
+              , including the Limited Use requirements. Specifically:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>We only access Google user data that is necessary to provide and improve the
+                features you have explicitly enabled (such as Google Sheets lead export)</li>
+              <li>We do not use Google user data for serving advertisements</li>
+              <li>We do not allow humans to read your Google user data unless: (a) we have your
+                affirmative consent, (b) it is necessary for security purposes, (c) it is necessary
+                to comply with applicable law, or (d) our use is limited to internal operations
+                and the data has been aggregated and anonymized</li>
+              <li>We do not transfer Google user data to third parties except as necessary to
+                provide or improve the Service, to comply with applicable law, or as part of a
+                merger or acquisition with adequate data protection</li>
+              <li>You may revoke our access to your Google data at any time through your Google
+                account security settings or by disconnecting the integration in your LeadRelay
+                account settings</li>
+            </ul>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>9.6 Google Sheets Integration.</strong> When you connect your Google Sheets
+              account, LeadRelay will:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>Request access only to the specific spreadsheet(s) you designate for lead data export</li>
+              <li>Write lead and customer data (names, contact information, conversation summaries,
+                lead scores) to your designated spreadsheet(s)</li>
+              <li>Read spreadsheet structure (headers, sheet names) solely to ensure correct data mapping</li>
+              <li>Not access, read, or modify any other files in your Google Drive or Google account</li>
+              <li>Store your Google OAuth refresh token securely with AES-256 encryption, used only
+                to maintain the Sheets connection</li>
+            </ul>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>9.7 Meta Platform Compliance.</strong> LeadRelay's use of Meta Platform APIs
+              (including WhatsApp Business API and Instagram Messaging API) complies with the{' '}
+              <a href="https://developers.facebook.com/terms/"
+                className="text-emerald-600 hover:text-emerald-700 underline"
+                target="_blank" rel="noopener noreferrer">
+                Meta Platform Terms
+              </a>
+              {' '}and{' '}
+              <a href="https://developers.facebook.com/devpolicy/"
+                className="text-emerald-600 hover:text-emerald-700 underline"
+                target="_blank" rel="noopener noreferrer">
+                Meta Developer Policies
+              </a>
+              . Specifically:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>We only collect and process data that users have consented to share through
+                their interactions with your business on WhatsApp or Instagram</li>
+              <li>We do not sell, license, or purchase any data obtained from Meta Platform APIs</li>
+              <li>We do not use Meta Platform data to build or augment user profiles for advertising
+                or to contact users outside the context of their initiated conversations</li>
+              <li>We do not transfer Meta Platform data to any data broker, advertising network,
+                or data reseller</li>
+              <li>All data received from Meta Platform APIs is stored securely with encryption
+                at rest and in transit</li>
+              <li>We comply with all applicable message template approval processes and messaging
+                window requirements set by Meta</li>
+            </ul>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>9.8 WhatsApp Business Compliance.</strong> When using the WhatsApp Business
+              integration, you agree to:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>Comply with the{' '}
+                <a href="https://www.whatsapp.com/legal/business-policy/"
+                  className="text-emerald-600 hover:text-emerald-700 underline"
+                  target="_blank" rel="noopener noreferrer">
+                  WhatsApp Business Policy
+                </a>
+                {' '}and{' '}
+                <a href="https://www.whatsapp.com/legal/commerce-policy/"
+                  className="text-emerald-600 hover:text-emerald-700 underline"
+                  target="_blank" rel="noopener noreferrer">
+                  WhatsApp Commerce Policy
+                </a>
+              </li>
+              <li>Only send messages to users who have opted in to receive communications from your business</li>
+              <li>Respond to customer-initiated messages within the 24-hour messaging window defined by WhatsApp</li>
+              <li>Use only approved message templates for business-initiated conversations</li>
+              <li>Not use the integration for spam, bulk messaging, or unsolicited communications</li>
+              <li>Maintain a valid WhatsApp Business Account and comply with WhatsApp's verification requirements</li>
+            </ul>
+
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>9.9 Instagram Messaging Compliance.</strong> When using the Instagram Direct
+              messaging integration, you agree to:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2">
+              <li>Comply with the{' '}
+                <a href="https://developers.facebook.com/docs/instagram-api/overview"
+                  className="text-emerald-600 hover:text-emerald-700 underline"
+                  target="_blank" rel="noopener noreferrer">
+                  Instagram Platform Policy
+                </a>
+                {' '}and Meta's Community Guidelines</li>
+              <li>Only respond to user-initiated conversations through Instagram Direct</li>
+              <li>Not use automated messaging for spam, unsolicited promotions, or abusive content</li>
+              <li>Comply with all applicable message frequency and content restrictions</li>
+              <li>Maintain a valid Instagram Professional Account connected to a Facebook Business Page</li>
+              <li>Respect the 24-hour standard messaging window for automated responses</li>
+            </ul>
           </section>
 
           {/* Section 10 */}
@@ -459,7 +599,7 @@ export default function TermsPage() {
             <p className="text-slate-600 leading-relaxed mb-4">
               <strong>12.1 Termination by You.</strong> You may terminate your account at any time by
               canceling your subscription through your account settings or by contacting us at
-              support@leadrelay.com. Termination will be effective at the end of your current
+              support@leadrelay.net. Termination will be effective at the end of your current
               billing period. No refunds will be provided for the remaining portion of your
               subscription term.
             </p>
@@ -499,7 +639,7 @@ export default function TermsPage() {
             </h2>
             <p className="text-slate-600 leading-relaxed mb-4">
               <strong>13.1 Informal Resolution.</strong> Before initiating any formal dispute resolution
-              proceeding, you agree to first contact us at legal@leadrelay.com and attempt to resolve
+              proceeding, you agree to first contact us at legal@leadrelay.net and attempt to resolve
               the dispute informally. We will attempt to resolve the dispute by contacting you via
               email. If a dispute is not resolved within 30 days of submission, either party may
               proceed to formal dispute resolution.
@@ -526,7 +666,7 @@ export default function TermsPage() {
             </p>
             <p className="text-slate-600 leading-relaxed">
               <strong>13.5 Opt-Out.</strong> You may opt out of this arbitration agreement by sending
-              written notice to legal@leadrelay.com within 30 days of creating your account.
+              written notice to legal@leadrelay.net within 30 days of creating your account.
             </p>
           </section>
 
@@ -609,7 +749,7 @@ export default function TermsPage() {
               facilities, fuel, energy, labor, or materials.
             </p>
             <p className="text-slate-600 leading-relaxed">
-              <strong>16.6 Notices.</strong> All notices to LeadRelay must be sent to legal@leadrelay.com.
+              <strong>16.6 Notices.</strong> All notices to LeadRelay must be sent to legal@leadrelay.net.
               Notices to you will be sent to the email address associated with your account.
             </p>
           </section>
@@ -626,37 +766,37 @@ export default function TermsPage() {
               <p>
                 <strong>General Inquiries:</strong>{' '}
                 <a
-                  href="mailto:support@leadrelay.com"
+                  href="mailto:support@leadrelay.net"
                   className="text-emerald-600 hover:text-emerald-700 underline"
                 >
-                  support@leadrelay.com
+                  support@leadrelay.net
                 </a>
               </p>
               <p>
                 <strong>Billing Questions:</strong>{' '}
                 <a
-                  href="mailto:billing@leadrelay.com"
+                  href="mailto:billing@leadrelay.net"
                   className="text-emerald-600 hover:text-emerald-700 underline"
                 >
-                  billing@leadrelay.com
+                  billing@leadrelay.net
                 </a>
               </p>
               <p>
                 <strong>Legal Matters:</strong>{' '}
                 <a
-                  href="mailto:legal@leadrelay.com"
+                  href="mailto:legal@leadrelay.net"
                   className="text-emerald-600 hover:text-emerald-700 underline"
                 >
-                  legal@leadrelay.com
+                  legal@leadrelay.net
                 </a>
               </p>
               <p>
                 <strong>Security Issues:</strong>{' '}
                 <a
-                  href="mailto:security@leadrelay.com"
+                  href="mailto:security@leadrelay.net"
                   className="text-emerald-600 hover:text-emerald-700 underline"
                 >
-                  security@leadrelay.com
+                  security@leadrelay.net
                 </a>
               </p>
             </div>
@@ -664,12 +804,22 @@ export default function TermsPage() {
         </div>
       </main>
 
-      {/* Simple Footer */}
-      <footer className="bg-white border-t border-slate-200 py-8">
-        <div className="max-w-3xl mx-auto px-6 text-center">
-          <p className="text-sm text-slate-400">
-            &copy; 2026 LeadRelay. All rights reserved.
-          </p>
+      {/* Footer */}
+      <footer className="bg-white border-t border-slate-200 py-10">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <p className="text-sm text-slate-400">
+              &copy; {new Date().getFullYear()} LeadRelay. All rights reserved.
+            </p>
+            <div className="flex items-center gap-6">
+              <Link to="/privacy" className="text-sm text-slate-400 hover:text-emerald-600 transition-colors">
+                Privacy Policy
+              </Link>
+              <a href="mailto:support@leadrelay.net" className="text-sm text-slate-400 hover:text-emerald-600 transition-colors">
+                Contact Us
+              </a>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

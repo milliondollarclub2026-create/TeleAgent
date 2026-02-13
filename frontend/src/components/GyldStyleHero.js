@@ -55,7 +55,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
         <p
           className="animate-fadeUp opacity-0 delay-200 text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed"
         >
-          Deploy intelligent AI agents that qualify leads, answer questions, and close deals on Telegram — 24/7, in Uzbek, Russian, and English.
+          Deploy intelligent AI agents that qualify leads, answer product questions, and close deals directly on Telegram. Always on, fluent in Uzbek, Russian, and English.
         </p>
 
         {/* CTAs */}
@@ -76,7 +76,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
             onClick={onBookDemo}
             className="border border-white/20 hover:border-white/40 hover:bg-white/5 text-white px-8 py-4 rounded-full font-semibold text-lg transition-all duration-200"
           >
-            Book a demo
+            See how it works
           </button>
         </div>
 

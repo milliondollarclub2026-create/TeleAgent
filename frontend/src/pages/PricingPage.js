@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Zap,
+  ArrowRight,
   Check,
   MessageSquare,
   Bot,
@@ -10,7 +10,9 @@ import {
   Headphones,
   ChevronDown,
   Menu,
-  X
+  X,
+  Zap,
+  Shield
 } from 'lucide-react';
 
 export default function PricingPage() {
@@ -21,16 +23,13 @@ export default function PricingPage() {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Scroll to top when page loads
     window.scrollTo(0, 0);
 
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
 
-    // Trigger animations on mount
     const timer = setTimeout(() => setIsVisible(true), 100);
 
-    // Scroll reveal observer
     const observerOptions = {
       threshold: 0.1,
       rootMargin: '0px 0px -50px 0px'
@@ -45,7 +44,6 @@ export default function PricingPage() {
       });
     }, observerOptions);
 
-    // Observe all elements with scroll-reveal class
     const revealElements = document.querySelectorAll('.scroll-reveal');
     revealElements.forEach((el) => observer.observe(el));
 
@@ -57,7 +55,6 @@ export default function PricingPage() {
   }, []);
 
   const handleCTA = () => navigate('/login');
-
   const goToFeatures = () => navigate('/#features');
   const goToHowItWorks = () => navigate('/#how-it-works');
 
@@ -66,7 +63,7 @@ export default function PricingPage() {
       name: 'Starter',
       price: '$50',
       period: '/month',
-      description: 'Perfect for small businesses getting started with AI sales',
+      description: 'For small businesses ready to automate their first Telegram sales channel',
       features: [
         { text: '250 AI messages/month', icon: MessageSquare },
         { text: '2 AI Agents', icon: Bot },
@@ -79,7 +76,7 @@ export default function PricingPage() {
       name: 'Professional',
       price: '$100',
       period: '/month',
-      description: 'For growing teams that need full CRM integration',
+      description: 'For growing teams that need unlimited agents and full Bitrix24 CRM integration',
       features: [
         { text: '600 AI messages/month', icon: MessageSquare },
         { text: 'Unlimited AI Agents', icon: Bot },
@@ -100,19 +97,19 @@ export default function PricingPage() {
     },
     {
       question: 'Can I switch plans at any time?',
-      answer: 'Yes! You can upgrade or downgrade your plan at any time. When upgrading, you\'ll get immediate access to new features. When downgrading, changes take effect at your next billing cycle.',
+      answer: 'Yes. You can upgrade or downgrade your plan at any time. When upgrading, you get immediate access to new features. When downgrading, changes take effect at your next billing cycle.',
     },
     {
       question: 'What integrations are included?',
-      answer: 'Starter includes Telegram Bot integration. Professional adds full Bitrix24 CRM integration with 2-way sync for leads, deals, contacts, and products.',
+      answer: 'Starter includes Telegram Bot integration. Professional adds full Bitrix24 CRM integration with two-way sync for leads, deals, contacts, and products.',
     },
     {
       question: 'How do I get started?',
-      answer: 'Simply choose a plan and sign up. Setup takes less than 10 minutes. Our onboarding wizard will guide you through connecting your Telegram bot and configuring your AI agent.',
+      answer: 'Choose a plan and sign up. Setup takes under 10 minutes. Our onboarding wizard walks you through connecting your Telegram bot and configuring your AI agent.',
     },
     {
       question: 'What languages does the AI support?',
-      answer: 'Our AI agents fluently support English, Russian, and Uzbek. The AI auto-detects the customer\'s language and responds naturally in their preferred tongue.',
+      answer: 'Our AI agents fluently support English, Russian, and Uzbek. The AI auto-detects the customer\'s language and responds naturally in their preferred language.',
     },
     {
       question: 'How does CRM Chat work?',
@@ -122,20 +119,19 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden">
-      {/* Navigation */}
-      <nav className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
+      {/* Navigation - Matches landing page */}
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         isScrolled
-          ? 'bg-white/80 backdrop-blur-sm border-b border-slate-200 shadow-sm'
-          : 'bg-transparent'
+          ? 'bg-white/90 backdrop-blur-xl border-b border-slate-200/50 shadow-sm'
+          : 'bg-white/60 backdrop-blur-sm'
       }`}>
         <div className="max-w-7xl mx-auto px-6 md:px-12">
           <div className="flex items-center justify-between h-20">
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-3">
+            <Link to="/" className="flex items-center gap-3 group">
               <img
                 src="/logo.svg"
                 alt="LeadRelay"
-                className="h-10 w-10"
+                className="h-10 w-10 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3"
                 style={{ objectFit: 'contain' }}
               />
               <span className="text-2xl font-bold tracking-tight font-['Plus_Jakarta_Sans']">
@@ -144,26 +140,48 @@ export default function PricingPage() {
               </span>
             </Link>
 
-            {/* Desktop Nav */}
-            <div className="hidden md:flex items-center gap-8">
-              <button onClick={goToFeatures} className="text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium">Features</button>
-              <span className="text-emerald-600 text-sm font-medium">Pricing</span>
-              <Link to="/login" className="text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium">Login</Link>
+            <div className="hidden md:flex items-center gap-1">
+              <button
+                onClick={goToFeatures}
+                className="relative px-4 py-2 text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium group"
+              >
+                Features
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-emerald-600 transition-all duration-300 group-hover:w-6" />
+              </button>
+              <button
+                onClick={goToHowItWorks}
+                className="relative px-4 py-2 text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium group"
+              >
+                How It Works
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-emerald-600 transition-all duration-300 group-hover:w-6" />
+              </button>
+              <span className="relative px-4 py-2 text-emerald-600 text-sm font-medium">
+                Pricing
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-emerald-600" />
+              </span>
             </div>
 
-            {/* CTA Button */}
             <div className="hidden md:flex items-center gap-4">
               <button
                 onClick={handleCTA}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 py-2.5 text-sm font-semibold transition-all"
+                className="text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100"
               >
-                Get Started
+                Log in
+              </button>
+              <button
+                onClick={handleCTA}
+                className="group relative bg-slate-900 hover:bg-slate-800 text-white rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 overflow-hidden"
+              >
+                <span className="relative z-10 flex items-center gap-2">
+                  Get Started
+                  <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" strokeWidth={2} />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </button>
             </div>
 
-            {/* Mobile Menu Button */}
             <button
-              className="md:hidden text-slate-600"
+              className="md:hidden text-slate-600 p-2 rounded-lg hover:bg-slate-100 transition-colors"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -172,17 +190,33 @@ export default function PricingPage() {
         </div>
 
         {/* Mobile Menu */}
-        <div className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${
-          mobileMenuOpen ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'
+        <div className={`md:hidden overflow-hidden transition-all duration-500 ease-out ${
+          mobileMenuOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
         }`}>
-          <div className="bg-white border-t border-slate-200 px-6 py-6 space-y-4 shadow-lg">
-            <button onClick={goToFeatures} className="block w-full text-left text-slate-600 hover:text-slate-900 py-2 font-medium">Features</button>
-            <span className="block text-emerald-600 py-2 font-medium">Pricing</span>
-            <Link to="/login" className="block text-slate-600 hover:text-slate-900 py-2 font-medium">Login</Link>
-            <div className="pt-4 border-t border-slate-200">
+          <div className="bg-white/95 backdrop-blur-xl border-t border-slate-200/50 px-6 py-6 space-y-2">
+            <button
+              onClick={() => { goToFeatures(); setMobileMenuOpen(false); }}
+              className="block w-full text-left text-slate-600 hover:text-slate-900 hover:bg-slate-50 py-3 px-4 rounded-lg font-medium transition-colors"
+            >
+              Features
+            </button>
+            <button
+              onClick={() => { goToHowItWorks(); setMobileMenuOpen(false); }}
+              className="block w-full text-left text-slate-600 hover:text-slate-900 hover:bg-slate-50 py-3 px-4 rounded-lg font-medium transition-colors"
+            >
+              How It Works
+            </button>
+            <span className="block text-emerald-600 py-3 px-4 font-medium">Pricing</span>
+            <div className="pt-4 border-t border-slate-200 space-y-3">
               <button
                 onClick={handleCTA}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-full py-3 font-semibold transition-all"
+                className="block w-full text-center text-slate-600 hover:text-slate-900 py-3 font-medium rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Log in
+              </button>
+              <button
+                onClick={handleCTA}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-full py-3.5 font-semibold transition-all"
               >
                 Get Started
               </button>
@@ -192,16 +226,23 @@ export default function PricingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-16 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-6 md:px-12">
+      <section className="pt-36 pb-16 bg-slate-50 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.025]" style={{
+          backgroundImage: `radial-gradient(circle at 1px 1px, rgb(100 116 139) 0.5px, transparent 0)`,
+          backgroundSize: '24px 24px'
+        }} />
+        <div className="max-w-7xl mx-auto px-6 md:px-12 relative">
           <div className={`text-center transform transition-all duration-700 ${
             isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
           }`}>
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-700 mb-6">
+              Pricing
+            </span>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-6">
               Simple, transparent <span className="text-emerald-600">pricing</span>
             </h1>
             <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto">
-              Choose the plan that fits your business. Start selling smarter today.
+              No hidden fees, no long-term contracts. Choose the plan that fits your business and start selling smarter today.
             </p>
           </div>
         </div>
@@ -219,10 +260,9 @@ export default function PricingPage() {
                 } ${tier.highlighted
                   ? 'border-2 border-emerald-500 shadow-xl shadow-emerald-100'
                   : 'border border-slate-200 shadow-sm hover:shadow-md'
-                }`}
+                } hover:-translate-y-1`}
                 style={{ transitionDelay: `${index * 150}ms` }}
               >
-                {/* Popular Badge */}
                 {tier.badge && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
                     <span className="bg-emerald-600 text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg">
@@ -231,7 +271,6 @@ export default function PricingPage() {
                   </div>
                 )}
 
-                {/* Tier Header */}
                 <div className="mb-8">
                   <h3 className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-2">
                     {tier.name}
@@ -239,7 +278,6 @@ export default function PricingPage() {
                   <p className="text-slate-500 text-sm">{tier.description}</p>
                 </div>
 
-                {/* Price */}
                 <div className="mb-8">
                   <div className="flex items-baseline gap-1">
                     <span className="text-5xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">
@@ -249,7 +287,6 @@ export default function PricingPage() {
                   </div>
                 </div>
 
-                {/* Features List */}
                 <ul className="space-y-4 mb-8">
                   {tier.features.map((feature, featureIndex) => (
                     <li key={featureIndex} className="flex items-center gap-3">
@@ -265,10 +302,9 @@ export default function PricingPage() {
                   ))}
                 </ul>
 
-                {/* CTA Button */}
                 <button
                   onClick={handleCTA}
-                  className={`w-full py-4 rounded-full font-semibold transition-all ${
+                  className={`w-full py-4 rounded-full font-semibold transition-all duration-300 ${
                     tier.highlighted
                       ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-200'
                       : 'border border-slate-300 hover:border-emerald-500 text-slate-700 hover:text-emerald-700'
@@ -280,50 +316,56 @@ export default function PricingPage() {
             ))}
           </div>
 
-          {/* Setup Time */}
           <div className={`text-center mt-12 transform transition-all duration-700 delay-500 ${
             isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
           }`}>
-            <p className="text-slate-500 text-sm">
-              Setup in under 10 minutes. Cancel anytime.
+            <p className="text-slate-500 text-sm flex items-center justify-center gap-4">
+              <span className="flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-emerald-600" strokeWidth={2} />
+                Setup in under 10 minutes
+              </span>
+              <span className="text-slate-300">|</span>
+              <span className="flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-emerald-600" strokeWidth={2} />
+                Cancel anytime
+              </span>
             </p>
           </div>
         </div>
       </section>
 
-      {/* Feature Comparison - Simple */}
+      {/* Feature Comparison */}
       <section className="py-16 bg-white">
         <div className="max-w-4xl mx-auto px-6 md:px-12">
           <div className="text-center mb-12 scroll-reveal">
             <h2 className="text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-4">
               Compare plans
             </h2>
-            <p className="text-slate-500">See what's included in each plan</p>
+            <p className="text-slate-500">See what is included in each plan</p>
           </div>
 
           <div className="bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 scroll-reveal" style={{ transitionDelay: '100ms' }}>
-            {/* Header */}
             <div className="grid grid-cols-3 bg-slate-100 border-b border-slate-200">
               <div className="p-4 font-medium text-slate-900">Feature</div>
               <div className="p-4 font-medium text-slate-900 text-center">Starter</div>
               <div className="p-4 font-medium text-emerald-600 text-center bg-emerald-50">Professional</div>
             </div>
 
-            {/* Rows */}
             {[
               { feature: 'AI Messages', starter: '250/month', professional: '600/month' },
               { feature: 'AI Agents', starter: '2', professional: 'Unlimited' },
               { feature: 'Telegram Integration', starter: true, professional: true },
               { feature: 'Bitrix24 Integration', starter: false, professional: true },
               { feature: 'CRM Chat', starter: false, professional: true },
+              { feature: 'Google Sheets Export', starter: false, professional: true },
               { feature: 'Analytics', starter: 'Basic', professional: 'Advanced' },
               { feature: 'Support', starter: 'Email', professional: 'Priority' },
             ].map((row, index) => (
               <div key={index} className={`grid grid-cols-3 ${
-                index < 6 ? 'border-b border-slate-200' : ''
-              }`}>
-                <div className="p-4 text-slate-700">{row.feature}</div>
-                <div className="p-4 text-center text-slate-600">
+                index < 7 ? 'border-b border-slate-200' : ''
+              } hover:bg-slate-50/50 transition-colors`}>
+                <div className="p-4 text-slate-700 text-sm">{row.feature}</div>
+                <div className="p-4 text-center text-slate-600 text-sm">
                   {typeof row.starter === 'boolean' ? (
                     row.starter ? (
                       <Check className="w-5 h-5 text-emerald-600 mx-auto" strokeWidth={2} />
@@ -334,7 +376,7 @@ export default function PricingPage() {
                     row.starter
                   )}
                 </div>
-                <div className="p-4 text-center text-slate-700 bg-emerald-50/50">
+                <div className="p-4 text-center text-slate-700 bg-emerald-50/50 text-sm">
                   {typeof row.professional === 'boolean' ? (
                     row.professional ? (
                       <Check className="w-5 h-5 text-emerald-600 mx-auto" strokeWidth={2} />
@@ -365,7 +407,7 @@ export default function PricingPage() {
             {faqs.map((faq, index) => (
               <div
                 key={index}
-                className="bg-white border border-slate-200 rounded-xl overflow-hidden transition-all"
+                className="bg-white border border-slate-200 rounded-xl overflow-hidden transition-all hover:border-slate-300"
               >
                 <button
                   onClick={() => setOpenFaq(openFaq === index ? null : index)}
@@ -394,118 +436,158 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-24 bg-gradient-to-b from-emerald-50 to-white">
-        <div className={`max-w-4xl mx-auto px-6 md:px-12 text-center transform transition-all duration-700 ${
-          isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
-        }`}>
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-6">
-            Ready to accelerate your sales?
+      {/* CTA Section - Dark, matching landing page */}
+      <section className="py-32 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[#0a0f1a]" />
+        <div className="absolute inset-0" style={{
+          background: `
+            radial-gradient(ellipse 80% 50% at 20% 40%, rgba(16, 185, 129, 0.15) 0%, transparent 50%),
+            radial-gradient(ellipse 60% 40% at 80% 60%, rgba(20, 184, 166, 0.12) 0%, transparent 50%)
+          `
+        }} />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:80px_80px]" />
+
+        <div className="max-w-4xl mx-auto px-6 md:px-12 text-center relative z-10 scroll-reveal">
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white font-['Plus_Jakarta_Sans'] mb-6 tracking-tight">
+            Ready to put your sales on autopilot?
           </h2>
-          <p className="text-slate-500 text-lg mb-10 max-w-2xl mx-auto">
-            Join hundreds of businesses already using LeadRelay to automate their Telegram sales.
+          <p className="text-slate-300/90 text-lg md:text-xl mb-12 max-w-2xl mx-auto leading-relaxed font-light">
+            Join businesses across Uzbekistan and the CIS already using LeadRelay to qualify leads and close deals on Telegram.
           </p>
-          <button
-            onClick={handleCTA}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-10 py-4 text-lg font-semibold shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-200 transition-all"
-          >
-            Get Started
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
+            <button
+              onClick={handleCTA}
+              className="group inline-flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/30"
+            >
+              Get Started Free
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform duration-300" strokeWidth={2.5} />
+            </button>
+          </div>
+
+          <div className="mt-16 pt-8 border-t border-white/5">
+            <div className="flex flex-wrap justify-center items-center gap-10 md:gap-16">
+              {[
+                { icon: <Zap className="w-4 h-4" strokeWidth={2.5} />, text: '14-day free trial' },
+                { icon: <Shield className="w-4 h-4" strokeWidth={2.5} />, text: 'No credit card required' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                    {item.icon}
+                  </div>
+                  <span className="text-slate-400 text-sm font-medium">{item.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-16">
-        <div className="max-w-7xl mx-auto px-6">
-          {/* Footer Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
-            {/* Column 1 - Brand */}
-            <div>
-              <Link to="/" className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 bg-emerald-600 rounded-lg flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-white" strokeWidth={2} />
+      {/* Footer - Dark, matching landing page */}
+      <footer className="bg-[#0a0f1a] border-t border-white/5 relative overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
+
+        <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
+          <div className="py-20">
+            <div className="grid grid-cols-2 md:grid-cols-12 gap-12 md:gap-8">
+              <div className="col-span-2 md:col-span-4">
+                <Link to="/" className="inline-flex items-center gap-3 mb-6 group">
+                  <img
+                    src="/logo.svg"
+                    alt="LeadRelay"
+                    className="h-10 w-10 transition-transform duration-300 group-hover:scale-110"
+                    style={{ objectFit: 'contain' }}
+                  />
+                  <span className="text-2xl font-bold tracking-tight font-['Plus_Jakarta_Sans']">
+                    <span className="text-emerald-400">Lead</span>
+                    <span className="text-white">Relay</span>
+                  </span>
+                </Link>
+                <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-8">
+                  AI-powered Telegram sales agents for businesses in Uzbekistan and the CIS region. Qualify leads, close deals, and keep your CRM in sync around the clock.
+                </p>
+
+                <div className="flex items-center gap-4">
+                  <a
+                    href="https://t.me/leadrelay"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-400 transition-all duration-300"
+                    aria-label="Telegram"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+                    </svg>
+                  </a>
                 </div>
-                <span className="text-xl font-bold tracking-tight font-['Plus_Jakarta_Sans']">
-                  <span className="text-emerald-600">Lead</span>
-                  <span className="text-slate-900">Relay</span>
-                </span>
-              </Link>
-              <p className="text-sm text-slate-500 mt-3">
-                AI-powered sales for modern businesses
-              </p>
-            </div>
+              </div>
 
-            {/* Column 2 - Product */}
-            <div>
-              <h4 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-4">
-                Product
-              </h4>
-              <ul className="space-y-3">
-                <li>
-                  <button onClick={goToFeatures} className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
-                    Features
-                  </button>
-                </li>
-                <li>
-                  <Link to="/pricing" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
-                    Pricing
-                  </Link>
-                </li>
-                <li>
-                  <button onClick={goToHowItWorks} className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
-                    How It Works
-                  </button>
-                </li>
-              </ul>
-            </div>
+              <div className="md:col-span-2">
+                <h4 className="text-xs font-semibold text-slate-200 uppercase tracking-widest mb-6">
+                  Product
+                </h4>
+                <ul className="space-y-4">
+                  <li>
+                    <button onClick={goToFeatures} className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2">
+                      <span className="relative">Features<span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" /></span>
+                    </button>
+                  </li>
+                  <li>
+                    <span className="text-sm text-emerald-400 font-medium">Pricing</span>
+                  </li>
+                  <li>
+                    <button onClick={goToHowItWorks} className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2">
+                      <span className="relative">How It Works<span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" /></span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
 
-            {/* Column 3 - Support */}
-            <div>
-              <h4 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-4">
-                Support
-              </h4>
-              <ul className="space-y-3">
-                <li>
-                  <a href="mailto:support@leadrelay.com" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
-                    Contact Us
-                  </a>
-                </li>
-                <li>
-                  <a href="https://t.me/leadrelay" target="_blank" rel="noopener noreferrer" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
-                    Telegram
-                  </a>
-                </li>
-              </ul>
-            </div>
+              <div className="md:col-span-2">
+                <h4 className="text-xs font-semibold text-slate-200 uppercase tracking-widest mb-6">
+                  Support
+                </h4>
+                <ul className="space-y-4">
+                  <li>
+                    <a href="mailto:support@leadrelay.net" className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2">
+                      <span className="relative">Contact Us<span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" /></span>
+                    </a>
+                  </li>
+                  <li>
+                    <a href="https://t.me/leadrelay" target="_blank" rel="noopener noreferrer" className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2">
+                      <span className="relative">Telegram<span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" /></span>
+                    </a>
+                  </li>
+                </ul>
+              </div>
 
-            {/* Column 4 - Legal */}
-            <div>
-              <h4 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-4">
-                Legal
-              </h4>
-              <ul className="space-y-3">
-                <li>
-                  <Link to="/privacy" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
-                    Privacy Policy
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/terms" className="text-sm text-slate-500 hover:text-emerald-600 transition-colors">
-                    Terms of Service
-                  </Link>
-                </li>
-              </ul>
+              <div className="md:col-span-2">
+                <h4 className="text-xs font-semibold text-slate-200 uppercase tracking-widest mb-6">
+                  Legal
+                </h4>
+                <ul className="space-y-4">
+                  <li>
+                    <Link to="/privacy" className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2">
+                      <span className="relative">Privacy Policy<span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" /></span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/terms" className="group text-sm text-slate-400 hover:text-white transition-colors duration-300 inline-flex items-center gap-2">
+                      <span className="relative">Terms of Service<span className="absolute bottom-0 left-0 w-0 h-px bg-emerald-400 group-hover:w-full transition-all duration-300" /></span>
+                    </Link>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
 
-          {/* Bottom Bar */}
-          <div className="mt-12 pt-8 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-slate-400">
-              &copy; 2026 LeadRelay. All rights reserved.
+          <div className="py-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
+            <p className="text-sm text-slate-500 font-light">
+              &copy; {new Date().getFullYear()} LeadRelay. All rights reserved.
             </p>
-            <p className="text-sm text-slate-400">
-              Made with care in Tashkent
-            </p>
+            <span className="text-xs text-slate-500 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              All systems operational
+            </span>
           </div>
         </div>
       </footer>

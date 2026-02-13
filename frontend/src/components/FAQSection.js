@@ -13,37 +13,58 @@ const faqData = [
     id: 'faq-1',
     question: 'How does the AI sales agent work?',
     answer:
-      "Our AI agent connects to your Telegram bot and automatically responds to customer inquiries. It's trained on your product information, pricing, and sales scripts to have natural conversations that convert leads into customers.",
+      "Our AI agent connects to your Telegram bot and automatically responds to customer inquiries. It is trained on your product information, pricing, and sales scripts to have natural conversations that convert leads into customers.",
   },
   {
     id: 'faq-2',
     question: 'What languages does LeadRelay support?',
     answer:
-      "LeadRelay supports Uzbek, Russian, and English. The AI automatically detects the customer's language and responds naturally in their preferred language.",
+      "LeadRelay supports Uzbek, Russian, and English. The AI automatically detects the customer's language and responds naturally in their preferred language, switching seamlessly if the conversation changes.",
   },
   {
     id: 'faq-3',
     question: 'How does the Bitrix24 integration work?',
     answer:
-      'LeadRelay syncs in real-time with your Bitrix24 CRM. All leads, conversations, and customer data are automatically logged and updated, keeping your sales pipeline perfectly organized.',
+      'LeadRelay syncs in real time with your Bitrix24 CRM. All leads, conversations, and customer data are automatically logged and updated, keeping your sales pipeline organized without any manual work.',
   },
   {
     id: 'faq-4',
     question: 'Can I customize the AI responses?',
     answer:
-      'Absolutely! You can upload your own product documents, FAQ sheets, and sales scripts. The AI learns from your materials to give accurate, on-brand responses.',
+      'Yes. You can upload your own product documents, FAQ sheets, and sales scripts. The AI learns from your materials and gives accurate, on-brand responses to every customer.',
   },
   {
     id: 'faq-5',
     question: 'Is there a free trial?',
     answer:
-      'Yes! We offer a 14-day free trial with full access to all features. No credit card required to get started.',
+      'Yes. We offer a 14-day free trial with full access to all features. No credit card required to get started.',
+  },
+  {
+    id: 'faq-6',
+    question: 'How long does setup take?',
+    answer:
+      'Most businesses are up and running in under 10 minutes. The onboarding wizard walks you through each step, from connecting your Telegram bot to configuring your AI agent.',
+  },
+  {
+    id: 'faq-7',
+    question: 'Is my data secure?',
+    answer:
+      'Your data is encrypted at rest and in transit. We use enterprise-grade infrastructure and never share your business data or customer conversations with third parties.',
   },
 ];
 
 export default function FAQSection() {
   return (
     <section className="py-24 bg-white">
+      <style>{`
+        @keyframes fade-up {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-up {
+          animation: fade-up 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+      `}</style>
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
           {/* Left Column - 40% */}
@@ -71,8 +92,8 @@ export default function FAQSection() {
               className="text-lg text-slate-600 leading-relaxed mb-8 opacity-0 animate-fade-up"
               style={{ animationDelay: '200ms' }}
             >
-              Have questions? We've got answers. If you can't find what you're
-              looking for, feel free to reach out.
+              Have questions? We have answers. If you cannot find what you are
+              looking for, reach out to our team directly.
             </p>
 
             {/* CTA Button */}
@@ -80,16 +101,18 @@ export default function FAQSection() {
               className="opacity-0 animate-fade-up"
               style={{ animationDelay: '300ms' }}
             >
-              <Button
-                variant="outline"
-                className="border-slate-300 text-slate-900 hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 group"
-              >
-                Contact Support
-                <ArrowRight
-                  className="w-4 h-4 ml-2 transition-transform duration-200 group-hover:translate-x-1"
-                  strokeWidth={2}
-                />
-              </Button>
+              <a href="mailto:support@leadrelay.net">
+                <Button
+                  variant="outline"
+                  className="border-slate-300 text-slate-900 hover:bg-slate-50 hover:border-slate-400 transition-all duration-200 group"
+                >
+                  Contact Support
+                  <ArrowRight
+                    className="w-4 h-4 ml-2 transition-transform duration-200 group-hover:translate-x-1"
+                    strokeWidth={2}
+                  />
+                </Button>
+              </a>
             </div>
           </div>
 

@@ -97,7 +97,7 @@ def db_rest_update(table: str, data: dict, eq_column: str, eq_value: str):
 # Strip env vars to remove accidental newlines
 resend.api_key = (os.environ.get('RESEND_API_KEY') or '').strip()
 SENDER_EMAIL = (os.environ.get('SENDER_EMAIL') or 'onboarding@resend.dev').strip()
-FRONTEND_URL = (os.environ.get('FRONTEND_URL') or 'http://localhost:3000').strip()
+FRONTEND_URL = (os.environ.get('FRONTEND_URL') or 'https://leadrelay.net').strip()
 
 # Log Resend configuration status (without exposing key)
 if resend.api_key:
@@ -718,8 +718,7 @@ async def register(request: RegisterRequest):
 
         # Send confirmation email via Resend
         try:
-            frontend_url = os.environ.get('FRONTEND_URL', 'https://leadrelay-frontend.onrender.com')
-            confirm_url = f"{frontend_url}/confirm-email?token={confirmation_token}"
+            confirm_url = f"{FRONTEND_URL}/confirm-email?token={confirmation_token}"
 
             logger.info(f"Sending confirmation email from '{SENDER_EMAIL}' to '{request.email}'")
             logger.info(f"Resend API key configured: {bool(resend.api_key)}")
@@ -822,8 +821,7 @@ async def resend_confirmation(email: EmailStr):
             }, 'id', user['id'])
 
             # Send email via Resend
-            frontend_url = os.environ.get('FRONTEND_URL', 'https://leadrelay-frontend.onrender.com')
-            confirm_url = f"{frontend_url}/confirm-email?token={confirmation_token}"
+            confirm_url = f"{FRONTEND_URL}/confirm-email?token={confirmation_token}"
 
             resend.emails.send({
                 "from": SENDER_EMAIL,
@@ -866,8 +864,7 @@ async def forgot_password(email: EmailStr):
             }, 'id', user['id'])
 
             # Send email via Resend
-            frontend_url = os.environ.get('FRONTEND_URL', 'https://leadrelay-frontend.onrender.com')
-            reset_url = f"{frontend_url}/reset-password?token={reset_token}"
+            reset_url = f"{FRONTEND_URL}/reset-password?token={reset_token}"
 
             resend.emails.send({
                 "from": SENDER_EMAIL,

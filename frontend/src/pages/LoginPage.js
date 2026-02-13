@@ -259,7 +259,7 @@ const LoginPage = () => {
                   disabled={loading}
                   className="text-sm text-slate-500 hover:text-emerald-600 transition-colors"
                 >
-                  {loading ? 'Sending...' : "Didn't receive it? Resend email"}
+                  {loading ? 'Sending...' : "Did not receive it? Resend email"}
                 </button>
               </div>
             </CardContent>
