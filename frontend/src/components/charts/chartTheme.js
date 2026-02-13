@@ -100,18 +100,32 @@ export const getChartColor = (index) => {
   return CHART_COLORS[index % CHART_COLORS.length];
 };
 
-// Format large numbers for display
+// Format large numbers for display (handles null/undefined)
 export const formatNumber = (value) => {
-  if (value >= 1000000) {
-    return (value / 1000000).toFixed(1) + 'M';
+  if (value === null || value === undefined) {
+    return '0';
   }
-  if (value >= 1000) {
-    return (value / 1000).toFixed(1) + 'K';
+  const num = Number(value);
+  if (isNaN(num)) {
+    return '0';
   }
-  return value.toString();
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M';
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K';
+  }
+  return num.toString();
 };
 
-// Format percentage
+// Format percentage (handles null/undefined)
 export const formatPercent = (value) => {
-  return `${value.toFixed(1)}%`;
+  if (value === null || value === undefined) {
+    return '0%';
+  }
+  const num = Number(value);
+  if (isNaN(num)) {
+    return '0%';
+  }
+  return `${num.toFixed(1)}%`;
 };

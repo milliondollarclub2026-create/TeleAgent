@@ -52,17 +52,24 @@ const suggestedActions = [
   { text: "Top performing products" },
 ];
 
-// Thinking messages for premium cycling effect
+// Thinking messages for premium cycling effect - more states, slower pace
 const thinkingMessages = [
   "Thinking",
-  "Analyzing your CRM",
-  "Exploring leads",
-  "Processing request",
+  "Connecting to CRM",
+  "Fetching your data",
+  "Analyzing leads",
+  "Reviewing pipelines",
+  "Processing metrics",
+  "Examining patterns",
   "Gathering insights",
-  "Reviewing data",
-  "Preparing response",
-  "Connecting the dots",
+  "Calculating trends",
   "Crunching numbers",
+  "Cross-referencing data",
+  "Building visualizations",
+  "Preparing charts",
+  "Connecting the dots",
+  "Summarizing findings",
+  "Finalizing response",
   "Almost there",
 ];
 
@@ -202,7 +209,7 @@ export default function CRMChatPage() {
     }
   }, [messages, scrollToBottom]);
 
-  // Cycle through thinking messages when loading
+  // Cycle through thinking messages when loading - slower pace (4 seconds)
   useEffect(() => {
     if (!loading) {
       setThinkingIndex(0);
@@ -210,7 +217,7 @@ export default function CRMChatPage() {
     }
     const interval = setInterval(() => {
       setThinkingIndex(prev => (prev + 1) % thinkingMessages.length);
-    }, 2500);
+    }, 4000);
     return () => clearInterval(interval);
   }, [loading]);
 

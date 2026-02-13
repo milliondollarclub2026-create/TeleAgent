@@ -28,7 +28,15 @@ import {
  * @param {string} chart.orientation - "vertical" (default) or "horizontal"
  */
 export default function BarChartBlock({ chart }) {
-  const { title, data = [], orientation = 'vertical' } = chart;
+  const { title, data: rawData = [], orientation = 'vertical' } = chart;
+
+  // Validate and clean data
+  const data = (rawData || [])
+    .filter(d => d && d.label !== undefined)
+    .map(d => ({
+      label: d.label || 'Unknown',
+      value: Number(d.value) || 0,
+    }));
 
   if (!data || data.length === 0) {
     return (

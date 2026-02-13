@@ -25,7 +25,16 @@ import {
  * @param {boolean} chart.donut - If true, renders as donut chart
  */
 export default function PieChartBlock({ chart }) {
-  const { title, data = [], donut = false } = chart;
+  const { title, data: rawData = [], donut = false } = chart;
+
+  // Validate and clean data
+  const data = (rawData || [])
+    .filter(d => d && d.label !== undefined)
+    .map(d => ({
+      label: d.label || 'Unknown',
+      value: Number(d.value) || 0,
+    }))
+    .filter(d => d.value > 0); // Filter out zero values for pie charts
 
   if (!data || data.length === 0) {
     return (

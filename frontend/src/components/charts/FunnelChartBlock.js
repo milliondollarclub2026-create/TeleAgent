@@ -16,7 +16,15 @@ import {
  * @param {Array} chart.data - Array of {label, value} objects (top to bottom)
  */
 export default function FunnelChartBlock({ chart }) {
-  const { title, data = [] } = chart;
+  const { title, data: rawData = [] } = chart;
+
+  // Validate and clean data - filter out invalid entries
+  const data = (rawData || [])
+    .filter(d => d && d.label !== undefined)
+    .map(d => ({
+      label: d.label || 'Unknown',
+      value: Number(d.value) || 0,
+    }));
 
   if (!data || data.length === 0) {
     return (
@@ -30,7 +38,7 @@ export default function FunnelChartBlock({ chart }) {
   }
 
   // Get the maximum value for scaling
-  const maxValue = Math.max(...data.map(d => d.value));
+  const maxValue = Math.max(...data.map(d => d.value), 1);
 
   // Calculate conversion rates between stages
   const stages = data.map((item, index) => {

@@ -29,7 +29,15 @@ import {
  * @param {boolean} chart.area - If true, renders as area chart with gradient fill
  */
 export default function LineChartBlock({ chart }) {
-  const { title, data = [], area = true } = chart;
+  const { title, data: rawData = [], area = true } = chart;
+
+  // Validate and clean data
+  const data = (rawData || [])
+    .filter(d => d && d.label !== undefined)
+    .map(d => ({
+      label: d.label || 'Unknown',
+      value: Number(d.value) || 0,
+    }));
 
   if (!data || data.length === 0) {
     return (

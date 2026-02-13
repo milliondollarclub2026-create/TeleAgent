@@ -12,7 +12,7 @@ import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
  * @param {string} chart.changeDirection - "up", "down", or "neutral"
  */
 export default function KPICardBlock({ chart }) {
-  const { title, value, change, changeDirection = 'neutral' } = chart;
+  const { title = 'Metric', value, change, changeDirection = 'neutral' } = chart || {};
 
   // Determine styling based on direction
   const getChangeStyle = () => {
@@ -23,8 +23,12 @@ export default function KPICardBlock({ chart }) {
 
   const changeStyle = getChangeStyle();
 
-  // Format value if it's a number
-  const displayValue = typeof value === 'number' ? formatNumber(value) : value;
+  // Format value - handle numbers, strings, null, undefined
+  const displayValue = value === null || value === undefined
+    ? '0'
+    : typeof value === 'number'
+      ? formatNumber(value)
+      : String(value);
 
   return (
     <div className={CHART_STYLES.wrapper}>
