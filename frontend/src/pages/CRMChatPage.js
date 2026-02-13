@@ -22,8 +22,12 @@ import {
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import AiOrb from '../components/Orb/AiOrb';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Bobur's orb colors (orange/amber - matches Bitrix24)
+const BOBUR_ORB_COLORS = ['#f97316', '#ea580c', '#f59e0b'];
 
 // Storage key for chat history (global, not per-agent)
 const CHAT_STORAGE_KEY = 'crm_chat_history';
@@ -185,9 +189,13 @@ export default function CRMChatPage() {
           <span className="text-[13px] font-medium">Back</span>
         </button>
 
-        {/* Center: Title */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
-          <BitrixIcon className="w-4 h-4 text-[#FF5722]" />
+        {/* Center: Title with orb */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2.5">
+          <AiOrb
+            size={28}
+            colors={BOBUR_ORB_COLORS}
+            state="idle"
+          />
           <div className="text-center">
             <h1 className="text-[14px] font-semibold text-slate-900 leading-tight">Bobur</h1>
             <p className="text-[10px] text-slate-400 font-medium">CRM Manager</p>
@@ -269,8 +277,14 @@ export default function CRMChatPage() {
                     </Button>
                   </div>
                 ) : (
-                  /* Assistant Message - Left aligned */
-                  <div className={`max-w-[85%] ${msg.isError ? 'text-red-600' : ''}`}>
+                  /* Assistant Message - Left aligned with orb avatar */
+                  <div className={`flex items-start gap-3 max-w-[85%] ${msg.isError ? 'text-red-600' : ''}`}>
+                    <AiOrb
+                      size={32}
+                      colors={BOBUR_ORB_COLORS}
+                      state="idle"
+                      className="flex-shrink-0 mt-0.5"
+                    />
                     <div className="text-[15px] text-slate-700 leading-relaxed crm-chat-markdown">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
@@ -348,13 +362,17 @@ export default function CRMChatPage() {
               </div>
             ))}
 
-            {/* Typing Indicator */}
+            {/* Typing Indicator with thinking orb */}
             {loading && (
               <div className="flex justify-start">
-                <div className="flex gap-1.5 px-4 py-3">
-                  <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: '0ms', animationDuration: '600ms' }} />
-                  <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: '150ms', animationDuration: '600ms' }} />
-                  <span className="w-2 h-2 rounded-full bg-slate-300 animate-bounce" style={{ animationDelay: '300ms', animationDuration: '600ms' }} />
+                <div className="flex items-center gap-3 px-1 py-2">
+                  <AiOrb
+                    size={32}
+                    colors={BOBUR_ORB_COLORS}
+                    state="thinking"
+                    className="flex-shrink-0"
+                  />
+                  <span className="text-[13px] text-slate-400 font-medium">Thinking...</span>
                 </div>
               </div>
             )}

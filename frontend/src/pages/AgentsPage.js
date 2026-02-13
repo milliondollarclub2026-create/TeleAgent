@@ -342,11 +342,19 @@ const AgentsPage = () => {
             return (
               <Card
                 key={employee.id}
-                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group relative"
+                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group relative overflow-hidden"
                 onClick={() => employee.type === 'crm' ? navigate('/app/crm') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } })}
                 data-testid={`hired-${employee.id}`}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
+                {/* Subtle gradient overlay on hover */}
+                <div
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                  style={{
+                    background: `radial-gradient(circle at 20% 20%, ${employee.orbColors[0]}08 0%, transparent 50%)`
+                  }}
+                />
+
                 {/* Top Right: Hired Badge (default) / Menu (on hover) */}
                 <div className="absolute top-4 right-4 z-10">
                   {/* Hired Badge - visible by default, hidden on hover */}
@@ -385,13 +393,14 @@ const AgentsPage = () => {
                   </DropdownMenu>
                 </div>
 
-                <CardContent className="p-5">
-                  {/* Header - Animated Orb */}
+                <CardContent className="p-5 relative z-[1]">
+                  {/* Header - Animated Orb with hover glow */}
                   <div className="mb-4">
                     <AiOrb
                       size={48}
                       colors={employee.orbColors}
                       state="idle"
+                      className="group-hover:ai-orb--hover"
                     />
                   </div>
 
@@ -547,9 +556,17 @@ const AgentsPage = () => {
             return (
               <Card
                 key={employee.id}
-                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 group"
+                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 group relative overflow-hidden"
               >
-                <CardContent className="p-5">
+                {/* Subtle gradient overlay on hover */}
+                <div
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                  style={{
+                    background: `radial-gradient(circle at 20% 20%, ${employee.orbColors[0]}08 0%, transparent 50%)`
+                  }}
+                />
+
+                <CardContent className="p-5 relative z-[1]">
                   {/* Header: Animated Orb + Name/Role */}
                   <div className="mb-4">
                     <div className="mb-3">
@@ -557,6 +574,7 @@ const AgentsPage = () => {
                         size={56}
                         colors={employee.orbColors}
                         state="idle"
+                        className="group-hover:ai-orb--hover"
                       />
                     </div>
                     <h3 className="font-semibold text-slate-900 text-[15px]">{employee.name}</h3>

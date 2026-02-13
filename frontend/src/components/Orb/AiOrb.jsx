@@ -7,6 +7,7 @@ import './AiOrb.css';
  * @param {number}   size      - Diameter in px (default 48)
  * @param {string}   state     - "idle" | "thinking"
  * @param {string[]} colors    - [primary, secondary, tertiary] hex colors
+ * @param {boolean}  hover     - Apply hover glow effect programmatically
  * @param {string}   className - Extra CSS classes
  * @param {function} onClick   - Click handler (makes it a button)
  * @param {object}   style     - Additional inline styles
@@ -15,6 +16,7 @@ const AiOrb = ({
   size = 48,
   state = 'idle',
   colors,
+  hover = false,
   className = '',
   onClick,
   style,
@@ -29,7 +31,7 @@ const AiOrb = ({
 
   return (
     <div
-      className={`ai-orb ai-orb--${state} ${className}`.trim()}
+      className={`ai-orb ai-orb--${state} ${hover ? 'ai-orb--hover' : ''} ${className}`.trim()}
       style={{
         '--orb-size': `${size}px`,
         ...colorVars,
