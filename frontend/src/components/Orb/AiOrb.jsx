@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import './AiOrb.css';
 
 /**
@@ -29,6 +29,16 @@ const AiOrb = ({
       }
     : {};
 
+  // Generate stable random offsets per instance so orbs are never in sync
+  const offsets = useMemo(() => ({
+    glow: `${-(Math.random() * 4).toFixed(2)}s`,
+    streak1: `${-(Math.random() * 8).toFixed(2)}s`,
+    streak2: `${-(Math.random() * 13).toFixed(2)}s`,
+    blob1: `${-(Math.random() * 10).toFixed(2)}s`,
+    blob2: `${-(Math.random() * 13).toFixed(2)}s`,
+    blob3: `${-(Math.random() * 15).toFixed(2)}s`,
+  }), []);
+
   return (
     <div
       className={`ai-orb ai-orb--${state} ${hover ? 'ai-orb--hover' : ''} ${className}`.trim()}
@@ -53,16 +63,16 @@ const AiOrb = ({
       }
     >
       {/* Soft outer glow */}
-      <div className="ai-orb__glow" />
+      <div className="ai-orb__glow" style={{ animationDelay: offsets.glow }} />
 
       {/* Sphere surface — clips all internal layers */}
       <div className="ai-orb__sphere">
         <div className="ai-orb__core" />
-        <div className="ai-orb__streaks ai-orb__streaks--1" />
-        <div className="ai-orb__streaks ai-orb__streaks--2" />
-        <div className="ai-orb__blob ai-orb__blob--1" />
-        <div className="ai-orb__blob ai-orb__blob--2" />
-        <div className="ai-orb__blob ai-orb__blob--3" />
+        <div className="ai-orb__streaks ai-orb__streaks--1" style={{ animationDelay: offsets.streak1 }} />
+        <div className="ai-orb__streaks ai-orb__streaks--2" style={{ animationDelay: offsets.streak2 }} />
+        <div className="ai-orb__blob ai-orb__blob--1" style={{ animationDelay: offsets.blob1 }} />
+        <div className="ai-orb__blob ai-orb__blob--2" style={{ animationDelay: offsets.blob2 }} />
+        <div className="ai-orb__blob ai-orb__blob--3" style={{ animationDelay: offsets.blob3 }} />
         <div className="ai-orb__highlight" />
       </div>
 

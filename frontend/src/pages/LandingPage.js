@@ -8,7 +8,6 @@ import {
   ArrowRight,
   ArrowUp,
   Check,
-  Sparkles,
   TrendingUp,
   Menu,
   X
@@ -176,12 +175,10 @@ function CRMChatSection() {
               {/* Header */}
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-white" strokeWidth={1.75} />
-                  </div>
+                  <AiOrb size={40} colors={['#f97316', '#ea580c', '#f59e0b']} />
                   <div>
-                    <span className="font-semibold text-slate-900 text-sm block">CRM Chat</span>
-                    <span className="text-xs text-slate-400">Powered by AI</span>
+                    <span className="font-semibold text-slate-900 text-sm block">Bobur</span>
+                    <span className="text-xs text-slate-400">Analytics Engineer</span>
                   </div>
                 </div>
 
@@ -196,7 +193,7 @@ function CRMChatSection() {
                 {/* User Message 1 */}
                 <div className={`flex justify-end transition-all duration-500 ${animationPhase >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
                   <div className="max-w-[260px]">
-                    <div className="bg-emerald-600 text-white rounded-2xl rounded-br-md px-4 py-3">
+                    <div className="bg-slate-900 text-white rounded-2xl rounded-br-md px-4 py-3">
                       <p className="text-sm font-medium">Show me top selling products</p>
                     </div>
                     <div className="text-[10px] text-slate-400 text-right mt-1 mr-1">Just now</div>
@@ -248,7 +245,9 @@ function CRMChatSection() {
                                 <span className="text-slate-700 text-sm font-medium">{item.name}</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                                <span className={`text-xs font-semibold px-2 py-1 rounded-full transition-colors duration-200 ${
+                                  hoveredItem === i ? 'text-emerald-600 bg-emerald-50' : 'text-slate-700 bg-slate-100'
+                                }`}>
                                   {item.orders} orders
                                 </span>
                                 {hoveredItem === i && (
@@ -269,7 +268,7 @@ function CRMChatSection() {
                 {animationPhase >= 5 && (
                   <div className={`flex justify-end transition-all duration-500 ${animationPhase >= 5 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
                     <div>
-                      <div className="bg-emerald-600 text-white rounded-2xl rounded-br-md px-4 py-3">
+                      <div className="bg-slate-900 text-white rounded-2xl rounded-br-md px-4 py-3">
                         <p className="text-sm font-medium">This week's revenue?</p>
                       </div>
                     </div>
@@ -339,7 +338,7 @@ function CRMChatSection() {
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => setInputFocused(false)}
                   />
-                  <button className="w-9 h-9 rounded-full bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center transition-all duration-300">
+                  <button className="w-9 h-9 rounded-full bg-slate-900 hover:bg-slate-800 flex items-center justify-center transition-all duration-300">
                     <ArrowUp className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </button>
                 </div>
@@ -489,7 +488,7 @@ export default function LandingPage() {
                 className="bg-slate-900 hover:bg-slate-800 text-white rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 flex items-center gap-2"
                 data-testid="nav-cta-btn"
               >
-                Get Started
+                Login
                 <ArrowRight className="w-4 h-4" strokeWidth={2} />
               </button>
             </div>
@@ -531,7 +530,7 @@ export default function LandingPage() {
                 onClick={handleCTA}
                 className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-full py-3.5 font-semibold transition-all"
               >
-                Get Started
+                Login
               </button>
             </div>
           </div>
@@ -597,77 +596,67 @@ export default function LandingPage() {
 
           {/* Agent Cards - 3 equal columns */}
           <div className="grid md:grid-cols-3 gap-5 mb-5 scroll-reveal" style={{ transitionDelay: '100ms' }}>
-            {/* Jasur, Sales Agent */}
-            <div className="h-full flex flex-col bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
-              <div className="flex items-center gap-4 mb-4">
-                <AiOrb size={44} colors={['#10b981', '#059669', '#14b8a6']} />
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">Jasur</h3>
-                  <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Sales Agent</span>
+            {[
+              {
+                name: 'Jasur',
+                role: 'Sales Agent',
+                roleColor: 'text-emerald-600',
+                orbColors: ['#10b981', '#059669', '#14b8a6'],
+                desc: 'Handles customer conversations on Telegram, qualifies leads based on purchase intent, collects contact information, and never misses a sales opportunity. Speaks Uzbek and Russian fluently.',
+                tags: ['Telegram', 'Lead Gen', 'Multilingual'],
+              },
+              {
+                name: 'Nilufar',
+                role: 'Onboarding Agent',
+                roleColor: 'text-indigo-600',
+                orbColors: ['#6366f1', '#8b5cf6', '#3b82f6'],
+                desc: 'Streamlines your hiring process by creating detailed application forms with personality assessments and IQ tests. Helps you find the best candidates for your sales department automatically.',
+                tags: ['Telegram', 'HR Forms', 'Screening'],
+              },
+              {
+                name: 'Bobur',
+                role: 'Analytics Engineer',
+                roleColor: 'text-orange-600',
+                orbColors: ['#f97316', '#ea580c', '#f59e0b'],
+                desc: 'Connects to your Bitrix24 CRM to analyze leads, visualize conversion rates, and generate insightful charts. Turns your raw sales data into actionable intelligence.',
+                tags: ['Bitrix24', 'Reports', 'Analytics'],
+              },
+            ].map((agent) => (
+              <div
+                key={agent.name}
+                className="group h-full flex flex-col bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300/80 relative overflow-hidden"
+              >
+                {/* Color-coded hover overlay */}
+                <div
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                  style={{
+                    background: `radial-gradient(circle at 15% 15%, ${agent.orbColors[0]}25 0%, ${agent.orbColors[0]}10 40%, transparent 70%)`
+                  }}
+                />
+                <div className="relative z-[1] flex flex-col flex-1">
+                  <div className="flex items-center gap-4 mb-4">
+                    <AiOrb size={44} colors={agent.orbColors} />
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">{agent.name}</h3>
+                      <span className={`text-xs font-semibold ${agent.roleColor} uppercase tracking-wider`}>{agent.role}</span>
+                    </div>
+                  </div>
+                  <p className="text-slate-500 leading-relaxed mb-6 flex-1">
+                    {agent.desc}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {agent.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <p className="text-slate-500 leading-relaxed mb-6 flex-1">
-                Handles customer conversations on Telegram, qualifies leads based on purchase intent, collects contact information, and never misses a sales opportunity. Speaks Uzbek and Russian fluently.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {['Telegram', 'Lead Gen', 'Multilingual'].map((tag) => (
-                  <span
-                    key={tag}
-                    className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Nilufar, Onboarding Agent */}
-            <div className="h-full flex flex-col bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
-              <div className="flex items-center gap-4 mb-4">
-                <AiOrb size={44} colors={['#6366f1', '#8b5cf6', '#3b82f6']} />
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">Nilufar</h3>
-                  <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Onboarding Agent</span>
-                </div>
-              </div>
-              <p className="text-slate-500 leading-relaxed mb-6 flex-1">
-                Streamlines your hiring process by creating detailed application forms with personality assessments and IQ tests. Helps you find the best candidates for your sales department automatically.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {['Telegram', 'HR Forms', 'Screening'].map((tag) => (
-                  <span
-                    key={tag}
-                    className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Bobur, Analytics Engineer */}
-            <div className="h-full flex flex-col bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
-              <div className="flex items-center gap-4 mb-4">
-                <AiOrb size={44} colors={['#f97316', '#ea580c', '#f59e0b']} />
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">Bobur</h3>
-                  <span className="text-xs font-semibold text-orange-600 uppercase tracking-wider">Analytics Engineer</span>
-                </div>
-              </div>
-              <p className="text-slate-500 leading-relaxed mb-6 flex-1">
-                Connects to your Bitrix24 CRM to analyze leads, visualize conversion rates, and generate insightful charts. Turns your raw sales data into actionable intelligence.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {['Bitrix24', 'Reports', 'Analytics'].map((tag) => (
-                  <span
-                    key={tag}
-                    className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
+            ))}
           </div>
 
           {/* Feature Cards - 2 equal columns */}
