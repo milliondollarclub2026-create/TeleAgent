@@ -134,12 +134,9 @@ function CRMChatSection() {
   };
 
   return (
-    <section ref={sectionRef} className="py-28 bg-slate-50 overflow-hidden relative">
-      {/* Subtle dot pattern */}
-      <div className="absolute inset-0 opacity-[0.07]" style={{
-        backgroundImage: `radial-gradient(circle at 1px 1px, rgb(16 185 129) 1px, transparent 0)`,
-        backgroundSize: '28px 28px'
-      }} />
+    <section ref={sectionRef} className="py-28 overflow-hidden relative" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 25%, #f8fafc 50%, #ecfdf5 75%, #f0fdfa 100%)' }}>
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-emerald-200/30 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-teal-200/25 rounded-full blur-[100px] pointer-events-none" />
       <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Left Side - Content */}
@@ -590,12 +587,9 @@ export default function LandingPage() {
       {/* ================================================================ */}
       {/* FEATURES SECTION - Agent Grid + Feature Grid                     */}
       {/* ================================================================ */}
-      <section id="features" className="py-32 bg-slate-50 relative overflow-hidden">
-        {/* Subtle dot pattern */}
-        <div className="absolute inset-0 opacity-[0.07]" style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, rgb(16 185 129) 1px, transparent 0)`,
-          backgroundSize: '28px 28px'
-        }} />
+      <section id="features" className="py-32 relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #ecfdf5 0%, #f0fdf4 30%, #f8fafc 55%, #f0fdfa 80%, #ecfdf5 100%)' }}>
+        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-emerald-200/30 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-1/4 right-0 w-[600px] h-[600px] bg-teal-200/25 rounded-full blur-[100px] pointer-events-none" />
         <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
           {/* Section Header */}
           <div className="text-center mb-20 scroll-reveal">
@@ -798,7 +792,8 @@ export default function LandingPage() {
       {/* ================================================================ */}
       {/* FINAL CTA                                                        */}
       {/* ================================================================ */}
-      <section className="py-40 relative overflow-hidden bg-slate-50">
+      <section className="py-40 relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 40%, #f8fafc 100%)' }}>
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-emerald-200/25 rounded-full blur-[120px] pointer-events-none" />
         <div className="max-w-5xl mx-auto px-6 md:px-12 text-center relative z-10 scroll-reveal">
           <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] mb-8 leading-[1.1]">
             <span className="text-slate-900">Your AI sales team</span>
