@@ -606,7 +606,7 @@ export default function LandingPage() {
           {/* Agent Cards - 3 equal columns */}
           <div className="grid md:grid-cols-3 gap-5 mb-5 scroll-reveal" style={{ transitionDelay: '100ms' }}>
             {/* Jasur, Sales Agent */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 hover:border-emerald-200 hover:-translate-y-1">
               <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Sales Agent</span>
               <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
                 Jasur
@@ -627,7 +627,7 @@ export default function LandingPage() {
             </div>
 
             {/* Nilufar, Knowledge Specialist */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 hover:border-emerald-200 hover:-translate-y-1">
               <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Knowledge Specialist</span>
               <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
                 Nilufar
@@ -653,7 +653,7 @@ export default function LandingPage() {
             </div>
 
             {/* Bobur, CRM Analyst */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 hover:border-emerald-200 hover:-translate-y-1">
               <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">CRM Analyst</span>
               <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
                 Bobur
@@ -677,7 +677,7 @@ export default function LandingPage() {
           {/* Feature Cards - 2 equal columns */}
           <div className="grid md:grid-cols-2 gap-5 scroll-reveal" style={{ transitionDelay: '200ms' }}>
             {/* Trained on your business */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 hover:border-emerald-200 hover:-translate-y-1">
               <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans'] tracking-tight">
                 Trained on your business
               </h3>
@@ -687,7 +687,7 @@ export default function LandingPage() {
             </div>
 
             {/* See what's working */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-emerald-100/50 hover:border-emerald-200 hover:-translate-y-1">
               <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans'] tracking-tight">
                 See what's working
               </h3>
@@ -733,15 +733,15 @@ export default function LandingPage() {
                 description: 'Flip the switch. Your AI team handles conversations, qualifies leads, collects contacts, and logs every deal to your CRM. You focus on closing.',
               }
             ].map((item) => (
-              <div key={item.step} className="flex flex-col">
-                {/* Large light step number */}
+              <div key={item.step} className="group flex flex-col cursor-default">
+                {/* Large step number — turns emerald on hover */}
                 <div className="mb-6">
-                  <span className="text-5xl font-bold text-slate-200 font-['Plus_Jakarta_Sans']">
+                  <span className="text-5xl font-bold text-slate-200 group-hover:text-emerald-500 transition-colors duration-300 font-['Plus_Jakarta_Sans']">
                     {item.step}
                   </span>
                 </div>
 
-                <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+                <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-emerald-100/50 group-hover:border-emerald-200 group-hover:-translate-y-1">
                   <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans']">
                     {item.title}
                   </h3>
