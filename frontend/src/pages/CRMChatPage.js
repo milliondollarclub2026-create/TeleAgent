@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
 import {
+  ArrowLeft,
   ArrowUp,
   Loader2,
   RotateCcw,
@@ -170,17 +171,42 @@ export default function CRMChatPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] flex flex-col relative" data-testid="crm-chat-page">
-      {/* Reset Button - Top Right, only when there are messages */}
-      {messages.length > 0 && (
+    <div className="h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] flex flex-col" data-testid="crm-chat-page">
+      {/* Top Bar - Slim and minimal, flush to top */}
+      <div className="flex-shrink-0 h-12 px-4 flex items-center justify-between -mt-2 lg:-mt-3 relative">
+        {/* Elegant gradient separator line */}
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+        {/* Left: Back Button */}
         <button
-          onClick={() => setResetDialogOpen(true)}
-          className="absolute top-4 right-4 z-10 flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-medium rounded-lg transition-colors"
+          onClick={() => navigate('/app/agents')}
+          className="flex items-center gap-2 px-2 py-1.5 -ml-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all duration-150 group"
         >
-          <RotateCcw className="w-3.5 h-3.5" strokeWidth={2} />
-          Reset
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" strokeWidth={2} />
+          <span className="text-[13px] font-medium">Back</span>
         </button>
-      )}
+
+        {/* Center: Title */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+          <BitrixIcon className="w-4 h-4 text-[#FF5722]" />
+          <div className="text-center">
+            <h1 className="text-[14px] font-semibold text-slate-900 leading-tight">Bobur</h1>
+            <p className="text-[10px] text-slate-400 font-medium">CRM Manager</p>
+          </div>
+        </div>
+
+        {/* Right: Reset Button (only when messages exist) */}
+        <div className="w-[72px] flex justify-end">
+          {messages.length > 0 && (
+            <button
+              onClick={() => setResetDialogOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium rounded-lg transition-colors shadow-sm"
+            >
+              <RotateCcw className="w-3 h-3" strokeWidth={2.5} />
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto">
