@@ -1,15 +1,16 @@
 // Locked chart styling constants - AI picks chart type, styling is fixed
 // Follows Emerald Graphite theme for premium consistency
 
+// Modern, clean color palette - distinct colors for visual clarity
 export const CHART_COLORS = [
-  '#059669', // emerald-600 (primary)
-  '#0891b2', // cyan-600
-  '#d97706', // amber-600
-  '#dc2626', // red-600
-  '#7c3aed', // violet-600
-  '#0d9488', // teal-600
-  '#2563eb', // blue-600
-  '#c026d3', // fuchsia-600
+  '#6366f1', // indigo-500 (primary - modern, professional)
+  '#f59e0b', // amber-500 (warm contrast)
+  '#06b6d4', // cyan-500 (fresh, clean)
+  '#ec4899', // pink-500 (vibrant accent)
+  '#8b5cf6', // violet-500 (premium feel)
+  '#14b8a6', // teal-500 (calming)
+  '#f97316', // orange-500 (energetic)
+  '#3b82f6', // blue-500 (trustworthy)
 ];
 
 export const CHART_CONFIG = {
