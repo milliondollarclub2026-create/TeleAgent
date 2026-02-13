@@ -1,30 +1,24 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  Bot,
   MessageSquare,
-  Zap,
   Globe,
   BarChart3,
   ArrowRight,
   ArrowUp,
   Check,
   Sparkles,
-  Database,
   TrendingUp,
   Menu,
-  X,
-  BookOpen,
-  Shield
+  X
 } from 'lucide-react';
 import GyldStyleHero from '../components/GyldStyleHero';
-import MatrixBackground from '../components/MatrixBackground';
 import FAQSection from '../components/FAQSection';
 import PricingSection from '../components/PricingSection';
 
 // ============================================================================
-// CRM CHAT SECTION - Interactive demo with typing effects and glassmorphism
+// CRM CHAT SECTION - Interactive demo with typing effects
 // ============================================================================
 
 function CRMChatSection() {
@@ -140,31 +134,15 @@ function CRMChatSection() {
   };
 
   return (
-    <section ref={sectionRef} className="py-28 bg-gradient-to-b from-white via-slate-50/50 to-white overflow-hidden relative">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 -right-32 w-96 h-96 bg-emerald-100/40 rounded-full blur-3xl crm-ambient-1" />
-        <div className="absolute bottom-1/4 -left-32 w-80 h-80 bg-blue-100/30 rounded-full blur-3xl crm-ambient-2" />
-      </div>
-
+    <section ref={sectionRef} className="py-28 bg-white overflow-hidden relative">
       <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Left Side - Content */}
-          <div className={`crm-content transition-all duration-1000 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'}`}>
+          <div className={`transition-all duration-1000 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'}`}>
             <h2 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight font-['Plus_Jakarta_Sans'] mb-6">
               Ask your CRM
               <br />
-              <span className="relative">
-                <span className="text-emerald-600">anything</span>
-                <svg className="absolute -bottom-2 left-0 w-full" height="8" viewBox="0 0 200 8" fill="none">
-                  <path d="M1 5.5C47 2 153 2 199 5.5" stroke="url(#underline-gradient)" strokeWidth="3" strokeLinecap="round" className="crm-underline-path" />
-                  <defs>
-                    <linearGradient id="underline-gradient" x1="0" y1="0" x2="200" y2="0">
-                      <stop stopColor="#059669" />
-                      <stop offset="1" stopColor="#0d9488" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </span>
+              <span className="text-emerald-600">anything</span>
             </h2>
 
             <p className="text-slate-500 text-lg leading-relaxed mb-8">
@@ -182,9 +160,7 @@ function CRMChatSection() {
                   className={`flex items-center gap-3 text-slate-700 transition-all duration-500 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}
                   style={{ transitionDelay: `${300 + i * 100}ms` }}
                 >
-                  <div className="w-8 h-8 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <item.icon className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
-                  </div>
+                  <Check className="w-5 h-5 text-emerald-600 flex-shrink-0" strokeWidth={2} />
                   <span className="font-medium">{item.text}</span>
                 </li>
               ))}
@@ -193,20 +169,12 @@ function CRMChatSection() {
 
           {/* Right Side - Interactive Chat Demo */}
           <div className={`relative transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
-            <div className="absolute -top-12 -right-12 w-40 h-40 bg-gradient-to-br from-emerald-200/40 to-teal-200/30 rounded-full blur-2xl crm-orb-1" />
-            <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-gradient-to-br from-blue-200/40 to-indigo-200/30 rounded-full blur-2xl crm-orb-2" />
-
-            <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 shadow-2xl shadow-slate-200/50 rounded-3xl p-6 crm-chat-card">
-              <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-emerald-50/20 rounded-3xl pointer-events-none" />
-              <div className="absolute inset-[1px] rounded-[23px] bg-gradient-to-br from-white to-slate-50/50 -z-10" />
-
+            <div className="relative bg-white border border-slate-200 shadow-lg rounded-2xl p-6">
               {/* Header */}
-              <div className="relative flex items-center justify-between pb-4 border-b border-slate-100/80">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
-                      <Sparkles className="w-5 h-5 text-white" strokeWidth={1.75} />
-                    </div>
+                  <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-white" strokeWidth={1.75} />
                   </div>
                   <div>
                     <span className="font-semibold text-slate-900 text-sm block">CRM Chat</span>
@@ -214,21 +182,18 @@ function CRMChatSection() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 bg-emerald-50/80 border border-emerald-100 rounded-full px-3 py-1.5">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                  </span>
+                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   <span className="text-xs text-emerald-700 font-semibold tracking-wide">LIVE</span>
                 </div>
               </div>
 
               {/* Chat Messages */}
-              <div className="relative space-y-4 py-6 min-h-[420px]">
+              <div className="space-y-4 py-6 min-h-[420px]">
                 {/* User Message 1 */}
                 <div className={`flex justify-end transition-all duration-500 ${animationPhase >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
-                  <div className="group relative max-w-[260px]">
-                    <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white rounded-2xl rounded-br-md px-4 py-3 shadow-lg shadow-emerald-500/25">
+                  <div className="max-w-[260px]">
+                    <div className="bg-emerald-600 text-white rounded-2xl rounded-br-md px-4 py-3">
                       <p className="text-sm font-medium">Show me top selling products</p>
                     </div>
                     <div className="text-[10px] text-slate-400 text-right mt-1 mr-1">Just now</div>
@@ -300,8 +265,8 @@ function CRMChatSection() {
                 {/* Second User Message */}
                 {animationPhase >= 5 && (
                   <div className={`flex justify-end transition-all duration-500 ${animationPhase >= 5 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
-                    <div className="group relative">
-                      <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white rounded-2xl rounded-br-md px-4 py-3 shadow-lg shadow-emerald-500/25">
+                    <div>
+                      <div className="bg-emerald-600 text-white rounded-2xl rounded-br-md px-4 py-3">
                         <p className="text-sm font-medium">This week's revenue?</p>
                       </div>
                     </div>
@@ -340,7 +305,7 @@ function CRMChatSection() {
                         {[35, 42, 38, 55, 48, 62, 58].map((height, i) => (
                           <div
                             key={i}
-                            className="flex-1 bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t transition-all duration-500"
+                            className="flex-1 bg-emerald-500 rounded-t transition-all duration-500"
                             style={{
                               height: animationPhase >= 7 ? `${height}%` : '0%',
                               transitionDelay: `${i * 80}ms`
@@ -358,10 +323,10 @@ function CRMChatSection() {
               </div>
 
               {/* Input Area */}
-              <div className="relative pt-4 border-t border-slate-100/80">
-                <div className={`flex items-center gap-3 bg-slate-50/80 rounded-xl px-4 py-3 border-2 transition-all duration-300 ${
+              <div className="pt-4 border-t border-slate-100">
+                <div className={`flex items-center gap-3 bg-slate-50 rounded-xl px-4 py-3 border-2 transition-all duration-300 ${
                   inputFocused
-                    ? 'border-emerald-300 shadow-lg shadow-emerald-100 bg-white'
+                    ? 'border-emerald-300 bg-white'
                     : 'border-transparent hover:border-slate-200'
                 }`}>
                   <input
@@ -371,11 +336,7 @@ function CRMChatSection() {
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => setInputFocused(false)}
                   />
-                  <button className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${
-                    inputFocused
-                      ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-md shadow-emerald-500/25 scale-105'
-                      : 'bg-emerald-600 hover:bg-emerald-700'
-                  }`}>
+                  <button className="w-9 h-9 rounded-full bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center transition-all duration-300">
                     <ArrowUp className="w-4 h-4 text-white" strokeWidth={2.5} />
                   </button>
                 </div>
@@ -386,44 +347,6 @@ function CRMChatSection() {
       </div>
 
       <style>{`
-        .crm-ambient-1 {
-          animation: ambient-drift 20s ease-in-out infinite;
-        }
-        .crm-ambient-2 {
-          animation: ambient-drift 25s ease-in-out infinite reverse;
-          animation-delay: -5s;
-        }
-        @keyframes ambient-drift {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -20px) scale(1.05); }
-          66% { transform: translate(-20px, 30px) scale(0.95); }
-        }
-        .crm-orb-1 {
-          animation: orb-float 8s ease-in-out infinite;
-        }
-        .crm-orb-2 {
-          animation: orb-float 10s ease-in-out infinite reverse;
-          animation-delay: -3s;
-        }
-        @keyframes orb-float {
-          0%, 100% { transform: translate(0, 0); }
-          50% { transform: translate(-15px, 15px); }
-        }
-        .crm-chat-card {
-          transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease;
-        }
-        .crm-chat-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
-        }
-        .crm-underline-path {
-          stroke-dasharray: 200;
-          stroke-dashoffset: 200;
-          animation: draw-underline 1s ease-out 0.5s forwards;
-        }
-        @keyframes draw-underline {
-          to { stroke-dashoffset: 0; }
-        }
         .animate-fade-in {
           animation: fade-in 0.3s ease-out forwards;
         }
@@ -509,7 +432,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden">
+    <div className="min-h-screen bg-white text-slate-900 overflow-x-hidden">
       {/* Navigation */}
       <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
         isScrolled
@@ -565,14 +488,11 @@ export default function LandingPage() {
               </button>
               <button
                 onClick={handleCTA}
-                className="group relative bg-slate-900 hover:bg-slate-800 text-white rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 overflow-hidden"
+                className="bg-slate-900 hover:bg-slate-800 text-white rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 flex items-center gap-2"
                 data-testid="nav-cta-btn"
               >
-                <span className="relative z-10 flex items-center gap-2">
-                  Get Started
-                  <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" strokeWidth={2} />
-                </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                Get Started
+                <ArrowRight className="w-4 h-4" strokeWidth={2} />
               </button>
             </div>
 
@@ -628,7 +548,6 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <div className="relative" ref={heroRef}>
-        <MatrixBackground />
         <GyldStyleHero
           onGetStarted={handleCTA}
           onBookDemo={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
@@ -641,25 +560,18 @@ export default function LandingPage() {
       <section className="py-12 bg-white border-b border-slate-100 relative overflow-hidden">
         <div className="max-w-5xl mx-auto px-6 md:px-12">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-4 scroll-reveal">
-            {/* AI Employees */}
             <div className="text-center">
               <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">3 AI Employees</p>
               <p className="text-xs text-slate-400">Sales, FAQ & CRM</p>
             </div>
-
-            {/* Setup time */}
             <div className="text-center">
               <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">10 min</p>
               <p className="text-xs text-slate-400">Average hire time</p>
             </div>
-
-            {/* Availability */}
             <div className="text-center">
               <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">24/7</p>
               <p className="text-xs text-slate-400">Always working</p>
             </div>
-
-            {/* Languages */}
             <div className="text-center">
               <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">UZ / RU / EN</p>
               <p className="text-xs text-slate-400">3 languages fluent</p>
@@ -669,211 +581,113 @@ export default function LandingPage() {
       </section>
 
       {/* ================================================================ */}
-      {/* FEATURES SECTION - Bento Grid                                    */}
+      {/* FEATURES SECTION - Agent Grid + Feature Grid                     */}
       {/* ================================================================ */}
-      <section id="features" className="py-32 relative overflow-hidden features-section">
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-50" />
-        <div className="absolute inset-0 opacity-[0.025]" style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, rgb(100 116 139) 0.5px, transparent 0)`,
-          backgroundSize: '24px 24px'
-        }} />
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-gradient-to-br from-emerald-100/30 to-transparent rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-tl from-slate-100/50 to-transparent rounded-full blur-3xl pointer-events-none" />
-
+      <section id="features" className="py-32 bg-white relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
           {/* Section Header */}
           <div className="text-center mb-20 scroll-reveal">
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-6">
               Meet your
               <br />
-              <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 bg-clip-text text-transparent">AI sales team</span>
+              <span className="text-emerald-600">AI sales team</span>
             </h2>
             <p className="text-slate-500 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
               Three specialists. Each trained on your business. Working every channel, every hour.
             </p>
           </div>
 
-          {/* Bento Grid */}
-          <div className="grid grid-cols-12 gap-4 md:gap-5 auto-rows-[minmax(200px,auto)] scroll-reveal" style={{ transitionDelay: '100ms' }}>
-
-            {/* Jasur, Sales Agent (Large Card) */}
-            <div className="col-span-12 md:col-span-7 row-span-2 bento-card bento-card-1">
-              <div className="group relative h-full bento-glass rounded-[28px] p-8 md:p-10 overflow-hidden transition-all duration-500 hover:scale-[1.012]">
-                <div className="absolute inset-0 rounded-[28px] bento-border-gradient opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="absolute -top-24 -right-24 w-80 h-80 bg-gradient-to-br from-blue-400/8 via-cyan-400/5 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-700 ease-out" />
-
-                <div className="relative z-10">
-                  <div className="relative mb-8 inline-block">
-                    <div className="bento-icon-container w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-xl group-hover:shadow-blue-500/25 transition-all duration-500">
-                      <MessageSquare className="w-8 h-8 text-white bento-icon-float" strokeWidth={1.75} />
-                    </div>
-                    <div className="absolute inset-0 rounded-2xl bg-blue-400/20 blur-xl opacity-0 group-hover:opacity-50 transition-opacity duration-500 -z-10" />
-                  </div>
-
-                  <h3 className="text-2xl md:text-3xl font-bold text-slate-900 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
-                    Jasur, Sales Agent
-                  </h3>
-                  <p className="text-slate-500 text-base md:text-lg leading-relaxed mb-8 max-w-md">
-                    Jasur handles customer conversations on Telegram around the clock. He qualifies leads, answers product questions from your knowledge base, collects contact details, and moves qualified prospects into your CRM. Fluent in Uzbek, Russian, and English.
-                  </p>
-
-                  <div className="flex flex-wrap gap-2.5">
-                    {['Telegram', 'Lead Qualification', 'Multi-Language'].map((tag, i) => (
-                      <span
-                        key={tag}
-                        className="bento-pill bg-slate-100/80 text-slate-600 px-4 py-2 rounded-full text-sm font-medium border border-slate-200/60 backdrop-blur-sm hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200/80 transition-all duration-300 cursor-default"
-                        style={{ transitionDelay: `${i * 50}ms` }}
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-blue-400 to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-700 ease-out" />
+          {/* Agent Cards - 3 equal columns */}
+          <div className="grid md:grid-cols-3 gap-5 mb-5 scroll-reveal" style={{ transitionDelay: '100ms' }}>
+            {/* Jasur, Sales Agent */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+              <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Sales Agent</span>
+              <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
+                Jasur
+              </h3>
+              <p className="text-slate-500 leading-relaxed mb-6">
+                Handles customer conversations on Telegram around the clock. Qualifies leads, answers product questions from your knowledge base, collects contact details, and moves qualified prospects into your CRM.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {['Telegram', 'Lead Qualification', 'Multi-Language'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
             </div>
 
-            {/* Nilufar, Knowledge Specialist (Tall Card) */}
-            <div className="col-span-12 md:col-span-5 row-span-2 bento-card bento-card-2">
-              <div className="group relative h-full bento-glass rounded-[28px] p-8 overflow-hidden transition-all duration-500 hover:scale-[1.012]">
-                <div className="absolute inset-0 rounded-[28px] bento-border-gradient-purple opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-gradient-to-tl from-purple-400/10 via-violet-400/6 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-700 ease-out" />
-
-                <div className="relative z-10 h-full flex flex-col">
-                  <div className="relative mb-8 inline-block">
-                    <div className="bento-icon-container w-16 h-16 bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:shadow-xl group-hover:shadow-purple-500/25 transition-all duration-500">
-                      <Globe className="w-8 h-8 text-white bento-icon-float" strokeWidth={1.75} />
-                    </div>
-                    <div className="absolute inset-0 rounded-2xl bg-purple-400/20 blur-xl opacity-0 group-hover:opacity-50 transition-opacity duration-500 -z-10" />
+            {/* Nilufar, Knowledge Specialist */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+              <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Knowledge Specialist</span>
+              <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
+                Nilufar
+              </h3>
+              <p className="text-slate-500 leading-relaxed mb-6">
+                Answers customer questions instantly using your uploaded product docs, pricing sheets, and FAQs. Handles repetitive inquiries so your human team focuses on high-value conversations.
+              </p>
+              <div className="flex gap-3">
+                {[
+                  { code: 'UZ', label: "O'zbek" },
+                  { code: 'RU', label: 'Русский' },
+                  { code: 'EN', label: 'English' }
+                ].map((lang) => (
+                  <div
+                    key={lang.code}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200"
+                  >
+                    <span className="text-sm font-semibold text-slate-600">{lang.code}</span>
+                    <span className="text-xs text-slate-400 hidden sm:inline">{lang.label}</span>
                   </div>
-
-                  <h3 className="text-2xl font-bold text-slate-900 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">Nilufar, Knowledge Specialist</h3>
-                  <p className="text-slate-500 leading-relaxed mb-8 flex-grow text-base">
-                    Nilufar answers customer questions instantly using your uploaded product docs, pricing sheets, and FAQs. She handles the repetitive inquiries so your human team focuses on high-value conversations.
-                  </p>
-
-                  <div className="flex gap-3">
-                    {[
-                      { code: 'UZ', label: "O'zbek" },
-                      { code: 'RU', label: 'Русский' },
-                      { code: 'EN', label: 'English' }
-                    ].map((lang, i) => (
-                      <div
-                        key={lang.code}
-                        className="bento-lang-pill flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100/80 border border-slate-200/60 backdrop-blur-sm group-hover:bg-purple-50 group-hover:border-purple-200/60 transition-all duration-300"
-                        style={{ transitionDelay: `${i * 75}ms` }}
-                      >
-                        <span className="text-sm font-semibold text-slate-600 group-hover:text-purple-700 transition-colors duration-300">{lang.code}</span>
-                        <span className="text-xs text-slate-400 group-hover:text-purple-500 transition-colors duration-300 hidden sm:inline">{lang.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-purple-400 to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-700 ease-out" />
+                ))}
               </div>
             </div>
 
             {/* Bobur, CRM Analyst */}
-            <div className="col-span-12 md:col-span-6 bento-card bento-card-3">
-              <div className="group relative h-full bento-glass rounded-[28px] p-7 overflow-hidden transition-all duration-500 hover:scale-[1.015]">
-                <div className="absolute inset-0 rounded-[28px] bento-border-gradient-emerald opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="absolute -top-16 -left-16 w-48 h-48 bg-gradient-to-br from-emerald-400/10 via-teal-400/6 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-700 ease-out" />
-
-                <div className="relative z-10 flex items-start gap-5">
-                  <div className="relative flex-shrink-0">
-                    <div className="bento-icon-container w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:shadow-xl group-hover:shadow-emerald-500/25 transition-all duration-500">
-                      <Database className="w-7 h-7 text-white bento-icon-float" strokeWidth={1.75} />
-                    </div>
-                    <div className="absolute inset-0 rounded-xl bg-emerald-400/20 blur-xl opacity-0 group-hover:opacity-50 transition-opacity duration-500 -z-10" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tracking-tight">Bobur, CRM Analyst</h3>
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 bento-pulse-dot" />
-                        <span className="text-xs font-medium text-emerald-600">Live</span>
-                      </div>
-                    </div>
-                    <p className="text-slate-500 leading-relaxed text-sm">
-                      Bobur connects to your Bitrix24 and gives you conversational access to your sales data. Qualified leads, deal stages, and conversation history stay in sync — both ways, in real time.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-700 ease-out" />
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+              <span className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">CRM Analyst</span>
+              <h3 className="text-2xl font-bold text-slate-900 mt-2 mb-4 font-['Plus_Jakarta_Sans'] tracking-tight">
+                Bobur
+              </h3>
+              <p className="text-slate-500 leading-relaxed mb-6">
+                Connects to your Bitrix24 and gives you conversational access to your sales data. Qualified leads, deal stages, and conversation history stay in sync — both ways, in real time.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {['Bitrix24', 'Real-time Sync', 'Analytics'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-sm font-medium border border-slate-200"
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
             </div>
+          </div>
 
+          {/* Feature Cards - 2 equal columns */}
+          <div className="grid md:grid-cols-2 gap-5 scroll-reveal" style={{ transitionDelay: '200ms' }}>
             {/* Trained on your business */}
-            <div className="col-span-12 md:col-span-6 bento-card bento-card-4">
-              <div className="group relative h-full bento-glass rounded-[28px] p-7 overflow-hidden transition-all duration-500 hover:scale-[1.015]">
-                <div className="absolute inset-0 rounded-[28px] bento-border-gradient-amber opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="absolute -bottom-16 -right-16 w-48 h-48 bg-gradient-to-tl from-amber-400/10 via-orange-400/6 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-700 ease-out" />
-
-                <div className="relative z-10 flex items-start gap-5">
-                  <div className="relative flex-shrink-0">
-                    <div className="bento-icon-container w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:shadow-xl group-hover:shadow-amber-500/25 transition-all duration-500">
-                      <BookOpen className="w-7 h-7 text-white bento-icon-float" strokeWidth={1.75} />
-                    </div>
-                    <div className="absolute inset-0 rounded-xl bg-amber-400/20 blur-xl opacity-0 group-hover:opacity-50 transition-opacity duration-500 -z-10" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-xl font-bold text-slate-900 mb-2 font-['Plus_Jakarta_Sans'] tracking-tight">Trained on your business</h3>
-                    <p className="text-slate-500 leading-relaxed text-sm">
-                      Upload product catalogs, pricing sheets, or FAQ documents. Your AI team studies your materials and answers customer questions with the accuracy of your best salesperson.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-700 ease-out" />
-              </div>
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+              <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans'] tracking-tight">
+                Trained on your business
+              </h3>
+              <p className="text-slate-500 leading-relaxed">
+                Upload product catalogs, pricing sheets, or FAQ documents. Your AI team studies your materials and answers customer questions with the accuracy of your best salesperson.
+              </p>
             </div>
 
-            {/* See what's working (Full Width) */}
-            <div className="col-span-12 bento-card bento-card-5">
-              <div className="group relative h-full bento-glass rounded-[28px] p-7 md:p-8 overflow-hidden transition-all duration-500 hover:scale-[1.008]">
-                <div className="absolute inset-0 rounded-[28px] bento-border-gradient-cyan opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-96 h-48 bg-gradient-to-b from-cyan-400/8 via-sky-400/5 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-all duration-700 ease-out" />
-
-                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center gap-6 md:gap-10">
-                  <div className="relative flex-shrink-0">
-                    <div className="bento-icon-container w-14 h-14 bg-gradient-to-br from-cyan-500 to-sky-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/20 group-hover:shadow-xl group-hover:shadow-cyan-500/25 transition-all duration-500">
-                      <BarChart3 className="w-7 h-7 text-white bento-icon-float" strokeWidth={1.75} />
-                    </div>
-                    <div className="absolute inset-0 rounded-xl bg-cyan-400/20 blur-xl opacity-0 group-hover:opacity-50 transition-opacity duration-500 -z-10" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-xl font-bold text-slate-900 mb-2 font-['Plus_Jakarta_Sans'] tracking-tight">See what's working</h3>
-                    <p className="text-slate-500 leading-relaxed text-sm max-w-lg">
-                      Track agent performance, product interest, and conversion rates in real time. Know exactly where leads drop off and which conversations close.
-                    </p>
-                  </div>
-
-                  <div className="flex gap-4 flex-wrap md:flex-nowrap">
-                    {[
-                      { value: '2.4k', label: 'Messages', color: 'cyan' },
-                      { value: '+34%', label: 'Conversion', color: 'emerald' },
-                      { value: '$12k', label: 'Revenue', color: 'violet' }
-                    ].map((stat, i) => (
-                      <div
-                        key={stat.label}
-                        className="bento-stat-card flex flex-col items-center px-5 py-3 rounded-xl bg-slate-50/80 border border-slate-100 backdrop-blur-sm group-hover:bg-white group-hover:border-slate-200 transition-all duration-300"
-                        style={{ transitionDelay: `${i * 75}ms` }}
-                      >
-                        <span className={`text-lg font-bold ${stat.color === 'cyan' ? 'text-cyan-600' : stat.color === 'emerald' ? 'text-emerald-600' : 'text-violet-600'}`}>{stat.value}</span>
-                        <span className="text-xs text-slate-500 font-medium">{stat.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent transform scale-x-0 group-hover:scale-x-100 transition-transform duration-700 ease-out" />
-              </div>
+            {/* See what's working */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+              <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans'] tracking-tight">
+                See what's working
+              </h3>
+              <p className="text-slate-500 leading-relaxed">
+                Track agent performance, product interest, and conversion rates in real time. Know exactly where leads drop off and which conversations close.
+              </p>
             </div>
           </div>
         </div>
@@ -882,106 +696,63 @@ export default function LandingPage() {
       {/* ================================================================ */}
       {/* HOW IT WORKS                                                     */}
       {/* ================================================================ */}
-      <section id="how-it-works" className="py-28 md:py-36 bg-gradient-to-b from-slate-50 via-white to-slate-50 overflow-hidden relative">
-        <div className="absolute inset-0 opacity-[0.015]" style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, rgb(16 185 129) 1px, transparent 0)`,
-          backgroundSize: '48px 48px'
-        }} />
-
+      <section id="how-it-works" className="py-28 md:py-36 bg-white overflow-hidden relative">
         <div className="max-w-6xl mx-auto px-6 md:px-12 relative">
           <div className="text-center mb-20 scroll-reveal">
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-6">
               Hire in
               <br className="hidden sm:block" />
-              <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 bg-clip-text text-transparent"> three steps</span>
+              <span className="text-emerald-600"> three steps</span>
             </h2>
             <p className="text-slate-500 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
               From signup to your first qualified lead in under ten minutes. No code. No consultants.
             </p>
           </div>
 
-          <div className="relative scroll-reveal" style={{ transitionDelay: '100ms' }}>
-            {/* Connection Line - Desktop */}
-            <div className="hidden lg:block absolute top-[4.5rem] left-[calc(16.666%+1rem)] right-[calc(16.666%+1rem)] z-0">
-              <div className="h-[2px] bg-gradient-to-r from-slate-200 via-slate-300 to-slate-200 rounded-full" />
-              <div className="absolute inset-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400 to-transparent rounded-full animate-line-sweep opacity-60" />
-              <div className="absolute -top-[5px] left-[-35px] w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-1" />
-              <div className="absolute -top-[5px] left-[calc(50%-7px)] -translate-x-1/2 w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-2" />
-              <div className="absolute -top-[5px] right-[-35px] w-3 h-3 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/40 step-node step-node-3" />
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-6 lg:gap-8">
-              {[
-                {
-                  step: 1,
-                  icon: Bot,
-                  title: 'Define your business',
-                  description: 'Tell us about your products, pricing, and how you sell. The setup wizard configures your AI team\'s tone, language, and sales approach.',
-                  delay: '0ms'
-                },
-                {
-                  step: 2,
-                  icon: Database,
-                  title: 'Connect your tools',
-                  description: 'Paste your Telegram bot token, link Bitrix24, and upload your product docs. Your AI team reads everything and starts learning your business.',
-                  delay: '150ms'
-                },
-                {
-                  step: 3,
-                  icon: Zap,
-                  title: 'Start selling',
-                  description: 'Flip the switch. Your AI team handles conversations, qualifies leads, collects contacts, and logs every deal to your CRM. You focus on closing.',
-                  delay: '300ms'
-                }
-              ].map((item) => (
-                <div
-                  key={item.step}
-                  className="group flex flex-col step-card-wrapper"
-                  style={{ animationDelay: item.delay }}
-                >
-                  <div className="flex justify-center mb-8 relative z-10">
-                    <div className="relative">
-                      <div className="absolute inset-0 w-[4.5rem] h-[4.5rem] -m-1 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl opacity-20 blur-md group-hover:opacity-40 group-hover:blur-lg transition-all duration-500" />
-                      <div className="relative w-16 h-16 bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-600/25 group-hover:shadow-emerald-500/40 group-hover:scale-110 transition-all duration-400 overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-tr from-white/20 via-transparent to-transparent" />
-                        <span className="relative text-2xl font-bold text-white font-['Plus_Jakarta_Sans']">{item.step}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 bg-white/80 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-8 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 hover:border-emerald-200/60 transition-all duration-400 flex flex-col group-hover:-translate-y-1 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/0 via-transparent to-teal-50/0 group-hover:from-emerald-50/50 group-hover:to-teal-50/30 transition-all duration-500 pointer-events-none" />
-
-                    <div className="relative">
-                      <div className="w-14 h-14 bg-slate-100/80 rounded-xl flex items-center justify-center mb-6 group-hover:bg-emerald-100/80 transition-all duration-400 step-icon-container">
-                        <item.icon className="w-7 h-7 text-slate-500 group-hover:text-emerald-600 transition-all duration-400 step-icon" strokeWidth={1.75} />
-                      </div>
-
-                      <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans']">
-                        {item.title}
-                      </h3>
-
-                      <p className="text-slate-500 leading-relaxed flex-1">
-                        {item.description}
-                      </p>
-                    </div>
-
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left rounded-b-2xl" />
-                  </div>
+          <div className="grid md:grid-cols-3 gap-6 lg:gap-8 scroll-reveal" style={{ transitionDelay: '100ms' }}>
+            {[
+              {
+                step: 1,
+                title: 'Define your business',
+                description: 'Tell us about your products, pricing, and how you sell. The setup wizard configures your AI team\'s tone, language, and sales approach.',
+              },
+              {
+                step: 2,
+                title: 'Connect your tools',
+                description: 'Paste your Telegram bot token, link Bitrix24, and upload your product docs. Your AI team reads everything and starts learning your business.',
+              },
+              {
+                step: 3,
+                title: 'Start selling',
+                description: 'Flip the switch. Your AI team handles conversations, qualifies leads, collects contacts, and logs every deal to your CRM. You focus on closing.',
+              }
+            ].map((item) => (
+              <div key={item.step} className="flex flex-col">
+                {/* Large light step number */}
+                <div className="mb-6">
+                  <span className="text-5xl font-bold text-slate-200 font-['Plus_Jakarta_Sans']">
+                    {item.step}
+                  </span>
                 </div>
-              ))}
-            </div>
+
+                <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-8 hover:shadow-lg hover:shadow-slate-100 transition-all duration-300">
+                  <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans']">
+                    {item.title}
+                  </h3>
+                  <p className="text-slate-500 leading-relaxed">
+                    {item.description}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* ================================================================ */}
-      {/* INLINE CTA - Between How It Works and CRM Demo                   */}
+      {/* INLINE CTA                                                       */}
       {/* ================================================================ */}
       <section className="py-16 bg-emerald-600 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:40px_40px]" />
-        <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-emerald-400/20 rounded-full blur-[100px]" />
-        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-teal-500/20 rounded-full blur-[100px]" />
         <div className="max-w-5xl mx-auto px-6 md:px-12 relative z-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-8 scroll-reveal">
             <div>
@@ -994,7 +765,7 @@ export default function LandingPage() {
             </div>
             <button
               onClick={handleCTA}
-              className="group flex-shrink-0 bg-white text-emerald-700 hover:bg-emerald-50 rounded-full px-8 py-4 text-base font-semibold transition-all duration-300 shadow-lg shadow-emerald-700/20 hover:shadow-xl hover:shadow-emerald-700/30 flex items-center gap-2"
+              className="group flex-shrink-0 bg-white text-emerald-700 hover:bg-emerald-50 rounded-full px-8 py-4 text-base font-semibold transition-all duration-300 shadow-sm hover:shadow-md flex items-center gap-2"
             >
               Start Hiring
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={2.5} />
@@ -1015,27 +786,15 @@ export default function LandingPage() {
       {/* ================================================================ */}
       {/* FINAL CTA                                                        */}
       {/* ================================================================ */}
-      <section className="py-40 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[#0a0f1a]" />
-        <div className="absolute inset-0 cta-mesh-gradient opacity-80" />
-
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="cta-orb cta-orb-1" />
-          <div className="cta-orb cta-orb-2" />
-          <div className="cta-orb cta-orb-3" />
-          <div className="cta-orb cta-orb-4" />
-        </div>
-
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:80px_80px]" />
-
+      <section className="py-40 relative overflow-hidden bg-slate-50">
         <div className="max-w-5xl mx-auto px-6 md:px-12 text-center relative z-10 scroll-reveal">
           <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] mb-8 leading-[1.1]">
-            <span className="text-white">Your AI sales team</span>
+            <span className="text-slate-900">Your AI sales team</span>
             <br />
-            <span className="cta-gradient-text">starts tonight.</span>
+            <span className="text-emerald-600">starts tonight.</span>
           </h2>
 
-          <p className="text-slate-300/90 text-lg md:text-xl mb-14 max-w-2xl mx-auto leading-relaxed font-light">
+          <p className="text-slate-500 text-lg md:text-xl mb-14 max-w-2xl mx-auto leading-relaxed">
             Three AI employees. Trained on your business. Working every channel. Hire your team in ten minutes.
           </p>
 
@@ -1043,40 +802,33 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
             <button
               onClick={handleCTA}
-              className="group relative cta-glow-button"
+              className="group inline-flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all duration-300"
               data-testid="final-cta-btn"
             >
-              <span className="relative z-10 inline-flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all duration-300 group-hover:shadow-2xl group-hover:shadow-emerald-500/30">
-                Hire Your Team
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform duration-300" strokeWidth={2.5} />
-              </span>
+              Hire Your Team
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform duration-300" strokeWidth={2.5} />
             </button>
 
             <button
               onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
-              className="group text-slate-300 hover:text-white transition-all duration-300 text-lg font-medium flex items-center gap-2 py-5 px-6"
+              className="group text-slate-600 hover:text-slate-900 transition-all duration-300 text-lg font-medium flex items-center gap-2 py-5 px-6"
             >
-              <span className="relative">
-                View Pricing
-                <span className="absolute bottom-0 left-0 w-0 h-px bg-gradient-to-r from-emerald-400 to-teal-400 group-hover:w-full transition-all duration-300" />
-              </span>
+              View Pricing
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={2} />
             </button>
           </div>
 
           {/* Trust Indicators */}
-          <div className="mt-20 pt-10 border-t border-white/5">
+          <div className="mt-20 pt-10 border-t border-slate-200">
             <div className="flex flex-wrap justify-center items-center gap-10 md:gap-16">
               {[
-                { icon: <Zap className="w-4 h-4" strokeWidth={2.5} />, text: '10-minute setup' },
-                { icon: <Shield className="w-4 h-4" strokeWidth={2.5} />, text: 'Bank-grade encryption' },
-                { icon: <Sparkles className="w-4 h-4" strokeWidth={2.5} />, text: 'Cancel anytime' }
-              ].map((item, i) => (
-                <div key={i} className="group flex items-center gap-3 cursor-default">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500/20 group-hover:border-emerald-500/30 transition-all duration-300">
-                    {item.icon}
-                  </div>
-                  <span className="text-slate-400 text-sm font-medium group-hover:text-slate-300 transition-colors duration-300">{item.text}</span>
+                '10-minute setup',
+                'Bank-grade encryption',
+                'Cancel anytime'
+              ].map((text, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-600" strokeWidth={2.5} />
+                  <span className="text-slate-500 text-sm font-medium">{text}</span>
                 </div>
               ))}
             </div>
@@ -1197,7 +949,7 @@ export default function LandingPage() {
               &copy; {new Date().getFullYear()} LeadRelay. All rights reserved.
             </p>
             <span className="text-xs text-slate-500 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
               All systems operational
             </span>
           </div>
@@ -1205,7 +957,7 @@ export default function LandingPage() {
       </footer>
 
       {/* ================================================================ */}
-      {/* ANIMATIONS                                                       */}
+      {/* MINIMAL CSS                                                      */}
       {/* ================================================================ */}
       <style>{`
         /* Scroll Reveal */
@@ -1217,254 +969,6 @@ export default function LandingPage() {
         .scroll-reveal.revealed {
           opacity: 1;
           transform: translateY(0);
-        }
-
-        /* Floating */
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
-        }
-        .animate-float { animation: float 4s ease-in-out infinite; }
-
-        /* Drift */
-        @keyframes drift {
-          0%, 100% { transform: translate(0, 0); }
-          25% { transform: translate(20px, -15px); }
-          50% { transform: translate(-10px, 20px); }
-          75% { transform: translate(15px, 10px); }
-        }
-        .animate-drift { animation: drift 15s ease-in-out infinite; }
-
-        /* Fade in up */
-        @keyframes fade-in-up {
-          0% { opacity: 0; transform: translateY(30px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
-
-        /* ===== BENTO GRID ===== */
-        .bento-glass {
-          background: rgba(255, 255, 255, 0.85);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(226, 232, 240, 0.8);
-          box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.06);
-        }
-        .bento-glass:hover {
-          background: rgba(255, 255, 255, 0.95);
-          box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.1);
-          border-color: rgba(203, 213, 225, 0.9);
-        }
-
-        .bento-card {
-          opacity: 0;
-          animation: bento-reveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        @keyframes bento-reveal {
-          0% { opacity: 0; transform: translateY(40px) scale(0.98); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        .bento-card-1 { animation-delay: 0.1s; }
-        .bento-card-2 { animation-delay: 0.2s; }
-        .bento-card-3 { animation-delay: 0.35s; }
-        .bento-card-4 { animation-delay: 0.45s; }
-        .bento-card-5 { animation-delay: 0.55s; }
-
-        /* Border gradients */
-        .bento-border-gradient {
-          background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(6, 182, 212, 0.2) 50%, rgba(59, 130, 246, 0.3) 100%);
-          padding: 1px;
-        }
-        .bento-border-gradient::before {
-          content: ''; position: absolute; inset: 1px;
-          background: rgba(255, 255, 255, 0.95); border-radius: 27px;
-        }
-        .bento-border-gradient-purple {
-          background: linear-gradient(135deg, rgba(139, 92, 246, 0.3) 0%, rgba(168, 85, 247, 0.2) 50%, rgba(139, 92, 246, 0.3) 100%);
-          padding: 1px;
-        }
-        .bento-border-gradient-purple::before {
-          content: ''; position: absolute; inset: 1px;
-          background: rgba(255, 255, 255, 0.95); border-radius: 27px;
-        }
-        .bento-border-gradient-emerald {
-          background: linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(20, 184, 166, 0.2) 50%, rgba(16, 185, 129, 0.3) 100%);
-          padding: 1px;
-        }
-        .bento-border-gradient-emerald::before {
-          content: ''; position: absolute; inset: 1px;
-          background: rgba(255, 255, 255, 0.95); border-radius: 27px;
-        }
-        .bento-border-gradient-amber {
-          background: linear-gradient(135deg, rgba(245, 158, 11, 0.3) 0%, rgba(249, 115, 22, 0.2) 50%, rgba(245, 158, 11, 0.3) 100%);
-          padding: 1px;
-        }
-        .bento-border-gradient-amber::before {
-          content: ''; position: absolute; inset: 1px;
-          background: rgba(255, 255, 255, 0.95); border-radius: 27px;
-        }
-        .bento-border-gradient-cyan {
-          background: linear-gradient(135deg, rgba(6, 182, 212, 0.3) 0%, rgba(14, 165, 233, 0.2) 50%, rgba(6, 182, 212, 0.3) 100%);
-          padding: 1px;
-        }
-        .bento-border-gradient-cyan::before {
-          content: ''; position: absolute; inset: 1px;
-          background: rgba(255, 255, 255, 0.95); border-radius: 27px;
-        }
-
-        /* Icon animations */
-        @keyframes bento-icon-float {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-4px); }
-        }
-        .bento-icon-float { animation: bento-icon-float 4s ease-in-out infinite; }
-
-        @keyframes bento-pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.3); }
-        }
-        .bento-pulse-dot { animation: bento-pulse 2s ease-in-out infinite; }
-
-        .bento-pill { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        .bento-pill:hover { transform: translateY(-2px); }
-
-        .bento-stat-card { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        .group:hover .bento-stat-card { transform: translateY(-2px); }
-
-        .bento-lang-pill { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        .group:hover .bento-lang-pill { transform: translateY(-2px); }
-
-        /* ===== HOW IT WORKS ===== */
-        @keyframes line-sweep {
-          0% { transform: translateX(-100%); opacity: 0; }
-          20% { opacity: 0.6; }
-          80% { opacity: 0.6; }
-          100% { transform: translateX(100%); opacity: 0; }
-        }
-        .animate-line-sweep { animation: line-sweep 4s ease-in-out infinite; }
-
-        .step-card-wrapper {
-          opacity: 0;
-          transform: translateY(40px);
-          animation: step-reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        @keyframes step-reveal {
-          0% { opacity: 0; transform: translateY(40px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-
-        .step-node { animation: node-pulse 3s ease-in-out infinite; }
-        .step-node-1 { animation-delay: 0s; }
-        .step-node-2 { animation-delay: 1s; }
-        .step-node-3 { animation-delay: 2s; }
-        @keyframes node-pulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-          50% { transform: scale(1.2); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-        }
-
-        .group:hover .step-icon {
-          animation: step-icon-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-        @keyframes step-icon-pop {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.15); }
-          100% { transform: scale(1); }
-        }
-
-        /* ===== CTA SECTION ===== */
-        .cta-mesh-gradient {
-          background:
-            radial-gradient(ellipse 80% 50% at 20% 40%, rgba(16, 185, 129, 0.15) 0%, transparent 50%),
-            radial-gradient(ellipse 60% 40% at 80% 60%, rgba(20, 184, 166, 0.12) 0%, transparent 50%),
-            radial-gradient(ellipse 40% 30% at 40% 80%, rgba(5, 150, 105, 0.1) 0%, transparent 50%),
-            radial-gradient(ellipse 50% 35% at 60% 20%, rgba(6, 182, 212, 0.08) 0%, transparent 50%);
-          animation: mesh-shift 20s ease-in-out infinite;
-        }
-        @keyframes mesh-shift {
-          0%, 100% { background-position: 0% 0%, 100% 100%, 0% 100%, 100% 0%; }
-          25% { background-position: 25% 25%, 75% 75%, 25% 75%, 75% 25%; }
-          50% { background-position: 50% 0%, 50% 100%, 0% 50%, 100% 50%; }
-          75% { background-position: 75% 25%, 25% 75%, 75% 75%, 25% 25%; }
-        }
-
-        .cta-orb {
-          position: absolute; border-radius: 50%;
-          filter: blur(60px); opacity: 0.4;
-        }
-        .cta-orb-1 {
-          width: 500px; height: 500px;
-          background: radial-gradient(circle, rgba(16, 185, 129, 0.4) 0%, transparent 70%);
-          top: -150px; left: 10%;
-          animation: orb-float-1 25s ease-in-out infinite;
-        }
-        .cta-orb-2 {
-          width: 400px; height: 400px;
-          background: radial-gradient(circle, rgba(20, 184, 166, 0.35) 0%, transparent 70%);
-          bottom: -100px; right: 15%;
-          animation: orb-float-2 30s ease-in-out infinite;
-        }
-        .cta-orb-3 {
-          width: 300px; height: 300px;
-          background: radial-gradient(circle, rgba(6, 182, 212, 0.3) 0%, transparent 70%);
-          top: 50%; left: 60%;
-          animation: orb-float-3 22s ease-in-out infinite;
-        }
-        .cta-orb-4 {
-          width: 250px; height: 250px;
-          background: radial-gradient(circle, rgba(5, 150, 105, 0.25) 0%, transparent 70%);
-          top: 30%; right: 10%;
-          animation: orb-float-4 28s ease-in-out infinite;
-        }
-
-        @keyframes orb-float-1 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          25% { transform: translate(50px, 30px) scale(1.1); }
-          50% { transform: translate(-30px, 60px) scale(0.95); }
-          75% { transform: translate(40px, -20px) scale(1.05); }
-        }
-        @keyframes orb-float-2 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          25% { transform: translate(-40px, -30px) scale(1.05); }
-          50% { transform: translate(60px, -50px) scale(0.9); }
-          75% { transform: translate(-30px, 40px) scale(1.1); }
-        }
-        @keyframes orb-float-3 {
-          0%, 100% { transform: translate(0, 0) rotate(0deg); }
-          33% { transform: translate(-60px, 40px) rotate(120deg); }
-          66% { transform: translate(40px, -30px) rotate(240deg); }
-        }
-        @keyframes orb-float-4 {
-          0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.25; }
-          50% { transform: translate(-50px, 50px) scale(1.2); opacity: 0.4; }
-        }
-
-        .cta-gradient-text {
-          background: linear-gradient(135deg, #10b981 0%, #14b8a6 30%, #06b6d4 60%, #10b981 100%);
-          background-size: 200% 200%;
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          animation: gradient-shift 5s ease-in-out infinite;
-        }
-        @keyframes gradient-shift {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-        }
-
-        .cta-glow-button { position: relative; }
-        .cta-glow-button::before {
-          content: ''; position: absolute; inset: -2px;
-          background: linear-gradient(135deg, #10b981, #14b8a6, #06b6d4, #10b981);
-          background-size: 400% 400%;
-          border-radius: 9999px; opacity: 0;
-          animation: button-glow-rotate 4s linear infinite;
-          transition: opacity 0.3s; z-index: 0;
-        }
-        .cta-glow-button:hover::before { opacity: 0.6; }
-        @keyframes button-glow-rotate {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
         }
       `}</style>
     </div>
