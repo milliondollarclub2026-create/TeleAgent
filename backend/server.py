@@ -2620,6 +2620,35 @@ def _build_aggregation_context(aggregations: Dict) -> str:
         for item in aggregations["leads_by_day"]:
             parts.append(f"- {item['label']}: {item['value']}")
 
+    # Monthly trend
+    if aggregations.get("monthly_trend"):
+        parts.append("\n## Monthly Lead Trend")
+        for item in aggregations["monthly_trend"]:
+            parts.append(f"- {item['label']}: {item['value']}")
+
+    # Leads by product
+    if aggregations.get("leads_by_product"):
+        parts.append("\n## Leads by Product")
+        for item in aggregations["leads_by_product"][:8]:
+            parts.append(f"- {item['label']}: {item['value']}")
+
+    # Leads by employee
+    if aggregations.get("leads_by_employee"):
+        parts.append("\n## Leads by Employee")
+        for item in aggregations["leads_by_employee"][:6]:
+            parts.append(f"- {item['label']}: {item['value']}")
+
+    # Additional metrics
+    if aggregations.get("avg_deal_value"):
+        parts.append(f"\n## Additional Metrics")
+        parts.append(f"- Average Deal Value: {aggregations.get('avg_deal_value', 0):,.0f}")
+        parts.append(f"- Average Close Days: {aggregations.get('avg_close_days', 0)}")
+        parts.append(f"- Won Deals: {aggregations.get('won_deals', 0)}")
+        parts.append(f"- Won Value: {aggregations.get('won_value', 0):,.0f}")
+        parts.append(f"- Hot Leads: {aggregations.get('hot_leads', 0)}")
+        parts.append(f"- Warm Leads: {aggregations.get('warm_leads', 0)}")
+        parts.append(f"- Cold Leads: {aggregations.get('cold_leads', 0)}")
+
     return "\n".join(parts)
 
 

@@ -680,6 +680,16 @@ const AgentDialoguePage = () => {
                   )}
                   <div ref={messagesEndRef} />
                 </div>
+
+                {/* Human Agent Takeover */}
+                <div className="flex-shrink-0 border-t border-slate-200 px-5 py-3 bg-white">
+                  <Button
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white h-10 text-sm font-medium rounded-lg"
+                    data-testid="human-takeover-btn"
+                  >
+                    Human Agent Takeover
+                  </Button>
+                </div>
               </>
             ) : (
               /* Empty State */
