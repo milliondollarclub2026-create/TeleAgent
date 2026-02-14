@@ -119,7 +119,7 @@ const TelegramSetupPage = () => {
         {/* Page Header */}
         <div className="flex items-start justify-between mb-8">
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-xl bg-[#0088cc]/10 flex items-center justify-center">
+            <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center">
               <Bot className="w-5.5 h-5.5 text-[#0088cc]" strokeWidth={1.75} />
             </div>
             <div>
@@ -358,7 +358,7 @@ const TelegramSetupPage = () => {
 
                     {/* Step 5 */}
                     <div className="flex gap-4 group">
-                      <div className="relative z-10 w-6 h-6 rounded-full bg-[#0088cc] flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <Check className="w-3 h-3 text-white" strokeWidth={2.5} />
                       </div>
                       <div className="pt-0.5">
@@ -377,7 +377,7 @@ const TelegramSetupPage = () => {
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-4">After connecting</p>
               <div className="grid gap-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#0088cc]/10 flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
                     <MessageSquare className="w-4 h-4 text-[#0088cc]" strokeWidth={1.75} />
                   </div>
                   <div>

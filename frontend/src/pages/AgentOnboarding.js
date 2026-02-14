@@ -44,7 +44,7 @@ const PREBUILT_INFO = {
 
 const STEPS = [
   { id: 1, title: 'Business', icon: Building2 },
-  { id: 2, title: 'Telegram', icon: MessageSquare },
+  { id: 2, title: 'Channels', icon: MessageSquare },
   { id: 3, title: 'Deployed', icon: Zap },
 ];
 
@@ -52,6 +52,13 @@ const STEPS = [
 const TelegramIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1.01.54-1.45.53-.48-.01-1.39-.27-2.07-.49-.84-.27-1.51-.42-1.45-.89.03-.25.38-.51 1.07-.78 4.18-1.82 6.97-3.02 8.38-3.61 3.99-1.66 4.83-1.95 5.37-1.96.12 0 .38.03.55.17.14.12.18.28.2.45-.01.06.01.24 0 .38z"/>
+  </svg>
+);
+
+// Instagram icon component
+const InstagramIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
   </svg>
 );
 
@@ -73,14 +80,18 @@ const AgentOnboarding = () => {
     products_services: ''
   });
 
-  // Step 2: Telegram
+  // Step 2: Channels
   const [botToken, setBotToken] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [botUsername, setBotUsername] = useState('');
   const [checkingConnection, setCheckingConnection] = useState(false);
+  // Instagram
+  const [igConnected, setIgConnected] = useState(false);
+  const [igUsername, setIgUsername] = useState('');
+  const [igConnecting, setIgConnecting] = useState(false);
 
-  // Check for existing Telegram connection when component mounts
+  // Check for existing connections when component mounts
   useEffect(() => {
     const checkExistingConnection = async () => {
       setCheckingConnection(true);
@@ -89,6 +100,10 @@ const AgentOnboarding = () => {
         if (response.data?.telegram?.connected) {
           setConnected(true);
           setBotUsername(response.data.telegram.bot_username?.replace('@', '') || '');
+        }
+        if (response.data?.instagram?.connected) {
+          setIgConnected(true);
+          setIgUsername(response.data.instagram.username || '');
         }
       } catch (error) {
         console.error('Failed to check existing connection:', error);
@@ -171,6 +186,23 @@ const AgentOnboarding = () => {
     }
   };
 
+  const connectInstagram = async () => {
+    setIgConnecting(true);
+    try {
+      const response = await axios.get(`${API}/instagram/oauth/start`);
+      const { oauth_url } = response.data;
+      if (oauth_url) {
+        window.location.href = oauth_url;
+      } else {
+        toast.error('Failed to start Instagram connection');
+        setIgConnecting(false);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Instagram connection not configured yet');
+      setIgConnecting(false);
+    }
+  };
+
   const handleNext = async () => {
     if (currentStep === 1) {
       const success = await saveBusinessInfo();
@@ -192,7 +224,7 @@ const AgentOnboarding = () => {
     }
   };
 
-  const handleSkipTelegram = () => {
+  const handleSkipChannels = () => {
     setCurrentStep(3);
   };
 
@@ -331,127 +363,169 @@ const AgentOnboarding = () => {
               </div>
             )}
 
-            {/* Step 2: Telegram Connection */}
+            {/* Step 2: Channels Connection */}
             {currentStep === 2 && (
               <div className="space-y-5 animate-fade-in">
                 <div className="text-center mb-6">
                   <h2 className="text-xl font-semibold text-slate-900 mb-1">
-                    Connect Telegram
+                    Connect Channels
                   </h2>
                   <p className="text-sm text-slate-500">
-                    Link your Telegram bot to start receiving messages
+                    Link messaging channels so your AI agent can receive and reply to messages
                   </p>
                 </div>
 
-                <Card className="bg-white border-slate-200 shadow-sm">
-                  <CardContent className="p-5">
-                    {checkingConnection ? (
-                      <div className="text-center py-8">
-                        <Loader2 className="w-8 h-8 mx-auto text-slate-400 animate-spin mb-3" />
-                        <p className="text-[13px] text-slate-500">Checking connection status...</p>
-                      </div>
-                    ) : connected ? (
-                      <div className="text-center py-6">
-                        <div className="w-14 h-14 mx-auto rounded-full bg-emerald-600 flex items-center justify-center mb-4 shadow-sm">
-                          <Check className="w-7 h-7 text-white" strokeWidth={2.5} />
-                        </div>
-                        <h3 className="font-semibold text-slate-900 text-[15px] mb-1">Already Connected!</h3>
-                        <p className="text-slate-500 text-[13px] mb-4">
-                          Your bot <span className="font-medium text-slate-700">@{botUsername}</span> is ready to use
-                        </p>
-                        <div className="flex items-center justify-center gap-3">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-slate-200 text-[13px]"
-                            onClick={() => window.open(`https://t.me/${botUsername}`, '_blank')}
-                          >
-                            Open in Telegram
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-slate-200 text-[13px]"
-                            onClick={() => navigate('/app/connections/telegram')}
-                          >
-                            Manage Bot
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {/* Telegram Header */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-[#0088cc]/10 flex items-center justify-center">
-                              <TelegramIcon className="w-5 h-5 text-[#0088cc]" />
+                {checkingConnection ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-8 h-8 mx-auto text-slate-400 animate-spin mb-3" />
+                    <p className="text-[13px] text-slate-500">Checking connections...</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {/* Telegram Card */}
+                    <Card className="bg-white border-slate-200 shadow-sm">
+                      <CardContent className="p-5">
+                        {connected ? (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                                <Check className="w-5 h-5 text-white" strokeWidth={2.5} />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-slate-900 text-[14px]">Telegram Bot</h3>
+                                <p className="text-[12px] text-emerald-600 font-medium">@{botUsername} connected</p>
+                              </div>
                             </div>
-                            <div>
-                              <h3 className="font-semibold text-slate-900 text-[14px]">Telegram Bot</h3>
-                              <p className="text-[12px] text-slate-500">Receive messages from customers</p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-slate-200 text-[12px] h-8"
+                              onClick={() => navigate('/app/connections/telegram')}
+                            >
+                              Manage
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                                  <TelegramIcon className="w-5 h-5 text-[#0088cc]" />
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-slate-900 text-[14px]">Telegram Bot</h3>
+                                  <p className="text-[12px] text-slate-500">Receive messages from customers</p>
+                                </div>
+                              </div>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button className="w-7 h-7 rounded-md hover:bg-slate-100 flex items-center justify-center transition-colors">
+                                    <HelpCircle className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="left" className="max-w-[280px] p-3 bg-slate-900 text-white">
+                                  <p className="text-[12px] font-semibold mb-2 text-white">How to get your bot token:</p>
+                                  <ol className="text-[11px] text-slate-300 space-y-1 list-decimal list-inside">
+                                    <li>Open Telegram and search for @BotFather</li>
+                                    <li>Send /newbot to create a new bot</li>
+                                    <li>Follow the prompts to set a name</li>
+                                    <li>Copy the token provided</li>
+                                  </ol>
+                                </TooltipContent>
+                              </Tooltip>
                             </div>
-                          </div>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button className="w-7 h-7 rounded-md hover:bg-slate-100 flex items-center justify-center transition-colors">
-                                <HelpCircle className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="left" className="max-w-[280px] p-3 bg-slate-900 text-white">
-                              <p className="text-[12px] font-semibold mb-2 text-white">How to get your bot token:</p>
-                              <ol className="text-[11px] text-slate-300 space-y-1 list-decimal list-inside">
-                                <li>Open Telegram and search for @BotFather</li>
-                                <li>Send /newbot to create a new bot</li>
-                                <li>Follow the prompts to set a name</li>
-                                <li>Copy the token provided</li>
-                              </ol>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
 
-                        {/* Token Input */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <Label className="text-slate-600 text-[12px] font-medium">Bot Token</Label>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
-                              </TooltipTrigger>
-                              <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
-                                Encrypted & secured
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                          <Input
-                            type="password"
-                            placeholder="Paste your bot token from @BotFather"
-                            value={botToken}
-                            onChange={(e) => setBotToken(e.target.value)}
-                            className="h-10 text-[13px] border-slate-200"
-                            data-testid="bot-token-input"
-                          />
-                        </div>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <Label className="text-slate-600 text-[12px] font-medium">Bot Token</Label>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 cursor-help" strokeWidth={2} />
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="bg-slate-900 text-white text-xs px-2 py-1">
+                                    Encrypted & secured
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                              <Input
+                                type="password"
+                                placeholder="Paste your bot token from @BotFather"
+                                value={botToken}
+                                onChange={(e) => setBotToken(e.target.value)}
+                                className="h-10 text-[13px] border-slate-200"
+                                data-testid="bot-token-input"
+                              />
+                            </div>
 
-                        <Button
-                          className="w-full bg-slate-900 hover:bg-slate-800 h-10 text-[13px] font-medium"
-                          onClick={connectTelegram}
-                          disabled={connecting}
-                          data-testid="connect-telegram-btn"
-                        >
-                          {connecting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                          Connect Bot
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                            <Button
+                              className="w-full bg-slate-900 hover:bg-slate-800 h-10 text-[13px] font-medium"
+                              onClick={connectTelegram}
+                              disabled={connecting}
+                              data-testid="connect-telegram-btn"
+                            >
+                              {connecting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                              Connect Bot
+                            </Button>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Instagram Card */}
+                    <Card className="bg-white border-slate-200 shadow-sm">
+                      <CardContent className="p-5">
+                        {igConnected ? (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                                <Check className="w-5 h-5 text-white" strokeWidth={2.5} />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-slate-900 text-[14px]">Instagram DM</h3>
+                                <p className="text-[12px] text-emerald-600 font-medium">@{igUsername} connected</p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-slate-200 text-[12px] h-8"
+                              onClick={() => navigate('/app/connections/instagram')}
+                            >
+                              Manage
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <InstagramIcon className="w-5 h-5 text-slate-600" />
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-slate-900 text-[14px]">Instagram DM</h3>
+                                <p className="text-[12px] text-slate-500">Automate direct messages</p>
+                              </div>
+                            </div>
+                            <Button
+                              className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[12px] font-medium"
+                              onClick={connectInstagram}
+                              disabled={igConnecting}
+                            >
+                              {igConnecting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                              Connect
+                            </Button>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
 
                 {/* Skip Option */}
-                {!checkingConnection && !connected && (
+                {!checkingConnection && !connected && !igConnected && (
                   <p className="text-center text-[13px] text-slate-500">
-                    Don't have a bot yet?{' '}
+                    Not ready yet?{' '}
                     <button
-                      onClick={handleSkipTelegram}
+                      onClick={handleSkipChannels}
                       className="text-slate-900 font-medium hover:underline"
                     >
                       Skip for now
@@ -479,14 +553,14 @@ const AgentOnboarding = () => {
                     {prebuiltInfo?.name || businessInfo.name || 'Your Agent'} is Ready!
                   </h2>
                   <p className="text-[15px] text-slate-500 max-w-sm mx-auto mb-8">
-                    {connected
-                      ? `Messages sent to @${botUsername} will now be handled by ${prebuiltInfo?.name || 'your AI sales agent'}.`
-                      : `${prebuiltInfo?.name || 'Your agent'} is set up. Connect Telegram in settings to start receiving messages.`
+                    {(connected || igConnected)
+                      ? `${prebuiltInfo?.name || 'Your AI sales agent'} is live and ready to handle messages.`
+                      : `${prebuiltInfo?.name || 'Your agent'} is set up. Connect a channel in settings to start receiving messages.`
                     }
                   </p>
 
                   {/* Status Cards */}
-                  <div className="grid grid-cols-2 gap-3 mb-8">
+                  <div className="grid grid-cols-3 gap-3 mb-8">
                     <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                       <div className="flex items-center justify-center gap-2 mb-1">
                         <Building2 className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
@@ -502,7 +576,16 @@ const AgentOnboarding = () => {
                         <span className="text-[12px] font-medium text-slate-500">Telegram</span>
                       </div>
                       <p className={`text-[14px] font-semibold ${connected ? 'text-emerald-600' : 'text-slate-400'}`}>
-                        {connected ? 'Connected' : 'Not connected'}
+                        {connected ? 'Connected' : 'Skipped'}
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <InstagramIcon className="w-4 h-4 text-slate-500" />
+                        <span className="text-[12px] font-medium text-slate-500">Instagram</span>
+                      </div>
+                      <p className={`text-[14px] font-semibold ${igConnected ? 'text-emerald-600' : 'text-slate-400'}`}>
+                        {igConnected ? 'Connected' : 'Skipped'}
                       </p>
                     </div>
                   </div>
@@ -557,10 +640,10 @@ const AgentOnboarding = () => {
                 ) : (
                   <Button
                     className="bg-slate-900 hover:bg-slate-800 h-10 px-5"
-                    onClick={handleSkipTelegram}
-                    data-testid="skip-telegram-btn"
+                    onClick={handleSkipChannels}
+                    data-testid="skip-channels-btn"
                   >
-                    {connected ? 'Continue' : 'Skip & Finish'}
+                    {(connected || igConnected) ? 'Continue' : 'Skip & Finish'}
                     <ArrowRight className="w-4 h-4 ml-2" strokeWidth={2} />
                   </Button>
                 )}

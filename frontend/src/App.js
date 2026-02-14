@@ -27,6 +27,7 @@ import AgentDialoguePage from "./pages/AgentDialoguePage";
 import ConnectionsPage from "./pages/ConnectionsPage";
 import GoogleSheetsSetupPage from "./pages/GoogleSheetsSetupPage";
 import TelegramSetupPage from "./pages/TelegramSetupPage";
+import InstagramSetupPage from "./pages/InstagramSetupPage";
 import BitrixSetupPage from "./pages/BitrixSetupPage";
 import SalesAgentPage from "./pages/SalesAgentPage";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
@@ -95,6 +96,7 @@ function AppRoutes() {
         <Route path="agents/:agentId/connections" element={<ConnectionsPage />} />
         <Route path="agents/:agentId/connections/google-sheets" element={<GoogleSheetsSetupPage />} />
         <Route path="agents/:agentId/connections/telegram" element={<TelegramSetupPage />} />
+        <Route path="agents/:agentId/connections/instagram" element={<InstagramSetupPage />} />
         <Route path="agents/:agentId/connections/bitrix" element={<BitrixSetupPage />} />
         <Route path="agents/:agentId/leads" element={<AgentLeadsPage />} />
         <Route path="agents/:agentId/dialogue" element={<AgentDialoguePage />} />
@@ -112,6 +114,7 @@ function AppRoutes() {
         {/* Global connections routes */}
         <Route path="connections" element={<ConnectionsPage />} />
         <Route path="connections/telegram" element={<TelegramSetupPage />} />
+        <Route path="connections/instagram" element={<InstagramSetupPage />} />
         <Route path="connections/bitrix" element={<BitrixSetupPage />} />
         <Route path="connections/google-sheets" element={<GoogleSheetsSetupPage />} />
         {/* Legacy routes kept for backward compatibility */}
