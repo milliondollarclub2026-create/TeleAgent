@@ -147,47 +147,50 @@ const LoginPage = () => {
       {/* Centered story content */}
       <div className="relative z-10 flex flex-col items-center justify-center w-full px-12 xl:px-16">
         {/* Headline */}
-        <div className={`text-center mb-14 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <h1 className="text-3xl xl:text-[40px] font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-3 leading-[1.15] tracking-tight">
-            Your AI sales team,<br />always closing.
+        <div className={`text-center mb-16 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <h1 className="text-3xl xl:text-[40px] font-bold font-['Plus_Jakarta_Sans'] mb-3 leading-[1.15] tracking-tight">
+            <span className="text-slate-900">Your </span>
+            <span className="text-emerald-600">AI sales team.</span>
+            <br />
+            <span className="text-slate-900">Always closing.</span>
           </h1>
           <p className="text-slate-400 text-[15px] leading-relaxed max-w-sm mx-auto">
-            Three AI agents that qualify leads, answer questions, and close deals — around the clock.
+            Three agents. <span className="text-slate-600 font-medium">Qualifying, answering, closing.</span><br />Every hour. Every language.
           </p>
         </div>
 
-        {/* AI Team Constellation */}
-        <div className="flex items-start justify-center gap-12 xl:gap-16">
+        {/* AI Team */}
+        <div className="flex items-start justify-center gap-16 xl:gap-20">
           {/* Sales Agent */}
           <div className={`flex flex-col items-center transition-all duration-700 delay-[400ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
             <div className="login-agent-float-1">
-              <AiOrb size={76} colors={['#10b981', '#059669', '#14b8a6']} />
+              <AiOrb size={88} colors={['#10b981', '#059669', '#14b8a6']} />
             </div>
-            <span className="mt-3.5 text-xs font-semibold text-slate-700 tracking-wide">Sales</span>
+            <span className="mt-4 text-xs font-semibold text-slate-700 tracking-wide">Sales</span>
             <div className="flex items-center gap-1 mt-1">
               <span className="w-1 h-1 rounded-full bg-emerald-500 login-active-dot" />
               <span className="text-[10px] text-slate-400">Active</span>
             </div>
           </div>
 
-          {/* Support Agent — offset for organic feel */}
-          <div className={`flex flex-col items-center transition-all duration-700 delay-[600ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`} style={{ marginTop: '28px' }}>
+          {/* Support Agent */}
+          <div className={`flex flex-col items-center transition-all duration-700 delay-[600ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
             <div className="login-agent-float-2">
-              <AiOrb size={64} colors={['#6366f1', '#8b5cf6', '#3b82f6']} />
+              <AiOrb size={88} colors={['#6366f1', '#8b5cf6', '#3b82f6']} />
             </div>
-            <span className="mt-3.5 text-xs font-semibold text-slate-700 tracking-wide">Support</span>
+            <span className="mt-4 text-xs font-semibold text-slate-700 tracking-wide">Support</span>
             <div className="flex items-center gap-1 mt-1">
               <span className="w-1 h-1 rounded-full bg-indigo-500 login-active-dot" />
               <span className="text-[10px] text-slate-400">Active</span>
             </div>
           </div>
 
-          {/* Analytics Agent — slight offset */}
-          <div className={`flex flex-col items-center transition-all duration-700 delay-[800ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`} style={{ marginTop: '12px' }}>
+          {/* Analytics Agent */}
+          <div className={`flex flex-col items-center transition-all duration-700 delay-[800ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
             <div className="login-agent-float-3">
-              <AiOrb size={70} colors={['#f97316', '#ea580c', '#f59e0b']} />
+              <AiOrb size={88} colors={['#f97316', '#ea580c', '#f59e0b']} />
             </div>
-            <span className="mt-3.5 text-xs font-semibold text-slate-700 tracking-wide">Analytics</span>
+            <span className="mt-4 text-xs font-semibold text-slate-700 tracking-wide">Analytics</span>
             <div className="flex items-center gap-1 mt-1">
               <span className="w-1 h-1 rounded-full bg-amber-500 login-active-dot" />
               <span className="text-[10px] text-slate-400">Active</span>
