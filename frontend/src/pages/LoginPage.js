@@ -125,7 +125,7 @@ const LoginPage = () => {
   const GradientPanel = () => (
     <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-white border-r border-slate-100">
       {/* Bottom gradient fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-[45%] bg-gradient-to-t from-slate-50/80 via-slate-50/30 to-transparent pointer-events-none z-[1]" />
+      <div className="absolute bottom-0 left-0 right-0 h-[50%] pointer-events-none z-[1]" style={{ background: 'linear-gradient(to top, #e2e8f0 0%, rgba(226,232,240,0.3) 40%, transparent 100%)' }} />
 
       {/* Ultra-subtle ambient color hints behind orb positions */}
       <div className="absolute top-[28%] left-[22%] w-[280px] h-[280px] bg-emerald-50/40 rounded-full blur-[100px]" />
@@ -340,7 +340,7 @@ const LoginPage = () => {
       {/* Right side - Form */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
         {/* Bottom gradient fade */}
-        <div className="absolute bottom-0 left-0 right-0 h-[40%] bg-gradient-to-t from-slate-50/60 via-slate-50/20 to-transparent pointer-events-none z-0" />
+        <div className="absolute bottom-0 left-0 right-0 h-[50%] pointer-events-none z-0" style={{ background: 'linear-gradient(to top, #e2e8f0 0%, rgba(226,232,240,0.2) 40%, transparent 100%)' }} />
 
         {/* Mobile logo */}
         <div className="lg:hidden absolute top-0 left-0 right-0 px-6 py-5">
