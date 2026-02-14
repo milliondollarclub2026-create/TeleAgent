@@ -13,7 +13,7 @@ import logging
 import asyncio
 import time
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 import json
 
@@ -265,22 +265,68 @@ class BitrixCRMClient:
         except:
             return []
     
-    async def list_leads(self, limit: int = 50, filter_params: dict = None) -> List[Dict]:
-        """List leads with optional filters"""
+    async def list_leads(self, limit: int = 50, filter_params: dict = None, fetch_all: bool = False, days: int = None) -> List[Dict]:
+        """
+        List leads with optional filters.
+
+        Args:
+            limit: Maximum number of leads to return (default 50)
+            filter_params: Optional Bitrix24 filter parameters
+            fetch_all: If True, paginate through all leads (ignores limit for fetching but returns up to limit)
+            days: If set, only fetch leads created within the last N days (e.g., 30, 90)
+        """
         params = {
             "select": ["ID", "TITLE", "NAME", "PHONE", "STATUS_ID", "DATE_CREATE", "SOURCE_ID"],
             "order": {"DATE_CREATE": "DESC"}
         }
+
+        # Build filter with optional date constraint
+        combined_filter = {}
         if filter_params:
-            params["filter"] = filter_params
-        if limit:
-            params["start"] = 0
-        
+            combined_filter.update(filter_params)
+
+        if days:
+            cutoff_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            combined_filter[">=DATE_CREATE"] = cutoff_date
+            logger.debug(f"Filtering leads created after {cutoff_date} (last {days} days)")
+
+        if combined_filter:
+            params["filter"] = combined_filter
+
         try:
-            result = await self._call("crm.lead.list", params)
-            leads = result if isinstance(result, list) else []
-            return leads[:limit]
-        except:
+            all_leads = []
+            start = 0
+
+            while True:
+                params["start"] = start
+                result = await self._call("crm.lead.list", params)
+
+                # Handle response - Bitrix24 returns list directly or in result
+                leads = result if isinstance(result, list) else []
+
+                if not leads:
+                    break
+
+                all_leads.extend(leads)
+
+                # If not fetching all, or we have enough leads, stop
+                if not fetch_all or len(all_leads) >= limit:
+                    break
+
+                # Bitrix24 returns 50 items per page, if we got less, we're done
+                if len(leads) < 50:
+                    break
+
+                start += 50
+
+                # Safety limit to prevent infinite loops
+                if start > 5000:
+                    logger.warning("Hit safety limit of 5000 leads while fetching")
+                    break
+
+            return all_leads[:limit] if limit else all_leads
+        except Exception as e:
+            logger.error(f"Error listing leads: {e}")
             return []
     
     async def get_lead_statuses(self) -> List[Dict]:
@@ -405,9 +451,9 @@ class BitrixCRMClient:
     async def get_analytics_summary(self, days: int = 30) -> Dict:
         """Get CRM analytics summary for dashboard"""
         try:
-            # Get recent leads
-            leads = await self.list_leads(limit=500)
-            
+            # Get leads from the specified time period (default 30 days)
+            leads = await self.list_leads(limit=1000, fetch_all=True, days=days)
+
             # Get recent deals
             deals = await self.list_deals(limit=500)
             
@@ -516,7 +562,11 @@ class BitrixCRMClient:
         
         # If asking about leads
         if any(word in question_lower for word in lead_keywords):
-            leads = await self.list_leads(limit=30)
+            # Check if asking for "recent" leads (last 7 days) or general (last 90 days)
+            if "recent" in question_lower or "this week" in question_lower or "today" in question_lower:
+                leads = await self.list_leads(limit=500, fetch_all=True, days=7)
+            else:
+                leads = await self.list_leads(limit=500, fetch_all=True, days=90)  # Last 90 days
             statuses = await self.get_lead_statuses()
             status_map = {s.get("STATUS_ID"): s.get("NAME") for s in statuses}
             
@@ -605,7 +655,7 @@ class BitrixCRMClient:
         
         # If asking about customer
         if any(word in question_lower for word in customer_keywords):
-            leads = await self.list_leads(limit=15)
+            leads = await self.list_leads(limit=50, fetch_all=True, days=90)  # Last 90 days
             customer_info = []
             for l in leads:
                 phone = l.get('PHONE', [])
@@ -615,9 +665,9 @@ class BitrixCRMClient:
         
         # Default: provide general overview if nothing matched
         if not context_parts:
-            analytics = await self.get_analytics_summary()
-            leads = await self.list_leads(limit=10)
-            deals = await self.list_deals(limit=10)
+            analytics = await self.get_analytics_summary(days=30)  # Last 30 days
+            leads = await self.list_leads(limit=50, fetch_all=True, days=30)
+            deals = await self.list_deals(limit=50)
             
             lead_list = "\n".join([f"- {l.get('TITLE', 'Untitled')} ({l.get('STATUS_ID', 'N/A')})" for l in leads[:5]])
             deal_list = "\n".join([f"- {d.get('TITLE', 'Untitled')}: {float(d.get('OPPORTUNITY', 0)):,.0f}" for d in deals[:5]])
