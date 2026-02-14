@@ -7,15 +7,27 @@ Uses fire-and-forget pattern to avoid blocking API responses.
 
 import asyncio
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import text
 
-from database import AsyncSessionLocal
-
 logger = logging.getLogger(__name__)
+
+# Check if database is configured
+DATABASE_URL = os.environ.get('DATABASE_URL')
+DB_AVAILABLE = DATABASE_URL is not None
+
+# Lazy import of AsyncSessionLocal to avoid crash if DATABASE_URL not set
+AsyncSessionLocal = None
+if DB_AVAILABLE:
+    try:
+        from database import AsyncSessionLocal
+    except Exception as e:
+        logger.warning(f"Token logging disabled: {e}")
+        DB_AVAILABLE = False
 
 # OpenAI Pricing (per 1K tokens) - Updated February 2026
 # https://openai.com/pricing
@@ -80,6 +92,10 @@ async def log_token_usage(
         customer_id: Optional customer ID (for Telegram conversations)
         conversation_id: Optional conversation ID
     """
+    if not DB_AVAILABLE or AsyncSessionLocal is None:
+        logger.debug("Token logging skipped: database not configured")
+        return
+
     try:
         # Calculate cost
         cost_usd = calculate_cost(model, input_tokens, output_tokens)
@@ -146,6 +162,9 @@ def log_token_usage_fire_and_forget(
         )
         return response.choices[0].message.content  # Returns immediately
     """
+    if not DB_AVAILABLE:
+        return
+
     try:
         asyncio.create_task(
             log_token_usage(
