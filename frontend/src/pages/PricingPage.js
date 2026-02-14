@@ -196,22 +196,10 @@ export default function PricingPage() {
             <div className="hidden md:flex items-center gap-4">
               <button
                 onClick={handleCTA}
-                className="text-slate-600 hover:text-slate-900 transition-colors text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100"
+                className="bg-slate-900 hover:bg-slate-800 text-white rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 flex items-center gap-2"
               >
-                Log in
-              </button>
-              <button
-                onClick={handleCTA}
-                className="group relative bg-slate-900 hover:bg-slate-800 text-white rounded-full px-6 py-2.5 text-sm font-semibold transition-all duration-300 overflow-hidden"
-              >
-                <span className="relative z-10 flex items-center gap-2">
-                  Get Started
-                  <ArrowRight
-                    className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5"
-                    strokeWidth={2}
-                  />
-                </span>
-                <div className="absolute inset-0 bg-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                Login
+                <ArrowRight className="w-4 h-4" strokeWidth={2} />
               </button>
             </div>
 
@@ -253,15 +241,9 @@ export default function PricingPage() {
             <div className="pt-4 border-t border-slate-200 space-y-3">
               <button
                 onClick={handleCTA}
-                className="block w-full text-center text-slate-600 hover:text-slate-900 py-3 font-medium rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Log in
-              </button>
-              <button
-                onClick={handleCTA}
                 className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-full py-3.5 font-semibold transition-all"
               >
-                Get Started
+                Login
               </button>
             </div>
           </div>
@@ -269,7 +251,7 @@ export default function PricingPage() {
       </nav>
 
       {/* Pricing Configurator */}
-      <div className="pt-36">
+      <div className="pt-20">
         <PricingSection onGetStarted={handleCTA} />
       </div>
 

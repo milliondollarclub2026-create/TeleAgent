@@ -17,6 +17,7 @@ import {
   Check
 } from 'lucide-react';
 import { toast } from 'sonner';
+import AiOrb from '../components/Orb/AiOrb';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -121,6 +122,13 @@ const LoginPage = () => {
     }
   };
 
+  // Agent data for orbs
+  const aiAgents = [
+    { name: 'Jasur', role: 'Sales Agent', colors: ['#10b981', '#059669', '#14b8a6'] },
+    { name: 'Nilufar', role: 'Onboarding Agent', colors: ['#6366f1', '#8b5cf6', '#3b82f6'] },
+    { name: 'Bobur', role: 'Analytics Engineer', colors: ['#f97316', '#ea580c', '#f59e0b'] },
+  ];
+
   // Gradient left panel (shared across all views)
   const GradientPanel = () => (
     <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
@@ -129,9 +137,10 @@ const LoginPage = () => {
         background: 'linear-gradient(160deg, #ecfdf5 0%, #f0fdf4 30%, #f8fafc 55%, #f0fdfa 80%, #ecfdf5 100%)'
       }} />
 
-      {/* Subtle blurred orbs */}
-      <div className="absolute top-1/4 -left-20 w-[400px] h-[400px] bg-emerald-200/30 rounded-full blur-[120px]" />
-      <div className="absolute bottom-1/4 -right-20 w-[350px] h-[350px] bg-teal-200/25 rounded-full blur-[100px]" />
+      {/* Colored ambient blurs from agent colors */}
+      <div className="absolute top-[15%] -left-10 w-[350px] h-[350px] bg-emerald-200/25 rounded-full blur-[120px]" />
+      <div className="absolute top-[40%] right-[5%] w-[300px] h-[300px] bg-indigo-200/20 rounded-full blur-[100px]" />
+      <div className="absolute bottom-[15%] left-[20%] w-[280px] h-[280px] bg-orange-200/20 rounded-full blur-[100px]" />
 
       {/* Logo — pinned top-left */}
       <div className="absolute top-0 left-0 z-20 px-8 py-6">
@@ -161,18 +170,19 @@ const LoginPage = () => {
             Three AI employees that qualify leads, answer questions, and manage your CRM — in Uzbek, Russian, or English.
           </p>
 
-          {/* Trust points */}
+          {/* Agent orbs */}
           <div className={`space-y-4 transition-all duration-700 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            {[
-              'Set up in 10 minutes, no code required',
-              'Works 24/7 on Telegram',
-              'Syncs directly with Bitrix24'
-            ].map((text, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
-                  <Check className="w-3 h-3 text-white" strokeWidth={3} />
+            {aiAgents.map((agent, i) => (
+              <div
+                key={agent.name}
+                className="flex items-center gap-4 p-3 rounded-xl bg-white/60 backdrop-blur-sm border border-white/80 transition-all duration-300 hover:bg-white/80 hover:shadow-sm"
+                style={{ transitionDelay: `${i * 80}ms` }}
+              >
+                <AiOrb size={36} colors={agent.colors} />
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 font-['Plus_Jakarta_Sans']">{agent.name}</p>
+                  <p className="text-xs text-slate-500">{agent.role}</p>
                 </div>
-                <span className="text-slate-700 text-sm font-medium">{text}</span>
               </div>
             ))}
           </div>

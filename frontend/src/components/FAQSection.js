@@ -69,16 +69,6 @@ export default function FAQSection() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
           {/* Left Column - 40% */}
           <div className="lg:col-span-5">
-            {/* Badge */}
-            <div
-              className="opacity-0 animate-fade-up"
-              style={{ animationDelay: '0ms' }}
-            >
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-700 mb-6">
-                FAQ
-              </span>
-            </div>
-
             {/* Heading */}
             <h2
               className="text-4xl md:text-5xl font-bold text-slate-900 leading-tight mb-6 opacity-0 animate-fade-up"

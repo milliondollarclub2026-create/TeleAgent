@@ -546,32 +546,6 @@ export default function LandingPage() {
       </div>
 
       {/* ================================================================ */}
-      {/* TRUST / METRICS BAR                                              */}
-      {/* ================================================================ */}
-      <section className="py-12 bg-white border-b border-slate-100 relative overflow-hidden">
-        <div className="max-w-5xl mx-auto px-6 md:px-12">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-4 scroll-reveal">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">3 AI Employees</p>
-              <p className="text-xs text-slate-400">Sales, FAQ & CRM</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">10 min</p>
-              <p className="text-xs text-slate-400">Average hire time</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">24/7</p>
-              <p className="text-xs text-slate-400">Always working</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">UZ / RU / EN</p>
-              <p className="text-xs text-slate-400">3 languages fluent</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================================================================ */}
       {/* FEATURES SECTION - Agent Grid + Feature Grid                     */}
       {/* ================================================================ */}
       <section id="features" className="py-32 relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #ecfdf5 0%, #f0fdf4 30%, #f8fafc 55%, #f0fdfa 80%, #ecfdf5 100%)' }}>
@@ -721,7 +695,7 @@ export default function LandingPage() {
               <div key={item.step} className={`group flex flex-col cursor-default step-glow step-glow-${item.step}`}>
                 {/* Large emerald step number with pulsing glow */}
                 <div className="mb-6">
-                  <span className="step-number text-5xl font-bold text-emerald-500 group-hover:text-emerald-600 transition-colors duration-300 font-['Plus_Jakarta_Sans']">
+                  <span className="step-number text-5xl font-bold text-slate-900 transition-all duration-300 font-['Plus_Jakarta_Sans']">
                     {item.step}
                   </span>
                 </div>
@@ -810,21 +784,6 @@ export default function LandingPage() {
             </button>
           </div>
 
-          {/* Trust Indicators */}
-          <div className="mt-20 pt-10 border-t border-slate-200">
-            <div className="flex flex-wrap justify-center items-center gap-10 md:gap-16">
-              {[
-                '10-minute setup',
-                'Bank-grade encryption',
-                'Cancel anytime'
-              ].map((text, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-600" strokeWidth={2.5} />
-                  <span className="text-slate-500 text-sm font-medium">{text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </section>
 
@@ -985,20 +944,48 @@ export default function LandingPage() {
           }
         }
 
+        @keyframes step-number-glow {
+          0%, 15% {
+            color: rgb(15, 23, 42);
+            text-shadow: none;
+          }
+          30% {
+            color: rgb(5, 150, 105);
+            text-shadow: 0 0 20px rgba(5, 150, 105, 0.4);
+          }
+          50%, 100% {
+            color: rgb(15, 23, 42);
+            text-shadow: none;
+          }
+        }
+
         .step-glow-1 .step-card {
           animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          animation-delay: 0s;
+        }
+        .step-glow-1 .step-number {
+          animation: step-number-glow 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
           animation-delay: 0s;
         }
         .step-glow-2 .step-card {
           animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
           animation-delay: 2s;
         }
+        .step-glow-2 .step-number {
+          animation: step-number-glow 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          animation-delay: 2s;
+        }
         .step-glow-3 .step-card {
           animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
           animation-delay: 4s;
         }
+        .step-glow-3 .step-number {
+          animation: step-number-glow 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+          animation-delay: 4s;
+        }
 
-        .step-glow:hover .step-card {
+        .step-glow:hover .step-card,
+        .step-glow:hover .step-number {
           animation-play-state: paused;
         }
       `}</style>
