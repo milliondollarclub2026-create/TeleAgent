@@ -768,7 +768,7 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
             <button
               onClick={handleCTA}
-              className="group inline-flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all duration-300"
+              className="group inline-flex items-center gap-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all duration-300"
               data-testid="final-cta-btn"
             >
               Hire Your Team
@@ -928,60 +928,54 @@ export default function LandingPage() {
           50% { transform: translateY(-20px); }
         }
 
-        /* Sequential emerald glow on step cards */
+        /* Sequential emerald glow on step cards — 9s total, 3s per step, no overlap */
         @keyframes step-glow-sweep {
-          0%, 15% {
+          0%, 5% {
             box-shadow: 0 0 0 0 rgba(5, 150, 105, 0), 0 1px 3px 0 rgba(0, 0, 0, 0.1);
             border-color: rgb(226, 232, 240);
           }
-          30% {
+          15% {
             box-shadow: 0 0 30px -5px rgba(5, 150, 105, 0.25), 0 20px 40px -10px rgba(5, 150, 105, 0.15);
             border-color: rgb(167, 243, 208);
           }
-          50%, 100% {
+          30%, 100% {
             box-shadow: 0 0 0 0 rgba(5, 150, 105, 0), 0 1px 3px 0 rgba(0, 0, 0, 0.1);
             border-color: rgb(226, 232, 240);
           }
         }
 
         @keyframes step-number-glow {
-          0%, 15% {
+          0%, 5% {
             color: rgb(15, 23, 42);
             text-shadow: none;
           }
-          30% {
+          15% {
             color: rgb(5, 150, 105);
             text-shadow: 0 0 20px rgba(5, 150, 105, 0.4);
           }
-          50%, 100% {
+          30%, 100% {
             color: rgb(15, 23, 42);
             text-shadow: none;
           }
         }
 
         .step-glow-1 .step-card {
-          animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 0s;
+          animation: step-glow-sweep 9s ease-in-out infinite;
         }
         .step-glow-1 .step-number {
-          animation: step-number-glow 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 0s;
+          animation: step-number-glow 9s ease-in-out infinite;
         }
         .step-glow-2 .step-card {
-          animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 2s;
+          animation: step-glow-sweep 9s ease-in-out 3s infinite;
         }
         .step-glow-2 .step-number {
-          animation: step-number-glow 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 2s;
+          animation: step-number-glow 9s ease-in-out 3s infinite;
         }
         .step-glow-3 .step-card {
-          animation: step-glow-sweep 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 4s;
+          animation: step-glow-sweep 9s ease-in-out 6s infinite;
         }
         .step-glow-3 .step-number {
-          animation: step-number-glow 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-          animation-delay: 4s;
+          animation: step-number-glow 9s ease-in-out 6s infinite;
         }
 
         .step-glow:hover .step-card,

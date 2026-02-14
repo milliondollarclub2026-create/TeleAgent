@@ -60,7 +60,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
         >
           <button
             onClick={onGetStarted}
-            className="group bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-4 rounded-full font-semibold text-lg transition-all duration-200 inline-flex items-center gap-2"
+            className="group bg-slate-900 hover:bg-emerald-600 text-white px-8 py-4 rounded-full font-semibold text-lg transition-all duration-200 inline-flex items-center gap-2"
           >
             Hire Your AI Team
             <ArrowRight

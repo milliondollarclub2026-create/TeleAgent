@@ -13,8 +13,7 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  CheckCircle,
-  Check
+  CheckCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import AiOrb from '../components/Orb/AiOrb';
@@ -122,17 +121,10 @@ const LoginPage = () => {
     }
   };
 
-  // Agent data for orbs
-  const aiAgents = [
-    { name: 'Jasur', role: 'Sales Agent', colors: ['#10b981', '#059669', '#14b8a6'] },
-    { name: 'Nilufar', role: 'Onboarding Agent', colors: ['#6366f1', '#8b5cf6', '#3b82f6'] },
-    { name: 'Bobur', role: 'Analytics Engineer', colors: ['#f97316', '#ea580c', '#f59e0b'] },
-  ];
-
   // Gradient left panel (shared across all views)
   const GradientPanel = () => (
     <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-      {/* Soft emerald gradient background — matching landing page tone */}
+      {/* Soft gradient background */}
       <div className="absolute inset-0" style={{
         background: 'linear-gradient(160deg, #ecfdf5 0%, #f0fdf4 30%, #f8fafc 55%, #f0fdfa 80%, #ecfdf5 100%)'
       }} />
@@ -141,6 +133,19 @@ const LoginPage = () => {
       <div className="absolute top-[15%] -left-10 w-[350px] h-[350px] bg-emerald-200/25 rounded-full blur-[120px]" />
       <div className="absolute top-[40%] right-[5%] w-[300px] h-[300px] bg-indigo-200/20 rounded-full blur-[100px]" />
       <div className="absolute bottom-[15%] left-[20%] w-[280px] h-[280px] bg-orange-200/20 rounded-full blur-[100px]" />
+
+      {/* Large floating agent orbs */}
+      <div className="absolute inset-0 z-[5]">
+        <div className="login-orb-float login-orb-1">
+          <AiOrb size={90} colors={['#10b981', '#059669', '#14b8a6']} />
+        </div>
+        <div className="login-orb-float login-orb-2">
+          <AiOrb size={70} colors={['#6366f1', '#8b5cf6', '#3b82f6']} />
+        </div>
+        <div className="login-orb-float login-orb-3">
+          <AiOrb size={80} colors={['#f97316', '#ea580c', '#f59e0b']} />
+        </div>
+      </div>
 
       {/* Logo — pinned top-left */}
       <div className="absolute top-0 left-0 z-20 px-8 py-6">
@@ -166,26 +171,9 @@ const LoginPage = () => {
             always closing.
           </h1>
 
-          <p className={`text-slate-500 text-lg leading-relaxed mb-10 transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <p className={`text-slate-500 text-lg leading-relaxed transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
             Three AI employees that qualify leads, answer questions, and manage your CRM — in Uzbek, Russian, or English.
           </p>
-
-          {/* Agent orbs */}
-          <div className={`space-y-4 transition-all duration-700 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            {aiAgents.map((agent, i) => (
-              <div
-                key={agent.name}
-                className="flex items-center gap-4 p-3 rounded-xl bg-white/60 backdrop-blur-sm border border-white/80 transition-all duration-300 hover:bg-white/80 hover:shadow-sm"
-                style={{ transitionDelay: `${i * 80}ms` }}
-              >
-                <AiOrb size={36} colors={agent.colors} />
-                <div>
-                  <p className="text-sm font-semibold text-slate-900 font-['Plus_Jakarta_Sans']">{agent.name}</p>
-                  <p className="text-xs text-slate-500">{agent.role}</p>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>
@@ -494,16 +482,48 @@ const LoginPage = () => {
 };
 
 const loginStyles = `
-  /* Smooth entrance */
-  @keyframes login-fade-in {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  /* Floating orb animations */
+  .login-orb-float {
+    position: absolute;
+    will-change: transform;
+  }
+
+  .login-orb-1 {
+    top: 18%;
+    right: 12%;
+    animation: orb-drift-1 14s ease-in-out infinite;
+  }
+
+  .login-orb-2 {
+    bottom: 28%;
+    left: 10%;
+    animation: orb-drift-2 18s ease-in-out infinite;
+  }
+
+  .login-orb-3 {
+    top: 55%;
+    right: 30%;
+    animation: orb-drift-3 16s ease-in-out infinite;
+  }
+
+  @keyframes orb-drift-1 {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(-20px, 30px); }
+    50% { transform: translate(15px, 50px); }
+    75% { transform: translate(-10px, 15px); }
+  }
+
+  @keyframes orb-drift-2 {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(25px, -20px); }
+    50% { transform: translate(-15px, -40px); }
+    75% { transform: translate(20px, -10px); }
+  }
+
+  @keyframes orb-drift-3 {
+    0%, 100% { transform: translate(0, 0); }
+    33% { transform: translate(-30px, -25px); }
+    66% { transform: translate(20px, 30px); }
   }
 `;
 
