@@ -5,8 +5,8 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 from pathlib import Path
 from dotenv import load_dotenv
+import bcrypt
 import hashlib
-import secrets
 import jwt
 from pydantic import BaseModel, EmailStr
 
@@ -15,7 +15,10 @@ load_dotenv(ROOT_DIR / '.env')
 
 logger = logging.getLogger(__name__)
 
-JWT_SECRET = os.environ.get('JWT_SECRET', 'teleagent-secret-key')
+JWT_SECRET = (os.environ.get('JWT_SECRET') or '').strip()
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable is required")
+
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
@@ -28,20 +31,32 @@ class TokenData(BaseModel):
 
 
 def hash_password(password: str) -> str:
-    """Hash a password using SHA256 with salt"""
-    salt = secrets.token_hex(16)
-    password_hash = hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
-    return f"{salt}:{password_hash}"
+    """Hash a password using bcrypt"""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(password: str, stored_hash: str) -> bool:
-    """Verify a password against a stored hash"""
+    """Verify a password against a stored hash.
+
+    Supports both bcrypt (new) and SHA256 (legacy) formats.
+    bcrypt hashes start with '$2b$'; legacy hashes use 'salt:hash' format.
+    """
     try:
-        salt, hash_value = stored_hash.split(":")
-        password_hash = hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
-        return password_hash == hash_value
+        if stored_hash.startswith('$2b$'):
+            return bcrypt.checkpw(password.encode(), stored_hash.encode())
+        # Legacy SHA256 format: salt:hash
+        if ':' in stored_hash:
+            salt, hash_value = stored_hash.split(":", 1)
+            password_hash = hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
+            return password_hash == hash_value
+        return False
     except Exception:
         return False
+
+
+def needs_rehash(stored_hash: str) -> bool:
+    """Check if a password hash needs to be upgraded to bcrypt."""
+    return not stored_hash.startswith('$2b$')
 
 
 def create_access_token(user_id: str, tenant_id: str, email: str) -> str:

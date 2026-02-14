@@ -51,7 +51,7 @@ export default function PrivacyPage() {
         <h1 className="text-4xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-2">
           Privacy Policy
         </h1>
-        <p className="text-slate-500 mb-8">Last updated: February 13, 2026</p>
+        <p className="text-slate-500 mb-8">Last updated: February 14, 2026</p>
 
         <div className="prose prose-slate max-w-none">
           {/* Introduction */}
@@ -423,27 +423,37 @@ export default function PrivacyPage() {
             <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
               <li><strong>In Transit:</strong> All data transmitted between your browser and our servers
                 is encrypted using TLS 1.3 (HTTPS)</li>
-              <li><strong>At Rest:</strong> Data stored in our databases is encrypted using AES-256 encryption</li>
-              <li><strong>Passwords:</strong> User passwords are hashed using bcrypt with salt</li>
+              <li><strong>At Rest:</strong> Sensitive credentials (integration tokens, API keys, webhook URLs)
+                are encrypted using Fernet symmetric encryption (AES-128-CBC with HMAC authentication)
+                before storage in our database</li>
+              <li><strong>Passwords:</strong> User passwords are hashed using bcrypt with per-password salt,
+                a purpose-built algorithm designed to resist brute-force attacks</li>
+              <li><strong>Database:</strong> Our database provider (Supabase) encrypts all data at rest
+                using AES-256 at the infrastructure level</li>
             </ul>
 
             <p className="text-slate-600 leading-relaxed mb-4">
               <strong>6.2 Access Controls</strong>
             </p>
             <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
-              <li>Role-based access control (RBAC) limits employee access to data</li>
-              <li>Multi-factor authentication is required for administrative access</li>
-              <li>Access to production systems is logged and audited</li>
-              <li>Employee access is reviewed quarterly and revoked upon termination</li>
+              <li>Row Level Security (RLS) is enabled on all database tables to enforce tenant
+                isolation at the database level, preventing cross-account data access</li>
+              <li>JWT-based authentication with mandatory secret key configuration</li>
+              <li>CORS (Cross-Origin Resource Sharing) is restricted to our production domains only</li>
+              <li>Telegram webhook requests are verified using cryptographic secret tokens to
+                prevent unauthorized message injection</li>
             </ul>
 
             <p className="text-slate-600 leading-relaxed mb-4">
               <strong>6.3 Infrastructure Security</strong>
             </p>
             <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
-              <li>Our infrastructure is hosted on SOC 2 Type II compliant providers</li>
-              <li>Regular security assessments and vulnerability scans</li>
-              <li>Automated intrusion detection and monitoring</li>
+              <li>Our infrastructure is hosted on SOC 2 Type II compliant providers
+                (Supabase for database, Render for application hosting)</li>
+              <li>No third-party debug or tracking scripts are loaded in the application
+                beyond our analytics provider (PostHog)</li>
+              <li>Personally identifiable information (PII) is redacted from application logs,
+                including email addresses, usernames, and message content</li>
               <li>Regular data backups with encrypted storage</li>
             </ul>
 
@@ -487,13 +497,16 @@ export default function PrivacyPage() {
             </p>
 
             <p className="text-slate-600 leading-relaxed mb-4">
-              <strong>7.3 Right to Deletion</strong>
+              <strong>7.3 Right to Deletion (Right to Erasure)</strong>
             </p>
             <p className="text-slate-600 leading-relaxed mb-4">
               You have the right to request that we delete your personal information, subject to
-              certain exceptions (such as data we need to retain for legal compliance). Upon account
-              deletion, we will delete or anonymize your data within 30 days, except for backups
-              which are purged within an additional 30 days.
+              certain exceptions (such as data we need to retain for legal compliance). Our platform
+              provides built-in data erasure functionality: you can erase individual lead records
+              including all associated conversations and personally identifiable information directly
+              from your dashboard. Upon full account deletion, we will delete or anonymize all your
+              data within 30 days, except for backups which are purged within an additional 30 days.
+              All erasure actions are logged for audit purposes.
             </p>
 
             <p className="text-slate-600 leading-relaxed mb-4">
@@ -501,8 +514,10 @@ export default function PrivacyPage() {
             </p>
             <p className="text-slate-600 leading-relaxed mb-4">
               You have the right to receive your personal information in a structured, commonly
-              used, machine-readable format (JSON or CSV) and to transmit that data to another
-              service provider.
+              used, machine-readable format. Our platform provides built-in data export functionality:
+              you can export individual lead records including all associated customer data,
+              conversations, and messages as JSON. You may transmit this data to another service
+              provider at any time.
             </p>
 
             <p className="text-slate-600 leading-relaxed mb-4">

@@ -71,8 +71,19 @@ from instagram_service import (
     parse_instagram_webhook,
 )
 
+# Import credential encryption
+from crypto_utils import encrypt_value, decrypt_value
+
+import bcrypt as _bcrypt_lib  # for password hashing upgrade
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# ============ Startup Validation ============
+REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'JWT_SECRET']
+_missing_env = [k for k in REQUIRED_ENV if not (os.environ.get(k) or '').strip()]
+if _missing_env:
+    raise RuntimeError(f"Missing required environment variables: {', '.join(_missing_env)}")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -126,8 +137,8 @@ FRONTEND_URL = (os.environ.get('FRONTEND_URL') or 'https://leadrelay.net').strip
 
 # Log Resend configuration status (without exposing key)
 if resend.api_key:
-    logger.info(f"Resend API configured with key starting: {resend.api_key[:8]}...")
-    logger.info(f"Sender email: {SENDER_EMAIL}")
+    logger.info("Resend API configured")
+    logger.info(f"Sender email configured: {'yes' if SENDER_EMAIL else 'no'}")
 else:
     logger.warning("RESEND_API_KEY not configured - email sending will fail!")
 
@@ -135,7 +146,9 @@ app = FastAPI(title="LeadRelay - AI Sales Automation")
 api_router = APIRouter(prefix="/api")
 
 # ============ Configuration ============
-JWT_SECRET = (os.environ.get('JWT_SECRET') or 'teleagent-secret-key').strip()
+JWT_SECRET = (os.environ.get('JWT_SECRET') or '').strip()
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable is required")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 TELEGRAM_API_BASE = "https://api.telegram.org/bot"
@@ -410,16 +423,25 @@ def apply_hotness_rules(llm_hotness: str, score: int, stage: str, fields: Dict) 
 
 # ============ Auth Helpers ============
 def hash_password(password: str) -> str:
-    salt = secrets.token_hex(16)
-    password_hash = hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
-    return f"{salt}:{password_hash}"
+    """Hash password using bcrypt."""
+    return _bcrypt_lib.hashpw(password.encode(), _bcrypt_lib.gensalt()).decode()
 
 def verify_password(password: str, stored_hash: str) -> bool:
+    """Verify password against stored hash (supports bcrypt and legacy SHA256)."""
     try:
-        salt, hash_value = stored_hash.split(":")
-        return hashlib.sha256(f"{salt}{password}".encode()).hexdigest() == hash_value
+        if stored_hash.startswith('$2b$'):
+            return _bcrypt_lib.checkpw(password.encode(), stored_hash.encode())
+        # Legacy SHA256 format: salt:hash
+        if ':' in stored_hash:
+            salt, hash_value = stored_hash.split(":", 1)
+            return hashlib.sha256(f"{salt}{password}".encode()).hexdigest() == hash_value
+        return False
     except Exception:
         return False
+
+def _needs_password_rehash(stored_hash: str) -> bool:
+    """Check if hash needs upgrade to bcrypt."""
+    return not stored_hash.startswith('$2b$')
 
 def create_access_token(user_id: str, tenant_id: str, email: str) -> str:
     expiration = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
@@ -437,6 +459,19 @@ def generate_confirmation_token() -> str:
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# ============ PII Redaction Helpers ============
+def redact_email(email: str) -> str:
+    if not email or '@' not in email:
+        return '***'
+    local, domain = email.split('@', 1)
+    return f"{local[:2]}***@{domain}"
+
+def redact_id(value: str) -> str:
+    if not value:
+        return '***'
+    return f"{str(value)[:8]}***"
 
 
 # ============ Email Service ============
@@ -493,11 +528,11 @@ async def send_confirmation_email(email: str, name: str, token: str) -> bool:
         # Run sync SDK in thread to keep FastAPI non-blocking
         result = await asyncio.to_thread(resend.Emails.send, params)
         email_id = getattr(result, 'id', None) or (result.get('id') if isinstance(result, dict) else str(result))
-        logger.info(f"Confirmation email sent to {email}, id: {email_id}")
+        logger.info(f"Confirmation email sent to {redact_email(email)}, id: {email_id}")
         return True
 
     except Exception as e:
-        logger.error(f"Failed to send confirmation email to {email}: {type(e).__name__}: {e}", exc_info=True)
+        logger.error(f"Failed to send confirmation email to {redact_email(email)}: {type(e).__name__}: {e}", exc_info=True)
         return False
 
 
@@ -542,7 +577,7 @@ async def send_password_reset_email(email: str, name: str, token: str) -> bool:
         }
         
         result = await asyncio.to_thread(resend.Emails.send, params)
-        logger.info(f"Password reset email sent to {email}")
+        logger.info(f"Password reset email sent to {redact_email(email)}")
         return True
         
     except Exception as e:
@@ -768,8 +803,8 @@ async def register(request: RegisterRequest):
         # Send confirmation email via async helper
         email_sent = await send_confirmation_email(request.email, request.name, confirmation_token)
         if not email_sent:
-            logger.error(f"Registration succeeded but confirmation email failed for {request.email}")
-            logger.error(f"Resend config - API key set: {bool(resend.api_key)}, key prefix: {resend.api_key[:8] if resend.api_key else 'NONE'}, Sender: {SENDER_EMAIL}")
+            logger.error(f"Registration succeeded but confirmation email failed for {redact_email(request.email)}")
+            logger.error(f"Resend config - API key set: {bool(resend.api_key)}, Sender configured: {'yes' if SENDER_EMAIL else 'no'}")
 
         return AuthResponse(
             token=None,
@@ -975,6 +1010,14 @@ async def login(request: LoginRequest):
     if not verify_password(request.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    # Transparent bcrypt migration: re-hash old SHA256 passwords on successful login
+    if _needs_password_rehash(user["password_hash"]):
+        try:
+            db_rest_update('users', {"password_hash": hash_password(request.password)}, 'id', user['id'])
+            logger.info(f"Upgraded password hash to bcrypt for user {user['id'][:8]}***")
+        except Exception as e:
+            logger.warning(f"Could not upgrade password hash: {e}")
+
     # Check if email is confirmed
     if not user.get('email_confirmed', False):
         raise HTTPException(
@@ -1016,16 +1059,19 @@ async def get_bot_info(bot_token: str) -> Optional[Dict]:
         logger.error(f"Failed to get bot info: {e}")
         return None
 
-async def set_telegram_webhook(bot_token: str, webhook_url: str) -> Dict:
+async def set_telegram_webhook(bot_token: str, webhook_url: str, secret_token: str = None) -> Dict:
     try:
+        payload = {"url": webhook_url, "allowed_updates": ["message"], "drop_pending_updates": True}
+        if secret_token:
+            payload["secret_token"] = secret_token
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{TELEGRAM_API_BASE}{bot_token}/setWebhook", 
-                json={"url": webhook_url, "allowed_updates": ["message"], "drop_pending_updates": True}, 
+                f"{TELEGRAM_API_BASE}{bot_token}/setWebhook",
+                json=payload,
                 timeout=30.0
             )
             result = response.json()
-            logger.info(f"Webhook setup result: {result}")
+            logger.info(f"Webhook setup result: ok={result.get('ok')}")
             return result
     except Exception as e:
         logger.error(f"Failed to set webhook: {e}")
@@ -1240,7 +1286,7 @@ async def delete_account(current_user: Dict = Depends(get_current_user)):
         try:
             tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
             if tg_result.data:
-                await delete_telegram_webhook(tg_result.data[0]["bot_token"])
+                await delete_telegram_webhook(decrypt_value(tg_result.data[0]["bot_token"]))
             supabase.table('telegram_bots').delete().eq('tenant_id', tenant_id).execute()
             logger.info(f"Deleted telegram bot for tenant {tenant_id}")
         except Exception as e:
@@ -1342,7 +1388,7 @@ async def delete_account_data(current_user: Dict = Depends(get_current_user)):
         try:
             tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
             if tg_result.data:
-                await delete_telegram_webhook(tg_result.data[0]["bot_token"])
+                await delete_telegram_webhook(decrypt_value(tg_result.data[0]["bot_token"]))
                 supabase.table('telegram_bots').update({"is_active": False}).eq('tenant_id', tenant_id).execute()
         except Exception as e:
             logger.warning(f"Could not disconnect telegram bot: {e}")
@@ -1376,14 +1422,17 @@ async def connect_telegram_bot(request: TelegramBotCreate, current_user: Dict = 
     # SECURITY: Use bot-specific webhook URL for proper tenant isolation
     webhook_url = f"{backend_url}/api/telegram/webhook/{bot_id}"
 
-    bot_data = {"id": bot_id, "tenant_id": tenant_id, "bot_token": request.bot_token, "bot_username": bot_info.get("username"), "webhook_url": webhook_url, "is_active": True, "created_at": now_iso()}
+    # Generate webhook secret for signature verification
+    webhook_secret = secrets.token_hex(32)
+
+    bot_data = {"id": bot_id, "tenant_id": tenant_id, "bot_token": encrypt_value(request.bot_token), "bot_username": bot_info.get("username"), "webhook_url": webhook_url, "webhook_secret": encrypt_value(webhook_secret), "is_active": True, "created_at": now_iso()}
 
     if result.data:
         supabase.table('telegram_bots').update(bot_data).eq('id', bot_id).execute()
     else:
         supabase.table('telegram_bots').insert(bot_data).execute()
 
-    await set_telegram_webhook(request.bot_token, webhook_url)
+    await set_telegram_webhook(request.bot_token, webhook_url, secret_token=webhook_secret)
     logger.info(f"Set webhook for bot {bot_id} (tenant {tenant_id}): {webhook_url}")
     return {"id": bot_id, "bot_username": bot_info.get("username"), "is_active": True, "webhook_url": webhook_url}
 
@@ -1401,7 +1450,7 @@ async def get_telegram_bot(current_user: Dict = Depends(get_current_user)):
 async def disconnect_telegram_bot(current_user: Dict = Depends(get_current_user)):
     result = supabase.table('telegram_bots').select('*').eq('tenant_id', current_user["tenant_id"]).execute()
     if result.data:
-        await delete_telegram_webhook(result.data[0]["bot_token"])
+        await delete_telegram_webhook(decrypt_value(result.data[0]["bot_token"]))
         supabase.table('telegram_bots').update({"is_active": False}).eq('id', result.data[0]['id']).execute()
     return {"success": True}
 
@@ -1779,7 +1828,7 @@ async def match_customer_to_bitrix(tenant_id: str, customer_data: Dict) -> Optio
             "contact_name": f"{contact.get('NAME', '')} {contact.get('LAST_NAME', '')}".strip()
         }
 
-        logger.info(f"Matched returning customer: {crm_context['contact_name']}, {crm_context['total_purchases']} purchases, VIP={crm_context['vip_status']}")
+        logger.info(f"Matched returning customer: purchases={crm_context['total_purchases']}, VIP={crm_context['vip_status']}")
         return crm_context
 
     except asyncio.TimeoutError:
@@ -1890,7 +1939,7 @@ async def get_bitrix_client(tenant_id: str) -> Optional[BitrixCRMClient]:
     try:
         result = supabase.table('tenant_configs').select('bitrix_webhook_url, bitrix_connected_at').eq('tenant_id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
-            webhook_url = result.data[0]['bitrix_webhook_url']
+            webhook_url = decrypt_value(result.data[0]['bitrix_webhook_url'])
             connected_at = result.data[0].get('bitrix_connected_at')
             _bitrix_webhooks_cache[tenant_id] = {
                 'webhook_url': webhook_url,
@@ -1900,12 +1949,12 @@ async def get_bitrix_client(tenant_id: str) -> Optional[BitrixCRMClient]:
             return create_bitrix_client(webhook_url)
     except Exception as e:
         logger.debug(f"Could not get Bitrix from tenant_configs: {e}")
-    
+
     # Try tenants table as fallback
     try:
         result = supabase.table('tenants').select('bitrix_webhook_url, bitrix_connected_at').eq('id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
-            webhook_url = result.data[0]['bitrix_webhook_url']
+            webhook_url = decrypt_value(result.data[0]['bitrix_webhook_url'])
             connected_at = result.data[0].get('bitrix_connected_at')
             _bitrix_webhooks_cache[tenant_id] = {
                 'webhook_url': webhook_url,
@@ -1915,7 +1964,7 @@ async def get_bitrix_client(tenant_id: str) -> Optional[BitrixCRMClient]:
             return create_bitrix_client(webhook_url)
     except Exception as e:
         logger.debug(f"Could not get Bitrix from tenants: {e}")
-    
+
     return None
 
 
@@ -1961,7 +2010,7 @@ async def connect_bitrix_webhook(
     # Try tenant_configs table first
     try:
         result = supabase.table('tenant_configs').update({
-            "bitrix_webhook_url": webhook_url,
+            "bitrix_webhook_url": encrypt_value(webhook_url),
             "bitrix_connected_at": connected_at
         }).eq('tenant_id', tenant_id).execute()
         if result.data:
@@ -1975,7 +2024,7 @@ async def connect_bitrix_webhook(
     if not saved_to_db:
         try:
             result = supabase.table('tenants').update({
-                "bitrix_webhook_url": webhook_url,
+                "bitrix_webhook_url": encrypt_value(webhook_url),
                 "bitrix_connected_at": connected_at
             }).eq('id', tenant_id).execute()
             if result.data:
@@ -2061,7 +2110,7 @@ async def get_bitrix_webhook_status(current_user: Dict = Depends(get_current_use
     try:
         result = supabase.table('tenant_configs').select('bitrix_webhook_url, bitrix_connected_at').eq('tenant_id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
-            webhook_url = result.data[0]['bitrix_webhook_url']
+            webhook_url = decrypt_value(result.data[0]['bitrix_webhook_url'])
             connected_at = result.data[0].get('bitrix_connected_at')
             # Populate cache for future requests
             _bitrix_webhooks_cache[tenant_id] = {
@@ -2075,12 +2124,12 @@ async def get_bitrix_webhook_status(current_user: Dict = Depends(get_current_use
             }
     except Exception as e:
         logger.debug(f"Could not check tenant_configs: {e}")
-    
+
     # Fallback to tenants table
     try:
         result = supabase.table('tenants').select('bitrix_webhook_url, bitrix_connected_at').eq('id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
-            webhook_url = result.data[0]['bitrix_webhook_url']
+            webhook_url = decrypt_value(result.data[0]['bitrix_webhook_url'])
             connected_at = result.data[0].get('bitrix_connected_at')
             # Populate cache for future requests
             _bitrix_webhooks_cache[tenant_id] = {
@@ -2094,7 +2143,7 @@ async def get_bitrix_webhook_status(current_user: Dict = Depends(get_current_use
             }
     except Exception as e:
         logger.debug(f"Could not check tenants: {e}")
-    
+
     return {"connected": False, "connected_at": None}
 
 
@@ -2215,7 +2264,7 @@ async def crm_chat(
             match_result = match_pattern(request.message, aggregations)
             if match_result:
                 reply_text, charts = match_result
-                logger.info(f"Pattern match hit for tenant {tenant_id}: {request.message[:50]}...")
+                logger.info(f"Pattern match hit for tenant {redact_id(tenant_id)} [len={len(request.message)}]")
                 return {
                     "reply": reply_text,
                     "charts": charts,
@@ -4106,7 +4155,7 @@ async def telegram_webhook_with_bot_id(bot_id: str, request: Request, background
     """Handle incoming Telegram webhook updates with bot-specific URL (SECURE - multi-tenant safe)"""
     try:
         update = await request.json()
-        logger.info(f"Received Telegram update for bot {bot_id}: {json.dumps(update, default=str)[:500]}")
+        logger.info(f"Received Telegram update for bot {redact_id(bot_id)}")
 
         message = update.get("message")
         if not message or not isinstance(message, dict):
@@ -4136,11 +4185,20 @@ async def telegram_webhook_with_bot_id(bot_id: str, request: Request, background
         result = supabase.table('telegram_bots').select('*').eq('id', bot_id).eq('is_active', True).execute()
 
         if not result.data:
-            logger.warning(f"No active bot found with id {bot_id}")
+            logger.warning(f"No active bot found with id {redact_id(bot_id)}")
             return {"ok": True}
 
         bot = result.data[0]
-        logger.info(f"Processing message for tenant {bot['tenant_id']}")
+
+        # SECURITY: Verify Telegram webhook secret token
+        expected_secret = decrypt_value(bot.get("webhook_secret") or "")
+        if expected_secret:
+            received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+            if not hmac.compare_digest(expected_secret, received_secret):
+                logger.warning(f"Telegram webhook secret mismatch for bot {redact_id(bot_id)}")
+                return {"ok": True}
+
+        logger.info(f"Processing message for tenant {redact_id(bot['tenant_id'])}")
 
         # Update last webhook timestamp
         try:
@@ -4148,10 +4206,10 @@ async def telegram_webhook_with_bot_id(bot_id: str, request: Request, background
         except Exception as e:
             logger.warning(f"Could not update webhook timestamp: {e}")
 
-        # Process message in background with correct tenant
-        background_tasks.add_task(process_telegram_message, bot["tenant_id"], bot["bot_token"], update)
+        # Process message in background with correct tenant (decrypt bot_token)
+        background_tasks.add_task(process_telegram_message, bot["tenant_id"], decrypt_value(bot["bot_token"]), update)
         return {"ok": True}
-        
+
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in webhook: {e}")
         return {"ok": True}
@@ -4203,7 +4261,7 @@ async def telegram_webhook_legacy(request: Request, background_tasks: Background
         except Exception as e:
             logger.warning(f"Could not update webhook timestamp: {e}")
 
-        background_tasks.add_task(process_telegram_message, bot["tenant_id"], bot["bot_token"], update)
+        background_tasks.add_task(process_telegram_message, bot["tenant_id"], decrypt_value(bot["bot_token"]), update)
         return {"ok": True}
 
     except Exception as e:
@@ -4236,7 +4294,7 @@ async def process_channel_message(
         typing_fn: async callable() to show typing indicator (or None)
     """
     try:
-        logger.info(f"[{channel}] Processing message from {sender_username or sender_id}: '{text[:100]}...' for tenant {tenant_id}")
+        logger.info(f"[{channel}] Processing message from user_{redact_id(sender_id)} [len={len(text)}] for tenant {redact_id(tenant_id)}")
 
         # Send typing indicator if available
         if typing_fn:
@@ -4324,7 +4382,7 @@ async def process_channel_message(
             logger.info(f"CRM query context fetched: {len(crm_query_context)} chars")
 
         # Get business context (Semantic RAG)
-        logger.info(f"Fetching RAG context for: '{text[:50]}...'")
+        logger.info(f"Fetching RAG context [len={len(text)}]")
         business_context = await get_business_context_semantic(tenant_id, text)
         logger.info(f"RAG returned {len(business_context)} context chunks")
 
@@ -4408,9 +4466,9 @@ async def process_channel_message(
             # Standard response via channel's send function
             success = await send_fn(reply_text)
         if success:
-            logger.info(f"[{channel}] Sent response to {sender_username or sender_id}: '{reply_text[:50]}...'")
+            logger.info(f"[{channel}] Sent response to user_{redact_id(sender_id)} [len={len(reply_text)}]")
         else:
-            logger.error(f"[{channel}] Failed to send message to {sender_id}")
+            logger.error(f"[{channel}] Failed to send message to user_{redact_id(sender_id)}")
 
         # Log event (ignore errors)
         try:
@@ -4481,7 +4539,7 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
             else:
                 greeting = "Hello! Welcome. How can I help you today?\n\nAssalomu alaykum! Sizga qanday yordam bera olaman?\n\nЗдравствуйте! Чем могу помочь?"
         await send_telegram_message(bot_token, chat_id, greeting)
-        logger.info(f"Sent greeting to {username or user_id}")
+        logger.info(f"Sent greeting to user_{redact_id(str(username or user_id))}")
         return
 
     async def send_fn(reply_text):
@@ -4526,7 +4584,7 @@ async def process_instagram_message(tenant_id: str, access_token: str, sender_id
             typing_fn=None,
         )
     except Exception as e:
-        logger.error(f"Failed to process Instagram message from {sender_id} for tenant {tenant_id}: {e}")
+        logger.error(f"Failed to process Instagram message from user_{redact_id(sender_id)} for tenant {redact_id(tenant_id)}: {e}")
 
 
 async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Optional[Dict], llm_result: Dict, source_channel: str = "telegram"):
@@ -5427,6 +5485,95 @@ async def delete_lead(lead_id: str, current_user: Dict = Depends(get_current_use
         logger.error(f"Failed to delete lead: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete lead")
     return {"success": True}
+
+
+# ============ GDPR Data Endpoints ============
+@api_router.delete("/leads/{lead_id}/data")
+async def erase_lead_data(lead_id: str, current_user: Dict = Depends(get_current_user)):
+    """GDPR Article 17: Erase lead PII and conversation data."""
+    tenant_id = current_user["tenant_id"]
+
+    # Verify lead exists and belongs to this tenant
+    lead_result = supabase.table('leads').select('*').eq('id', lead_id).eq('tenant_id', tenant_id).execute()
+    if not lead_result.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    lead = lead_result.data[0]
+    customer_id = lead.get("customer_id")
+
+    try:
+        # 1. Delete all messages for this lead's conversations
+        conv_result = supabase.table('conversations').select('id').eq('tenant_id', tenant_id).eq('customer_id', customer_id).execute()
+        for conv in (conv_result.data or []):
+            supabase.table('messages').delete().eq('conversation_id', conv['id']).execute()
+
+        # 2. Delete conversations
+        supabase.table('conversations').delete().eq('tenant_id', tenant_id).eq('customer_id', customer_id).execute()
+
+        # 3. Null out PII on customer record
+        if customer_id:
+            supabase.table('customers').update({
+                "phone": None, "name": None,
+                "telegram_username": None, "instagram_username": None,
+            }).eq('id', customer_id).eq('tenant_id', tenant_id).execute()
+
+        # 4. Null out PII on lead record
+        supabase.table('leads').update({
+            "customer_phone": None, "customer_name": None,
+            "fields_collected": {},
+        }).eq('id', lead_id).eq('tenant_id', tenant_id).execute()
+
+        # 5. Log the deletion event
+        supabase.table('event_logs').insert({
+            "id": str(uuid.uuid4()), "tenant_id": tenant_id,
+            "event_type": "gdpr_data_erasure",
+            "event_data": {"lead_id": lead_id, "customer_id": customer_id},
+            "created_at": now_iso()
+        }).execute()
+
+        logger.info(f"GDPR erasure completed for lead {redact_id(lead_id)} tenant {redact_id(tenant_id)}")
+        return {"success": True, "message": "Lead PII and conversation data erased"}
+
+    except Exception as e:
+        logger.error(f"GDPR erasure failed for lead {redact_id(lead_id)}: {e}")
+        raise HTTPException(status_code=500, detail="Data erasure failed")
+
+
+@api_router.get("/leads/{lead_id}/export")
+async def export_lead_data(lead_id: str, current_user: Dict = Depends(get_current_user)):
+    """GDPR Article 20: Export all data associated with a lead as JSON."""
+    tenant_id = current_user["tenant_id"]
+
+    # Verify lead exists and belongs to this tenant
+    lead_result = supabase.table('leads').select('*').eq('id', lead_id).eq('tenant_id', tenant_id).execute()
+    if not lead_result.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    lead = lead_result.data[0]
+    customer_id = lead.get("customer_id")
+
+    # Collect customer data
+    customer_data = None
+    if customer_id:
+        cust_result = supabase.table('customers').select('*').eq('id', customer_id).eq('tenant_id', tenant_id).execute()
+        customer_data = cust_result.data[0] if cust_result.data else None
+
+    # Collect conversations + messages
+    conversations = []
+    conv_result = supabase.table('conversations').select('*').eq('tenant_id', tenant_id).eq('customer_id', customer_id).execute()
+    for conv in (conv_result.data or []):
+        msg_result = supabase.table('messages').select('*').eq('conversation_id', conv['id']).order('created_at').execute()
+        conversations.append({
+            "conversation": conv,
+            "messages": msg_result.data or []
+        })
+
+    return {
+        "lead": lead,
+        "customer": customer_data,
+        "conversations": conversations,
+        "exported_at": now_iso()
+    }
 
 
 # ============ Conversations Endpoints ============
@@ -6658,7 +6805,7 @@ async def delete_agent(agent_id: str, current_user: Dict = Depends(get_current_u
         try:
             tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
             if tg_result.data:
-                await delete_telegram_webhook(tg_result.data[0]["bot_token"])
+                await delete_telegram_webhook(decrypt_value(tg_result.data[0]["bot_token"]))
             supabase.table('telegram_bots').delete().eq('tenant_id', tenant_id).execute()
             logger.info(f"Deleted telegram bot for agent {agent_id}")
         except Exception as e:
@@ -6727,7 +6874,7 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
         messages_for_llm.append({"role": "user", "text": request.message})
         
         # Get RAG context (ensure embeddings are loaded)
-        logger.info(f"Test chat: Getting RAG context for '{request.message[:50]}...'")
+        logger.info(f"Test chat: Getting RAG context [len={len(request.message)}]")
         business_context = await get_business_context_semantic(tenant_id, request.message)
         logger.info(f"Test chat: Found {len(business_context)} RAG context chunks")
 
@@ -6855,7 +7002,7 @@ async def instagram_oauth_callback(code: str = "", state: str = ""):
             "instagram_page_id": ig_info["page_id"],
             "instagram_user_id": ig_info.get("instagram_user_id"),
             "instagram_username": ig_info.get("username"),
-            "access_token": access_token,
+            "access_token": encrypt_value(access_token),
             "token_expires_at": expires_at,
             "token_refreshed_at": now,
             "is_active": True,
@@ -6863,7 +7010,7 @@ async def instagram_oauth_callback(code: str = "", state: str = ""):
         }
         supabase.table('instagram_accounts').insert(account_data).execute()
 
-        logger.info(f"Instagram connected for tenant {tenant_id}: @{ig_info.get('username')}")
+        logger.info(f"Instagram connected for tenant {redact_id(tenant_id)}")
         return RedirectResponse(f"{FRONTEND_URL}/app/connections/instagram?status=success")
 
     except Exception as e:
@@ -6991,7 +7138,7 @@ async def instagram_webhook_receive(request: Request, background_tasks: Backgrou
             # Rate limit
             rate_key = f"ig_{sender_id}"
             if not message_rate_limiter.is_allowed(rate_key):
-                logger.warning(f"Rate limit exceeded for IG user {sender_id}")
+                logger.warning(f"Rate limit exceeded for IG user {redact_id(sender_id)}")
                 continue
 
             # Look up account by page_id
@@ -7002,7 +7149,7 @@ async def instagram_webhook_receive(request: Request, background_tasks: Backgrou
 
             account = result.data[0]
             tenant_id = account["tenant_id"]
-            access_token = account["access_token"]
+            access_token = decrypt_value(account["access_token"])
 
             # Skip messages from the page itself or its linked IG account
             # (Meta may send sender_id as either the Page ID or the IG user ID)
@@ -7048,14 +7195,14 @@ async def refresh_instagram_tokens_loop():
             for account in (result.data or []):
                 try:
                     new_token_data = await ig_refresh_long_lived_token(
-                        account["access_token"], META_APP_ID, META_APP_SECRET
+                        decrypt_value(account["access_token"]), META_APP_ID, META_APP_SECRET
                     )
                     if "access_token" not in new_token_data:
-                        logger.error(f"Instagram token refresh returned no access_token for {account['id']}: {new_token_data}")
+                        logger.error(f"Instagram token refresh returned no access_token for {account['id']}")
                         continue
                     new_expires_at = (datetime.now(timezone.utc) + timedelta(seconds=new_token_data.get("expires_in", 5184000))).isoformat()
                     supabase.table('instagram_accounts').update({
-                        "access_token": new_token_data["access_token"],
+                        "access_token": encrypt_value(new_token_data["access_token"]),
                         "token_expires_at": new_expires_at,
                         "token_refreshed_at": now_iso(),
                     }).eq('id', account['id']).execute()
@@ -7439,13 +7586,117 @@ async def health_check():
     return {"status": "healthy", "timestamp": now_iso(), "database": "supabase"}
 
 
+# ============ Admin: Encrypt Existing Credentials ============
+@api_router.post("/admin/encrypt-existing")
+async def admin_encrypt_existing(current_user: Dict = Depends(get_current_user)):
+    """One-time migration: encrypt all plaintext credentials in the database.
+
+    Requires authenticated admin user. Only encrypts values that are not
+    already Fernet-encrypted (i.e., don't start with 'gAAAAA').
+    """
+    from crypto_utils import _fernet
+    if not _fernet:
+        raise HTTPException(status_code=400, detail="ENCRYPTION_KEY not configured")
+
+    # Verify user is admin
+    user_result = db_rest_select('users', {'id': f'eq.{current_user["user_id"]}'})
+    if not user_result or user_result[0].get('role') != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    stats = {"bot_tokens": 0, "bitrix_urls": 0, "ig_tokens": 0, "webhook_secrets": 0}
+
+    def _is_encrypted(val):
+        return val and val.startswith('gAAAAA')
+
+    # 1. Encrypt telegram bot_tokens and webhook_secrets
+    try:
+        bots = supabase.table('telegram_bots').select('id, bot_token, webhook_secret').execute()
+        for bot in (bots.data or []):
+            updates = {}
+            if bot.get('bot_token') and not _is_encrypted(bot['bot_token']):
+                updates['bot_token'] = encrypt_value(bot['bot_token'])
+                stats['bot_tokens'] += 1
+            if bot.get('webhook_secret') and not _is_encrypted(bot['webhook_secret']):
+                updates['webhook_secret'] = encrypt_value(bot['webhook_secret'])
+                stats['webhook_secrets'] += 1
+            if updates:
+                supabase.table('telegram_bots').update(updates).eq('id', bot['id']).execute()
+    except Exception as e:
+        logger.error(f"Failed to encrypt bot tokens: {e}")
+
+    # 2. Encrypt bitrix_webhook_url in tenant_configs
+    try:
+        configs = supabase.table('tenant_configs').select('tenant_id, bitrix_webhook_url').execute()
+        for cfg in (configs.data or []):
+            if cfg.get('bitrix_webhook_url') and not _is_encrypted(cfg['bitrix_webhook_url']):
+                supabase.table('tenant_configs').update({
+                    'bitrix_webhook_url': encrypt_value(cfg['bitrix_webhook_url'])
+                }).eq('tenant_id', cfg['tenant_id']).execute()
+                stats['bitrix_urls'] += 1
+    except Exception as e:
+        logger.error(f"Failed to encrypt bitrix URLs: {e}")
+
+    # 3. Encrypt instagram access_tokens
+    try:
+        ig_accounts = supabase.table('instagram_accounts').select('id, access_token').execute()
+        for acct in (ig_accounts.data or []):
+            if acct.get('access_token') and not _is_encrypted(acct['access_token']):
+                supabase.table('instagram_accounts').update({
+                    'access_token': encrypt_value(acct['access_token'])
+                }).eq('id', acct['id']).execute()
+                stats['ig_tokens'] += 1
+    except Exception as e:
+        logger.error(f"Failed to encrypt IG tokens: {e}")
+
+    logger.info(f"Encryption migration complete: {stats}")
+    return {"success": True, "encrypted": stats}
+
+
+# ============ Admin: Re-register Telegram Webhooks with Secrets ============
+@api_router.post("/admin/reregister-webhooks")
+async def admin_reregister_webhooks(current_user: Dict = Depends(get_current_user)):
+    """Re-register all active Telegram bot webhooks with secret_token verification."""
+    # Verify user is admin
+    user_result = db_rest_select('users', {'id': f'eq.{current_user["user_id"]}'})
+    if not user_result or user_result[0].get('role') != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    bots = supabase.table('telegram_bots').select('*').eq('is_active', True).execute()
+    results = []
+
+    for bot in (bots.data or []):
+        bot_token = decrypt_value(bot["bot_token"])
+        webhook_url = bot.get("webhook_url", "")
+
+        # Generate new secret if missing
+        existing_secret = decrypt_value(bot.get("webhook_secret") or "")
+        if not existing_secret:
+            new_secret = secrets.token_hex(32)
+            supabase.table('telegram_bots').update({
+                "webhook_secret": encrypt_value(new_secret)
+            }).eq('id', bot['id']).execute()
+            existing_secret = new_secret
+
+        # Re-register webhook with secret
+        result = await set_telegram_webhook(bot_token, webhook_url, secret_token=existing_secret)
+        results.append({"bot_id": bot['id'], "ok": result.get("ok", False)})
+
+    return {"success": True, "results": results}
+
+
 # Include router and middleware
 app.include_router(api_router)
+
+cors_origins_raw = (os.environ.get('CORS_ORIGINS') or '').strip()
+if not cors_origins_raw:
+    logger.warning("CORS_ORIGINS not set — defaulting to localhost only")
+    cors_origins_raw = "http://localhost:3000"
+cors_origins = [o.strip() for o in cors_origins_raw.split(',') if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_origins,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )

@@ -51,7 +51,7 @@ export default function TermsPage() {
         <h1 className="text-4xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-2">
           Terms of Service
         </h1>
-        <p className="text-slate-500 mb-8">Last updated: February 13, 2026</p>
+        <p className="text-slate-500 mb-8">Last updated: February 14, 2026</p>
 
         <div className="prose prose-slate max-w-none">
           {/* Section 1 */}
@@ -352,6 +352,19 @@ export default function TermsPage() {
               responses. While we implement appropriate safeguards, you acknowledge that this data
               transmission is necessary for the Service to function.
             </p>
+            <p className="text-slate-600 leading-relaxed mb-4">
+              <strong>8.5 Data Security Measures.</strong> We implement the following technical measures
+              to protect your data:
+            </p>
+            <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
+              <li>All integration credentials (bot tokens, CRM webhook URLs, social media access tokens)
+                are encrypted at rest using authenticated symmetric encryption before database storage</li>
+              <li>User passwords are hashed using bcrypt, a purpose-built password hashing algorithm</li>
+              <li>Row Level Security (RLS) is enforced on all database tables for tenant data isolation</li>
+              <li>Webhook requests from third-party platforms are verified using cryptographic signatures</li>
+              <li>Personally identifiable information is redacted from application logs</li>
+              <li>API access is restricted to authorized domains via strict CORS policies</li>
+            </ul>
             <p className="text-slate-600 leading-relaxed mb-4">
               <strong>8.3 AI Limitations.</strong> You acknowledge that:
             </p>
