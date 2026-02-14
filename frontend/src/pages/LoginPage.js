@@ -121,31 +121,13 @@ const LoginPage = () => {
     }
   };
 
-  // Gradient left panel (shared across all views)
+  // Story-driven left panel — "Meet Your AI Team"
   const GradientPanel = () => (
-    <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-      {/* Soft gradient background */}
-      <div className="absolute inset-0" style={{
-        background: 'linear-gradient(160deg, #ecfdf5 0%, #f0fdf4 30%, #f8fafc 55%, #f0fdfa 80%, #ecfdf5 100%)'
-      }} />
-
-      {/* Colored ambient blurs from agent colors */}
-      <div className="absolute top-[15%] -left-10 w-[350px] h-[350px] bg-emerald-200/25 rounded-full blur-[120px]" />
-      <div className="absolute top-[40%] right-[5%] w-[300px] h-[300px] bg-indigo-200/20 rounded-full blur-[100px]" />
-      <div className="absolute bottom-[15%] left-[20%] w-[280px] h-[280px] bg-orange-200/20 rounded-full blur-[100px]" />
-
-      {/* Large floating agent orbs */}
-      <div className="absolute inset-0 z-[5]">
-        <div className="login-orb-float login-orb-1">
-          <AiOrb size={90} colors={['#10b981', '#059669', '#14b8a6']} />
-        </div>
-        <div className="login-orb-float login-orb-2">
-          <AiOrb size={70} colors={['#6366f1', '#8b5cf6', '#3b82f6']} />
-        </div>
-        <div className="login-orb-float login-orb-3">
-          <AiOrb size={80} colors={['#f97316', '#ea580c', '#f59e0b']} />
-        </div>
-      </div>
+    <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-white border-r border-slate-100">
+      {/* Ultra-subtle ambient color hints behind orb positions */}
+      <div className="absolute top-[28%] left-[22%] w-[280px] h-[280px] bg-emerald-50/40 rounded-full blur-[100px]" />
+      <div className="absolute top-[40%] left-[45%] w-[220px] h-[220px] bg-indigo-50/30 rounded-full blur-[90px]" />
+      <div className="absolute top-[28%] right-[8%] w-[240px] h-[240px] bg-amber-50/30 rounded-full blur-[90px]" />
 
       {/* Logo — pinned top-left */}
       <div className="absolute top-0 left-0 z-20 px-8 py-6">
@@ -162,18 +144,55 @@ const LoginPage = () => {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="relative z-10 flex flex-col justify-center px-12 xl:px-16 w-full">
-        <div className="max-w-md" style={{ WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale' }}>
-          <h1 className={`text-4xl xl:text-5xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-5 leading-tight tracking-tight transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            Your AI sales team,
-            <br />
-            always closing.
+      {/* Centered story content */}
+      <div className="relative z-10 flex flex-col items-center justify-center w-full px-12 xl:px-16">
+        {/* Headline */}
+        <div className={`text-center mb-14 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <h1 className="text-3xl xl:text-[40px] font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-3 leading-[1.15] tracking-tight">
+            Your AI sales team,<br />always closing.
           </h1>
-
-          <p className={`text-slate-500 text-lg leading-relaxed transition-all duration-700 delay-100 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-            Three AI employees that qualify leads, answer questions, and manage your CRM — in Uzbek, Russian, or English.
+          <p className="text-slate-400 text-[15px] leading-relaxed max-w-sm mx-auto">
+            Three AI agents that qualify leads, answer questions, and close deals — around the clock.
           </p>
+        </div>
+
+        {/* AI Team Constellation */}
+        <div className="flex items-start justify-center gap-12 xl:gap-16">
+          {/* Sales Agent */}
+          <div className={`flex flex-col items-center transition-all duration-700 delay-[400ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+            <div className="login-agent-float-1">
+              <AiOrb size={76} colors={['#10b981', '#059669', '#14b8a6']} />
+            </div>
+            <span className="mt-3.5 text-xs font-semibold text-slate-700 tracking-wide">Sales</span>
+            <div className="flex items-center gap-1 mt-1">
+              <span className="w-1 h-1 rounded-full bg-emerald-500 login-active-dot" />
+              <span className="text-[10px] text-slate-400">Active</span>
+            </div>
+          </div>
+
+          {/* Support Agent — offset for organic feel */}
+          <div className={`flex flex-col items-center transition-all duration-700 delay-[600ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`} style={{ marginTop: '28px' }}>
+            <div className="login-agent-float-2">
+              <AiOrb size={64} colors={['#6366f1', '#8b5cf6', '#3b82f6']} />
+            </div>
+            <span className="mt-3.5 text-xs font-semibold text-slate-700 tracking-wide">Support</span>
+            <div className="flex items-center gap-1 mt-1">
+              <span className="w-1 h-1 rounded-full bg-indigo-500 login-active-dot" />
+              <span className="text-[10px] text-slate-400">Active</span>
+            </div>
+          </div>
+
+          {/* Analytics Agent — slight offset */}
+          <div className={`flex flex-col items-center transition-all duration-700 delay-[800ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`} style={{ marginTop: '12px' }}>
+            <div className="login-agent-float-3">
+              <AiOrb size={70} colors={['#f97316', '#ea580c', '#f59e0b']} />
+            </div>
+            <span className="mt-3.5 text-xs font-semibold text-slate-700 tracking-wide">Analytics</span>
+            <div className="flex items-center gap-1 mt-1">
+              <span className="w-1 h-1 rounded-full bg-amber-500 login-active-dot" />
+              <span className="text-[10px] text-slate-400">Active</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -482,48 +501,42 @@ const LoginPage = () => {
 };
 
 const loginStyles = `
-  /* Floating orb animations */
-  .login-orb-float {
-    position: absolute;
-    will-change: transform;
+  /* Agent gentle breathing — subtle vertical float to feel alive */
+  .login-agent-float-1 {
+    animation: agent-breathe-1 6s ease-in-out 1.5s infinite;
   }
 
-  .login-orb-1 {
-    top: 18%;
-    right: 12%;
-    animation: orb-drift-1 14s ease-in-out infinite;
+  .login-agent-float-2 {
+    animation: agent-breathe-2 7s ease-in-out 2s infinite;
   }
 
-  .login-orb-2 {
-    bottom: 28%;
-    left: 10%;
-    animation: orb-drift-2 18s ease-in-out infinite;
+  .login-agent-float-3 {
+    animation: agent-breathe-3 8s ease-in-out 1.8s infinite;
   }
 
-  .login-orb-3 {
-    top: 55%;
-    right: 30%;
-    animation: orb-drift-3 16s ease-in-out infinite;
+  @keyframes agent-breathe-1 {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
   }
 
-  @keyframes orb-drift-1 {
-    0%, 100% { transform: translate(0, 0); }
-    25% { transform: translate(-20px, 30px); }
-    50% { transform: translate(15px, 50px); }
-    75% { transform: translate(-10px, 15px); }
+  @keyframes agent-breathe-2 {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
   }
 
-  @keyframes orb-drift-2 {
-    0%, 100% { transform: translate(0, 0); }
-    25% { transform: translate(25px, -20px); }
-    50% { transform: translate(-15px, -40px); }
-    75% { transform: translate(20px, -10px); }
+  @keyframes agent-breathe-3 {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
   }
 
-  @keyframes orb-drift-3 {
-    0%, 100% { transform: translate(0, 0); }
-    33% { transform: translate(-30px, -25px); }
-    66% { transform: translate(20px, 30px); }
+  /* Active status dot pulse */
+  .login-active-dot {
+    animation: active-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes active-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
   }
 `;
 
