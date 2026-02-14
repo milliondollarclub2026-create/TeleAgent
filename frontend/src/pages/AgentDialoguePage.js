@@ -16,7 +16,8 @@ import {
   Thermometer,
   Snowflake,
   Radio,
-  MessagesSquare
+  MessagesSquare,
+  ImageOff
 } from 'lucide-react';
 import AiOrb from '../components/Orb/AiOrb';
 
@@ -52,6 +53,118 @@ const InstagramIcon = ({ className }) => (
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// Image URL cache to avoid repeated API calls
+const imageUrlCache = new Map();
+
+// Parse message text for [[image:name]] patterns
+const parseMessageForImages = (text) => {
+  const regex = /\[\[image:([^\]]+)\]\]/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', content: text.slice(lastIndex, match.index) });
+    }
+    parts.push({ type: 'image', name: match[1].trim() });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', content: text.slice(lastIndex) });
+  }
+
+  return parts.length > 0 ? parts : [{ type: 'text', content: text }];
+};
+
+// Component to render inline image thumbnail
+const InlineImageThumbnail = ({ name }) => {
+  const [imageUrl, setImageUrl] = useState(imageUrlCache.get(name) || null);
+  const [loading, setLoading] = useState(!imageUrlCache.has(name));
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (imageUrlCache.has(name)) {
+      setImageUrl(imageUrlCache.get(name));
+      setLoading(false);
+      return;
+    }
+
+    const fetchImageUrl = async () => {
+      try {
+        const response = await axios.get(`${API}/media/by-name/${encodeURIComponent(name)}`);
+        if (response.data && response.data.public_url) {
+          imageUrlCache.set(name, response.data.public_url);
+          setImageUrl(response.data.public_url);
+        } else {
+          setError(true);
+        }
+      } catch (err) {
+        console.error(`Failed to fetch image "${name}":`, err);
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchImageUrl();
+  }, [name]);
+
+  if (loading) {
+    return (
+      <div className="my-1.5 flex items-center justify-center w-full max-w-[180px] h-24 rounded-lg bg-slate-100 animate-pulse">
+        <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !imageUrl) {
+    return (
+      <div className="my-1.5 flex items-center justify-center gap-1.5 w-full max-w-[140px] h-16 rounded-lg bg-slate-100 border border-slate-200">
+        <ImageOff className="w-3.5 h-3.5 text-slate-400" />
+        <span className="text-[10px] text-slate-400">Not found</span>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={imageUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block my-1.5"
+    >
+      <img
+        src={imageUrl}
+        alt={name}
+        className="max-w-full w-auto max-h-[140px] rounded-lg object-cover hover:opacity-90 transition-opacity cursor-pointer"
+        onError={() => setError(true)}
+      />
+    </a>
+  );
+};
+
+// Component to render message content with inline images
+const DialogueMessageContent = ({ text }) => {
+  const parts = parseMessageForImages(text);
+
+  return (
+    <div className="space-y-0.5">
+      {parts.map((part, idx) => {
+        if (part.type === 'image') {
+          return <InlineImageThumbnail key={idx} name={part.name} />;
+        }
+        return (
+          <span key={idx} className="whitespace-pre-wrap break-words">
+            {part.content}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -550,7 +663,11 @@ const AgentDialoguePage = () => {
                               ? 'bg-slate-800 text-white rounded-2xl rounded-br-md'
                               : 'bg-white border border-slate-200 text-slate-700 rounded-2xl rounded-bl-md shadow-sm'
                           }`}>
-                            <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                            {msg.sender_type === 'agent' ? (
+                              <DialogueMessageContent text={msg.text} />
+                            ) : (
+                              <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                            )}
                             <div className={`text-[10px] mt-1 ${
                               msg.sender_type === 'user' ? 'text-slate-400' : 'text-slate-400'
                             }`}>

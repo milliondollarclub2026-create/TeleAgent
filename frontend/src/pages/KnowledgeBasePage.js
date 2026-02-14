@@ -18,6 +18,10 @@ import {
   Shield,
   Package,
   CheckCircle2,
+  Pencil,
+  ImagePlus,
+  X,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -60,18 +64,59 @@ const KnowledgeBasePage = () => {
   const [togglingDoc, setTogglingDoc] = useState(null);
   const fileInputRef = useRef(null);
 
+  // Media Library state
+  const [mediaItems, setMediaItems] = useState([]);
+  const [imageResponsesEnabled, setImageResponsesEnabled] = useState(false);
+  const [mediaCount, setMediaCount] = useState(0);
+  const [mediaLimit, setMediaLimit] = useState(50);
+  const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
+  const [editMediaDialogOpen, setEditMediaDialogOpen] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [savingMedia, setSavingMedia] = useState(false);
+  const [newMedia, setNewMedia] = useState({ name: '', description: '', tags: '' });
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const mediaFileInputRef = useRef(null);
+  const [togglingImageResponses, setTogglingImageResponses] = useState(false);
+
   useEffect(() => {
     fetchAllDocuments();
   }, []);
 
+  // Toggle image responses setting
+  const toggleImageResponses = async () => {
+    setTogglingImageResponses(true);
+    const newValue = !imageResponsesEnabled;
+    try {
+      await axios.put(`${API}/config`, { image_responses_enabled: newValue });
+      setImageResponsesEnabled(newValue);
+      toast.success(newValue ? 'Product media enabled' : 'Product media disabled');
+    } catch (error) {
+      console.error('Failed to toggle image responses:', error);
+      toast.error('Failed to update setting');
+    } finally {
+      setTogglingImageResponses(false);
+    }
+  };
+
   const fetchAllDocuments = async () => {
     try {
-      const [localRes, globalRes] = await Promise.all([
+      const [localRes, globalRes, mediaRes] = await Promise.all([
         axios.get(`${API}/documents`),
-        axios.get(`${API}/documents/global/settings`)
+        axios.get(`${API}/documents/global/settings`),
+        axios.get(`${API}/media`).catch(() => ({ data: { media: [], count: 0, limit: 50, image_responses_enabled: false } }))
       ]);
       setDocuments(localRes.data);
       setGlobalDocs(globalRes.data);
+
+      // Set media data
+      if (mediaRes.data) {
+        setMediaItems(mediaRes.data.media || []);
+        setMediaCount(mediaRes.data.count || 0);
+        setMediaLimit(mediaRes.data.limit || 50);
+        setImageResponsesEnabled(mediaRes.data.image_responses_enabled || false);
+      }
     } catch (error) {
       console.error('Failed to fetch documents:', error);
       toast.error('Failed to load documents');
@@ -194,6 +239,113 @@ const KnowledgeBasePage = () => {
       fetchAllDocuments();
     } catch (error) {
       toast.error('Failed to delete document');
+    }
+  };
+
+  // Media handling functions
+  const handleMediaFileSelect = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File too large. Maximum size is 5MB');
+      return;
+    }
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Invalid file type. Use PNG, JPG, GIF, or WebP');
+      return;
+    }
+
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+
+    // Auto-generate name from filename
+    const nameFromFile = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    setNewMedia(prev => ({ ...prev, name: nameFromFile }));
+  };
+
+  const handleMediaUpload = async () => {
+    if (!selectedFile || !newMedia.name.trim()) {
+      toast.error('Please select a file and enter a name');
+      return;
+    }
+
+    setUploadingMedia(true);
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('name', newMedia.name.trim());
+    formData.append('description', newMedia.description || '');
+    formData.append('tags', newMedia.tags || '');
+
+    try {
+      await axios.post(`${API}/media/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      toast.success('Media uploaded successfully');
+      resetMediaDialog();
+      fetchAllDocuments();
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || 'Failed to upload media';
+      toast.error(errorMsg);
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
+  const handleMediaEdit = async () => {
+    if (!selectedMedia || !newMedia.name.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+
+    setSavingMedia(true);
+    try {
+      await axios.put(`${API}/media/${selectedMedia.id}`, {
+        name: newMedia.name.trim(),
+        description: newMedia.description || null,
+        tags: newMedia.tags ? newMedia.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+      });
+      toast.success('Media updated successfully');
+      setEditMediaDialogOpen(false);
+      setSelectedMedia(null);
+      fetchAllDocuments();
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || 'Failed to update media';
+      toast.error(errorMsg);
+    } finally {
+      setSavingMedia(false);
+    }
+  };
+
+  const handleMediaDelete = async (mediaId) => {
+    try {
+      await axios.delete(`${API}/media/${mediaId}`);
+      toast.success('Media deleted');
+      fetchAllDocuments();
+    } catch (error) {
+      toast.error('Failed to delete media');
+    }
+  };
+
+  const openEditMediaDialog = (media) => {
+    setSelectedMedia(media);
+    setNewMedia({
+      name: media.name || '',
+      description: media.description || '',
+      tags: (media.tags || []).join(', ')
+    });
+    setEditMediaDialogOpen(true);
+  };
+
+  const resetMediaDialog = () => {
+    setMediaDialogOpen(false);
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setNewMedia({ name: '', description: '', tags: '' });
+    if (mediaFileInputRef.current) {
+      mediaFileInputRef.current.value = '';
     }
   };
 
@@ -614,6 +766,232 @@ const KnowledgeBasePage = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Media Upload Dialog */}
+      <Dialog open={mediaDialogOpen} onOpenChange={(open) => {
+        if (!uploadingMedia) {
+          if (!open) resetMediaDialog();
+          else setMediaDialogOpen(open);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[480px] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
+            <DialogTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <Image className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
+              Add Media
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="px-6 py-5 space-y-5">
+            {!selectedFile ? (
+              /* Drop Zone */
+              <div
+                className="relative rounded-xl border-2 border-dashed border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all cursor-pointer"
+                onClick={() => mediaFileInputRef.current?.click()}
+              >
+                <div className="py-12 px-6 text-center">
+                  <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                    <ImagePlus className="w-7 h-7 text-slate-400" strokeWidth={1.5} />
+                  </div>
+                  <p className="font-medium text-slate-900">Drop image here or click to browse</p>
+                  <p className="text-sm text-slate-500 mt-1">PNG, JPG, WebP up to 5MB</p>
+                </div>
+                <input
+                  ref={mediaFileInputRef}
+                  type="file"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  onChange={handleMediaFileSelect}
+                  accept=".png,.jpg,.jpeg,.gif,.webp"
+                />
+              </div>
+            ) : (
+              /* Preview and Form */
+              <div className="space-y-4">
+                {/* Image Preview */}
+                <div className="relative">
+                  <div className="aspect-video rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setPreviewUrl(null);
+                      setNewMedia({ name: '', description: '', tags: '' });
+                    }}
+                    className="absolute top-2 right-2 w-8 h-8 rounded-full bg-slate-900/70 hover:bg-slate-900 text-white flex items-center justify-center transition-colors"
+                  >
+                    <X className="w-4 h-4" strokeWidth={2} />
+                  </button>
+                </div>
+
+                {/* Name Input */}
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-sm font-medium">
+                    Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    placeholder="e.g., chocolate_cake"
+                    value={newMedia.name}
+                    onChange={(e) => setNewMedia(prev => ({ ...prev, name: e.target.value }))}
+                    className="h-10 border-slate-200 font-mono text-sm"
+                  />
+                  <p className="text-xs text-slate-400">Used by AI to reference this image</p>
+                </div>
+
+                {/* Description Input */}
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-sm font-medium">Description</Label>
+                  <Textarea
+                    placeholder="Describe this image for the AI..."
+                    value={newMedia.description}
+                    onChange={(e) => setNewMedia(prev => ({ ...prev, description: e.target.value }))}
+                    rows={2}
+                    className="border-slate-200 resize-none text-sm"
+                  />
+                </div>
+
+                {/* Tags Input */}
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-sm font-medium">Tags</Label>
+                  <Input
+                    placeholder="best seller, chocolate, premium"
+                    value={newMedia.tags}
+                    onChange={(e) => setNewMedia(prev => ({ ...prev, tags: e.target.value }))}
+                    className="h-10 border-slate-200 text-sm"
+                  />
+                  <p className="text-xs text-slate-400">Comma-separated tags (optional)</p>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="h-9 border-slate-200"
+                onClick={resetMediaDialog}
+                disabled={uploadingMedia}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="h-9 bg-slate-900 hover:bg-slate-800"
+                onClick={handleMediaUpload}
+                disabled={uploadingMedia || !selectedFile || !newMedia.name.trim()}
+              >
+                {uploadingMedia ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={2} />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" strokeWidth={2} />
+                    Upload
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Media Dialog */}
+      <Dialog open={editMediaDialogOpen} onOpenChange={(open) => {
+        if (!savingMedia) {
+          setEditMediaDialogOpen(open);
+          if (!open) setSelectedMedia(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[480px] p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
+            <DialogTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
+              Edit Media
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="px-6 py-5 space-y-5">
+            {selectedMedia && (
+              <>
+                {/* Image Preview */}
+                <div className="aspect-video rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
+                  <img
+                    src={selectedMedia.public_url}
+                    alt={selectedMedia.name}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+
+                {/* Name Input */}
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-sm font-medium">
+                    Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    value={newMedia.name}
+                    onChange={(e) => setNewMedia(prev => ({ ...prev, name: e.target.value }))}
+                    className="h-10 border-slate-200 font-mono text-sm"
+                  />
+                </div>
+
+                {/* Description Input */}
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-sm font-medium">Description</Label>
+                  <Textarea
+                    placeholder="Describe this image for the AI..."
+                    value={newMedia.description}
+                    onChange={(e) => setNewMedia(prev => ({ ...prev, description: e.target.value }))}
+                    rows={2}
+                    className="border-slate-200 resize-none text-sm"
+                  />
+                </div>
+
+                {/* Tags Input */}
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-sm font-medium">Tags</Label>
+                  <Input
+                    placeholder="best seller, chocolate, premium"
+                    value={newMedia.tags}
+                    onChange={(e) => setNewMedia(prev => ({ ...prev, tags: e.target.value }))}
+                    className="h-10 border-slate-200 text-sm"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="h-9 border-slate-200"
+                onClick={() => setEditMediaDialogOpen(false)}
+                disabled={savingMedia}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="h-9 bg-slate-900 hover:bg-slate-800"
+                onClick={handleMediaEdit}
+                disabled={savingMedia || !newMedia.name.trim()}
+              >
+                {savingMedia ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={2} />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Two Column Layout for Categories */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Business Knowledge Section */}
@@ -688,6 +1066,168 @@ const KnowledgeBasePage = () => {
           )}
         </Card>
       </div>
+
+      {/* Product Media Section - Collapsible with local toggle */}
+      <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+        {/* Header - Always visible */}
+        <div
+          className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-slate-50/50 transition-colors"
+          onClick={() => !togglingImageResponses && toggleImageResponses()}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center">
+              <Image className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold text-slate-900 text-sm">Product Media</h2>
+                {mediaCount > 0 && (
+                  <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-medium">
+                    {mediaCount}/{mediaLimit}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500">
+                {imageResponsesEnabled
+                  ? 'Images your AI can show to customers'
+                  : 'Enable to let your AI send product images'
+                }
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {imageResponsesEnabled && (
+              <Button
+                size="sm"
+                className="h-8 text-xs bg-slate-900 hover:bg-slate-800 text-white"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMediaDialogOpen(true);
+                }}
+                disabled={mediaCount >= mediaLimit}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" strokeWidth={2} />
+                Add Media
+              </Button>
+            )}
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              <Switch
+                checked={imageResponsesEnabled}
+                onCheckedChange={toggleImageResponses}
+                disabled={togglingImageResponses}
+                className="data-[state=checked]:bg-emerald-600"
+              />
+              <ChevronDown
+                className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+                  imageResponsesEnabled ? 'rotate-180' : ''
+                }`}
+                strokeWidth={1.75}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Expanded Content */}
+        {imageResponsesEnabled && (
+          <div className="border-t border-slate-100">
+            {mediaItems.length === 0 ? (
+              /* Empty State */
+              <div className="flex flex-col items-center justify-center py-10 px-6 text-center">
+                <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center mb-3">
+                  <Image className="w-5 h-5 text-slate-400" strokeWidth={1.75} />
+                </div>
+                <h3 className="font-medium text-slate-900 text-sm mb-1">No images yet</h3>
+                <p className="text-xs text-slate-500 max-w-[220px] mb-4">
+                  Add product images for your AI to share with customers
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs border-slate-200 text-slate-700 hover:bg-slate-50"
+                  onClick={() => setMediaDialogOpen(true)}
+                >
+                  <ImagePlus className="w-3.5 h-3.5 mr-1.5" strokeWidth={2} />
+                  Add your first image
+                </Button>
+              </div>
+            ) : (
+              /* Media Gallery Grid */
+              <div className="p-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {mediaItems.map((media) => (
+                    <div
+                      key={media.id}
+                      className="group relative rounded-lg overflow-hidden bg-slate-100 border border-slate-200 hover:border-slate-300 transition-all"
+                    >
+                      {/* Image */}
+                      <div className="aspect-square">
+                        <img
+                          src={media.public_url}
+                          alt={media.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => openEditMediaDialog(media)}
+                          className="w-8 h-8 rounded-full bg-white/90 hover:bg-white text-slate-700 flex items-center justify-center transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" strokeWidth={1.75} />
+                        </button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <button className="w-8 h-8 rounded-full bg-white/90 hover:bg-white text-red-600 flex items-center justify-center transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                            </button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete this image?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently remove "{media.name}" from your media library.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-red-600 hover:bg-red-700"
+                                onClick={() => handleMediaDelete(media.id)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+
+                      {/* Info */}
+                      <div className="p-2 bg-white">
+                        <p className="text-xs font-medium text-slate-900 truncate">{media.name}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          {media.tags?.length > 0 ? `${media.tags.length} tag${media.tags.length > 1 ? 's' : ''}` : 'No tags'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Add More Card */}
+                  {mediaCount < mediaLimit && (
+                    <button
+                      onClick={() => setMediaDialogOpen(true)}
+                      className="aspect-square rounded-lg border-2 border-dashed border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-1.5 text-slate-400 hover:text-slate-600"
+                    >
+                      <Plus className="w-5 h-5" strokeWidth={1.5} />
+                      <span className="text-xs font-medium">Add more</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
 
       {/* All Agent Documents Section */}
       {allDocuments.length > 0 && (

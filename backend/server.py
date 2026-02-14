@@ -616,10 +616,22 @@ class TenantConfigUpdate(BaseModel):
     discount_authority: Optional[str] = None  # "none" | "manager_only" | "agent_can_offer"
     # Prebuilt agent type (e.g., 'sales' for Jasur)
     prebuilt_type: Optional[str] = None
+    # AI Capabilities
+    image_responses_enabled: Optional[bool] = None
 
 class DocumentCreate(BaseModel):
     title: str
     content: str
+
+class MediaCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+class MediaUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 class BitrixConnectRequest(BaseModel):
     bitrix_domain: str
@@ -1065,6 +1077,107 @@ async def send_typing_action(bot_token: str, chat_id: int):
             await client.post(f"{TELEGRAM_API_BASE}{bot_token}/sendChatAction", json={"chat_id": chat_id, "action": "typing"}, timeout=10.0)
     except:
         pass
+
+
+async def send_telegram_photo(bot_token: str, chat_id: int, photo_url: str, caption: str = None) -> bool:
+    """Send a photo via Telegram Bot API"""
+    try:
+        async with httpx.AsyncClient() as client:
+            payload = {
+                "chat_id": chat_id,
+                "photo": photo_url
+            }
+            if caption:
+                payload["caption"] = caption[:1024]  # Telegram caption limit
+                payload["parse_mode"] = "HTML"
+
+            response = await client.post(
+                f"{TELEGRAM_API_BASE}{bot_token}/sendPhoto",
+                json=payload,
+                timeout=30.0
+            )
+            result = response.json()
+
+            if not result.get("ok"):
+                logger.error(f"Telegram sendPhoto error: {result}")
+                return False
+
+            return True
+    except Exception as e:
+        logger.error(f"Failed to send Telegram photo: {e}")
+        return False
+
+
+def extract_images_from_response(text: str, tenant_id: str) -> tuple:
+    """
+    Extract [[image:name]] references from AI response.
+    Returns (clean_text, image_names) where clean_text has images removed.
+    """
+    pattern = r'\[\[image:([^\]]+)\]\]'
+    matches = re.findall(pattern, text)
+
+    # Remove image references from text
+    clean_text = re.sub(pattern, '', text)
+    # Clean up extra whitespace
+    clean_text = re.sub(r'\n\s*\n', '\n\n', clean_text).strip()
+
+    # Return unique image names (up to 3)
+    unique_images = []
+    for name in matches:
+        name = name.strip()
+        if name and name not in unique_images:
+            unique_images.append(name)
+            if len(unique_images) >= 3:
+                break
+
+    return clean_text, unique_images
+
+
+async def get_image_url_by_name(tenant_id: str, name: str) -> Optional[str]:
+    """Get image URL from media library by name"""
+    try:
+        result = supabase.table('media_library').select('public_url').eq('tenant_id', tenant_id).eq('name', name.lower()).execute()
+        if result.data:
+            return result.data[0].get('public_url')
+        return None
+    except Exception as e:
+        logger.error(f"Error getting image URL for '{name}': {e}")
+        return None
+
+
+async def send_telegram_response_with_images(
+    bot_token: str,
+    chat_id: int,
+    text: str,
+    tenant_id: str
+) -> bool:
+    """
+    Send Telegram response with images.
+    Extracts [[image:name]] references, sends photos first, then text.
+    """
+    clean_text, image_names = extract_images_from_response(text, tenant_id)
+
+    success = True
+
+    # Send images first (up to 3)
+    for image_name in image_names:
+        image_url = await get_image_url_by_name(tenant_id, image_name)
+        if image_url:
+            photo_sent = await send_telegram_photo(bot_token, chat_id, image_url)
+            if photo_sent:
+                logger.info(f"Sent image '{image_name}' to chat {chat_id}")
+            else:
+                logger.warning(f"Failed to send image '{image_name}' to chat {chat_id}")
+        else:
+            logger.warning(f"Image '{image_name}' not found for tenant {tenant_id}")
+
+    # Send text message
+    if clean_text:
+        text_sent = await send_telegram_message(bot_token, chat_id, clean_text)
+        if not text_sent:
+            success = False
+
+    return success
 
 
 # ============ Account Management Endpoints ============
@@ -3888,7 +4001,8 @@ async def call_sales_agent(
     detected_objection: Dict = None,
     closing_script: Dict = None,
     contact_urgency: str = None,
-    product_context: str = None
+    product_context: str = None,
+    media_context: str = None
 ) -> Dict:
     """Call LLM with enhanced sales pipeline, CRM awareness, and enforcement layers"""
     current_stage = lead_context.get('sales_stage', 'awareness') if lead_context else 'awareness'
@@ -3911,6 +4025,10 @@ async def call_sales_agent(
         # Add CRM query context (product pricing, order history) if available
         if crm_query_context:
             system_prompt += "\n\n" + crm_query_context
+
+        # Add media library context for image responses
+        if media_context:
+            system_prompt += "\n\n" + media_context
 
         api_messages = [{"role": "system", "content": system_prompt}]
         for msg in messages:
@@ -4237,11 +4355,15 @@ async def process_channel_message(
 
         product_context = build_product_context(crm_products, kb_products, config) if (crm_products or kb_products) else None
 
+        # Get media context for image responses
+        media_context = await get_media_context_for_ai(tenant_id)
+
         # Call enhanced LLM with all enforcement layers
         llm_result = await call_sales_agent(
             messages_for_llm, config, lead_context, business_context,
             tenant_id, text, crm_context, crm_query_context,
-            detected_objection, closing_script, contact_urgency, product_context
+            detected_objection, closing_script, contact_urgency, product_context,
+            media_context
         )
 
         # Response Validation
@@ -4273,8 +4395,13 @@ async def process_channel_message(
         # Update conversation
         supabase.table('conversations').update({"last_message_at": now_iso()}).eq('id', conversation['id']).execute()
 
-        # Send response via channel
-        success = await send_fn(reply_text)
+        # Send response via channel (with image support for Telegram if enabled)
+        if channel == "telegram" and media_context:
+            # Image responses enabled for Telegram - use image-aware sender
+            success = await send_telegram_response_with_images(bot_token, chat_id, reply_text, tenant_id)
+        else:
+            # Standard response via channel's send function
+            success = await send_fn(reply_text)
         if success:
             logger.info(f"[{channel}] Sent response to {sender_username or sender_id}: '{reply_text[:50]}...'")
         else:
@@ -5541,7 +5668,9 @@ async def get_tenant_config(current_user: Dict = Depends(get_current_user)):
         # Hard constraints (anti-hallucination)
         "promo_codes": config.get("promo_codes") or [],
         "payment_plans_enabled": config.get("payment_plans_enabled", False),
-        "discount_authority": config.get("discount_authority", "none")
+        "discount_authority": config.get("discount_authority", "none"),
+        # AI Capabilities
+        "image_responses_enabled": config.get("image_responses_enabled", False)
     }
 
 
@@ -5564,7 +5693,9 @@ async def update_tenant_config(request: TenantConfigUpdate, current_user: Dict =
         # Hard constraints (anti-hallucination)
         'promo_codes', 'payment_plans_enabled', 'discount_authority',
         # Prebuilt agent type (e.g., 'sales' for Jasur)
-        'prebuilt_type'
+        'prebuilt_type',
+        # AI Capabilities
+        'image_responses_enabled'
     }
 
     # Filter to only include valid database columns and non-None values
@@ -6598,10 +6729,16 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
         if crm_query_context:
             logger.info(f"Test chat: CRM query context fetched: {len(crm_query_context)} chars")
 
-        # Call LLM with CRM context
+        # Get media context for image responses
+        media_context = await get_media_context_for_ai(tenant_id)
+        if media_context:
+            logger.info(f"Test chat: Media context loaded with {media_context.count('- ')} images")
+
+        # Call LLM with CRM and media context
         llm_result = await call_sales_agent(
             messages_for_llm, config, lead_context, business_context,
-            tenant_id, request.message, None, crm_query_context
+            tenant_id, request.message, None, crm_query_context,
+            None, None, None, None, media_context
         )
 
         return {
@@ -6885,10 +7022,354 @@ async def start_instagram_token_refresh():
         logger.info("Instagram token refresh loop started")
 
 
+# ============ Media Library Functions ============
+
+async def get_media_context_for_ai(tenant_id: str) -> Optional[str]:
+    """
+    Get media library context for AI system prompt.
+    Returns formatted string with available images or None if disabled/empty.
+    """
+    try:
+        # Check if image responses are enabled
+        config_result = supabase.table('tenant_configs').select('image_responses_enabled').eq('tenant_id', tenant_id).execute()
+        if not config_result.data or not config_result.data[0].get('image_responses_enabled', False):
+            return None
+
+        # Get all media items for this tenant
+        result = supabase.table('media_library').select('name, description, tags').eq('tenant_id', tenant_id).order('created_at', desc=True).execute()
+
+        if not result.data:
+            return None
+
+        # Format media items for AI context
+        media_items = []
+        for item in result.data:
+            tags_str = ", ".join(item.get('tags', [])) if item.get('tags') else ""
+            desc = item.get('description', '')
+            media_items.append(f"- {item['name']}: {desc}{' [Tags: ' + tags_str + ']' if tags_str else ''}")
+
+        media_list = "\n".join(media_items)
+
+        return f"""## PRODUCT IMAGES
+You have access to the following product images. Use the exact syntax [[image:name]] to include images in your responses.
+
+Available images:
+{media_list}
+
+RULES FOR USING IMAGES:
+1. Show relevant images when discussing products to help customers visualize
+2. Use up to 3 images maximum per response
+3. Only show each image ONCE per conversation unless the customer asks to see it again
+4. Place image references naturally within your text, e.g., "Here's our bestseller [[image:chocolate_cake]]"
+5. If customer asks about a product you have an image for, show it proactively
+6. NEVER reference an image that isn't in the list above"""
+
+    except Exception as e:
+        logger.error(f"Error getting media context: {e}")
+        return None
+
+
+# ============ Media Library Endpoints ============
+MEDIA_STORAGE_BUCKET = "media-library"
+MAX_MEDIA_PER_TENANT = 50
+MAX_MEDIA_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+@api_router.get("/media")
+async def list_media(current_user: Dict = Depends(get_current_user)):
+    """List all media items for the tenant"""
+    try:
+        tenant_id = current_user["tenant_id"]
+
+        # Check if image responses are enabled
+        config_result = supabase.table('tenant_configs').select('image_responses_enabled').eq('tenant_id', tenant_id).execute()
+        image_responses_enabled = False
+        if config_result.data:
+            image_responses_enabled = config_result.data[0].get('image_responses_enabled', False)
+
+        result = supabase.table('media_library').select('*').eq('tenant_id', tenant_id).order('created_at', desc=True).execute()
+
+        return {
+            "media": result.data if result.data else [],
+            "count": len(result.data) if result.data else 0,
+            "limit": MAX_MEDIA_PER_TENANT,
+            "image_responses_enabled": image_responses_enabled
+        }
+    except Exception as e:
+        logger.error(f"Error listing media: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/media/{media_id}")
+async def get_media(media_id: str, current_user: Dict = Depends(get_current_user)):
+    """Get a single media item"""
+    try:
+        tenant_id = current_user["tenant_id"]
+        result = supabase.table('media_library').select('*').eq('id', media_id).eq('tenant_id', tenant_id).execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Media not found")
+
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting media: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/media/upload")
+async def upload_media(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    description: Optional[str] = Form(None),
+    tags: Optional[str] = Form(None),  # Comma-separated tags
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Upload a media file (image) for AI to use in responses.
+    Images are stored in Supabase Storage and metadata in media_library table.
+    """
+    try:
+        tenant_id = current_user["tenant_id"]
+
+        # Check if image responses are enabled
+        config_result = supabase.table('tenant_configs').select('image_responses_enabled').eq('tenant_id', tenant_id).execute()
+        if not config_result.data or not config_result.data[0].get('image_responses_enabled', False):
+            raise HTTPException(status_code=403, detail="Image responses are not enabled. Enable them in Settings first.")
+
+        # Check media count limit
+        count_result = supabase.table('media_library').select('id', count='exact').eq('tenant_id', tenant_id).execute()
+        current_count = count_result.count if hasattr(count_result, 'count') else len(count_result.data or [])
+
+        if current_count >= MAX_MEDIA_PER_TENANT:
+            raise HTTPException(status_code=400, detail=f"Media limit reached ({MAX_MEDIA_PER_TENANT}). Delete some media to upload more.")
+
+        # Validate file
+        file_content = await file.read()
+        file_size = len(file_content)
+
+        if file_size > MAX_MEDIA_FILE_SIZE:
+            raise HTTPException(status_code=400, detail=f"File too large. Maximum size is {MAX_MEDIA_FILE_SIZE // 1024 // 1024}MB")
+
+        if file_size == 0:
+            raise HTTPException(status_code=400, detail="File is empty")
+
+        # Validate file type
+        filename = file.filename or "image.jpg"
+        filename_lower = filename.lower()
+        allowed_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp']
+        file_ext = '.' + filename_lower.split('.')[-1] if '.' in filename_lower else ''
+
+        if file_ext not in allowed_extensions:
+            raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}")
+
+        content_type = file.content_type or "image/jpeg"
+
+        # Validate and sanitize name (used as AI reference)
+        clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', name.lower().strip())[:100]
+        if not clean_name:
+            raise HTTPException(status_code=400, detail="Name is required")
+
+        # Check name uniqueness
+        existing = supabase.table('media_library').select('id').eq('tenant_id', tenant_id).eq('name', clean_name).execute()
+        if existing.data:
+            raise HTTPException(status_code=400, detail=f"Media with name '{clean_name}' already exists")
+
+        # Parse tags
+        tag_list = []
+        if tags:
+            tag_list = [t.strip().lower() for t in tags.split(',') if t.strip()]
+
+        # Generate unique storage path
+        media_id = str(uuid.uuid4())
+        storage_path = f"{tenant_id}/{media_id}{file_ext}"
+
+        # Upload to Supabase Storage
+        try:
+            # Create bucket if it doesn't exist (will fail silently if exists)
+            try:
+                supabase.storage.create_bucket(MEDIA_STORAGE_BUCKET, options={"public": True})
+            except Exception:
+                pass  # Bucket likely already exists
+
+            # Upload file
+            supabase.storage.from_(MEDIA_STORAGE_BUCKET).upload(
+                path=storage_path,
+                file=file_content,
+                file_options={"content-type": content_type}
+            )
+
+            # Get public URL
+            public_url = supabase.storage.from_(MEDIA_STORAGE_BUCKET).get_public_url(storage_path)
+
+        except Exception as e:
+            logger.error(f"Storage upload error: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
+
+        # Generate embedding for description (if provided)
+        embedding = None
+        if description:
+            try:
+                embedding = await generate_embedding(description)
+            except Exception as e:
+                logger.warning(f"Failed to generate embedding: {e}")
+
+        # Store metadata in database
+        media_data = {
+            "id": media_id,
+            "tenant_id": tenant_id,
+            "name": clean_name,
+            "description": description,
+            "tags": tag_list,
+            "storage_path": storage_path,
+            "public_url": public_url,
+            "file_type": content_type,
+            "file_size": file_size,
+            "created_at": now_iso(),
+            "updated_at": now_iso()
+        }
+
+        # Add embedding if generated
+        if embedding:
+            media_data["embedding"] = embedding
+
+        supabase.table('media_library').insert(media_data).execute()
+
+        logger.info(f"Media uploaded: {clean_name} ({file_size} bytes) for tenant {tenant_id}")
+
+        return {
+            "id": media_id,
+            "name": clean_name,
+            "description": description,
+            "tags": tag_list,
+            "public_url": public_url,
+            "file_type": content_type,
+            "file_size": file_size,
+            "created_at": media_data["created_at"]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Media upload error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to upload media: {str(e)}")
+
+
+@api_router.put("/media/{media_id}")
+async def update_media(media_id: str, request: MediaUpdate, current_user: Dict = Depends(get_current_user)):
+    """Update media metadata (name, description, tags)"""
+    try:
+        tenant_id = current_user["tenant_id"]
+
+        # Check if media exists
+        existing = supabase.table('media_library').select('*').eq('id', media_id).eq('tenant_id', tenant_id).execute()
+        if not existing.data:
+            raise HTTPException(status_code=404, detail="Media not found")
+
+        update_data = {"updated_at": now_iso()}
+
+        # Handle name update
+        if request.name is not None:
+            clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', request.name.lower().strip())[:100]
+            if not clean_name:
+                raise HTTPException(status_code=400, detail="Name cannot be empty")
+
+            # Check uniqueness (excluding current media)
+            name_check = supabase.table('media_library').select('id').eq('tenant_id', tenant_id).eq('name', clean_name).neq('id', media_id).execute()
+            if name_check.data:
+                raise HTTPException(status_code=400, detail=f"Media with name '{clean_name}' already exists")
+
+            update_data["name"] = clean_name
+
+        # Handle description update
+        if request.description is not None:
+            update_data["description"] = request.description
+
+            # Regenerate embedding if description changed
+            if request.description:
+                try:
+                    embedding = await generate_embedding(request.description)
+                    update_data["embedding"] = embedding
+                except Exception as e:
+                    logger.warning(f"Failed to regenerate embedding: {e}")
+
+        # Handle tags update
+        if request.tags is not None:
+            update_data["tags"] = [t.strip().lower() for t in request.tags if t.strip()]
+
+        supabase.table('media_library').update(update_data).eq('id', media_id).execute()
+
+        # Return updated media
+        result = supabase.table('media_library').select('*').eq('id', media_id).execute()
+
+        logger.info(f"Media updated: {media_id}")
+        return result.data[0] if result.data else {"success": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Media update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.delete("/media/{media_id}")
+async def delete_media(media_id: str, current_user: Dict = Depends(get_current_user)):
+    """Delete a media item and its file from storage"""
+    try:
+        tenant_id = current_user["tenant_id"]
+
+        # Get media to find storage path
+        result = supabase.table('media_library').select('*').eq('id', media_id).eq('tenant_id', tenant_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Media not found")
+
+        media = result.data[0]
+        storage_path = media.get('storage_path')
+
+        # Delete from storage
+        if storage_path:
+            try:
+                supabase.storage.from_(MEDIA_STORAGE_BUCKET).remove([storage_path])
+            except Exception as e:
+                logger.warning(f"Failed to delete storage file: {e}")
+
+        # Delete from database
+        supabase.table('media_library').delete().eq('id', media_id).execute()
+
+        logger.info(f"Media deleted: {media_id}")
+        return {"success": True, "deleted_id": media_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Media delete error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/media/by-name/{name}")
+async def get_media_by_name(name: str, current_user: Dict = Depends(get_current_user)):
+    """Get media by name (used by AI to resolve [[image:name]] references)"""
+    try:
+        tenant_id = current_user["tenant_id"]
+        result = supabase.table('media_library').select('*').eq('tenant_id', tenant_id).eq('name', name.lower()).execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail=f"Media '{name}' not found")
+
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting media by name: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============ Health Check ============
 @api_router.get("/")
 async def root():
-    return {"message": "LeadRelay API - AI Sales Automation", "version": "2.0", "features": ["sales_pipeline", "objection_handling", "closing_scripts", "bitrix24_oauth", "instagram_dm"]}
+    return {"message": "LeadRelay API - AI Sales Automation", "version": "2.0", "features": ["sales_pipeline", "objection_handling", "closing_scripts", "bitrix24_oauth", "instagram_dm", "image_responses"]}
 
 
 @api_router.get("/health")

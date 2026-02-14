@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
@@ -18,7 +18,9 @@ import {
   User,
   Download,
   ChevronRight,
-  Shield
+  Shield,
+  Sparkles,
+  Image
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -46,6 +48,50 @@ export default function SettingsPage() {
   // Preferences state (stored locally for now)
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [leadAlerts, setLeadAlerts] = useState(true);
+
+  // AI Capabilities state
+  const [imageResponsesEnabled, setImageResponsesEnabled] = useState(false);
+  const [savingImageToggle, setSavingImageToggle] = useState(false);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+
+  // Fetch config on mount
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/api/config`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setImageResponsesEnabled(response.data.image_responses_enabled || false);
+      } catch (error) {
+        console.error('Failed to fetch config:', error);
+      } finally {
+        setLoadingConfig(false);
+      }
+    };
+    if (token) {
+      fetchConfig();
+    }
+  }, [token]);
+
+  const handleImageResponsesToggle = async (enabled) => {
+    setSavingImageToggle(true);
+    const previousValue = imageResponsesEnabled;
+    setImageResponsesEnabled(enabled); // Optimistic update
+
+    try {
+      await axios.put(`${API_URL}/api/config`, {
+        image_responses_enabled: enabled
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success(enabled ? 'Image responses enabled' : 'Image responses disabled');
+    } catch (error) {
+      setImageResponsesEnabled(previousValue); // Rollback on error
+      toast.error('Failed to update setting');
+    } finally {
+      setSavingImageToggle(false);
+    }
+  };
 
   const handleDeleteData = async () => {
     setLoading(true);
@@ -133,6 +179,53 @@ export default function SettingsPage() {
               checked={leadAlerts}
               onCheckedChange={setLeadAlerts}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* AI Capabilities Section */}
+      <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-sm">
+              <Sparkles className="w-4 h-4 text-white" strokeWidth={2} />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">AI Capabilities</h2>
+              <p className="text-xs text-slate-500">Enhance your AI agent's abilities</p>
+            </div>
+          </div>
+        </div>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Image className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-900">Image Responses</p>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  Allow your AI to send product images to customers via Telegram
+                </p>
+                {imageResponsesEnabled && (
+                  <p className="text-xs text-emerald-600 mt-1.5 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Upload images in Knowledge Base
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {savingImageToggle && (
+                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+              )}
+              <Switch
+                checked={imageResponsesEnabled}
+                onCheckedChange={handleImageResponsesToggle}
+                disabled={savingImageToggle || loadingConfig}
+                className="data-[state=checked]:bg-emerald-600"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -9,7 +9,9 @@ import {
   ArrowUp,
   RotateCcw,
   Loader2,
-  User
+  User,
+  Image,
+  ImageOff
 } from 'lucide-react';
 import AiOrb from '../components/Orb/AiOrb';
 import { toast } from 'sonner';
@@ -20,6 +22,123 @@ const API = `${BACKEND_URL}/api`;
 // Helper to get storage key for chat history
 const getChatStorageKey = (agentId) => `test_bot_chat_history_${agentId}`;
 const getDebugStorageKey = (agentId) => `test_bot_debug_info_${agentId}`;
+
+// Image URL cache to avoid repeated API calls
+const imageUrlCache = new Map();
+
+// Parse message text for [[image:name]] patterns
+const parseMessageForImages = (text) => {
+  const regex = /\[\[image:([^\]]+)\]\]/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before the image reference
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', content: text.slice(lastIndex, match.index) });
+    }
+    // Add the image reference
+    parts.push({ type: 'image', name: match[1].trim() });
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last match
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', content: text.slice(lastIndex) });
+  }
+
+  return parts.length > 0 ? parts : [{ type: 'text', content: text }];
+};
+
+// Component to render inline image
+const InlineImage = ({ name, onLoad }) => {
+  const [imageUrl, setImageUrl] = useState(imageUrlCache.get(name) || null);
+  const [loading, setLoading] = useState(!imageUrlCache.has(name));
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (imageUrlCache.has(name)) {
+      setImageUrl(imageUrlCache.get(name));
+      setLoading(false);
+      return;
+    }
+
+    const fetchImageUrl = async () => {
+      try {
+        const response = await axios.get(`${API}/media/by-name/${encodeURIComponent(name)}`);
+        if (response.data && response.data.public_url) {
+          imageUrlCache.set(name, response.data.public_url);
+          setImageUrl(response.data.public_url);
+          if (onLoad) onLoad({ name, url: response.data.public_url });
+        } else {
+          setError(true);
+        }
+      } catch (err) {
+        console.error(`Failed to fetch image "${name}":`, err);
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchImageUrl();
+  }, [name, onLoad]);
+
+  if (loading) {
+    return (
+      <div className="my-2 flex items-center justify-center w-full max-w-[240px] h-32 rounded-lg bg-slate-100 animate-pulse">
+        <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !imageUrl) {
+    return (
+      <div className="my-2 flex items-center justify-center gap-2 w-full max-w-[200px] h-24 rounded-lg bg-slate-100 border border-slate-200">
+        <ImageOff className="w-4 h-4 text-slate-400" />
+        <span className="text-xs text-slate-400">Image not found</span>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={imageUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block my-2"
+    >
+      <img
+        src={imageUrl}
+        alt={name}
+        className="max-w-full w-auto max-h-[200px] rounded-lg object-cover hover:opacity-90 transition-opacity cursor-pointer"
+        onError={() => setError(true)}
+      />
+    </a>
+  );
+};
+
+// Component to render message content with inline images
+const MessageContent = ({ text, onImageLoad }) => {
+  const parts = parseMessageForImages(text);
+
+  return (
+    <div className="space-y-1">
+      {parts.map((part, idx) => {
+        if (part.type === 'image') {
+          return <InlineImage key={idx} name={part.name} onLoad={onImageLoad} />;
+        }
+        // Render text, preserving whitespace and line breaks
+        return (
+          <span key={idx} className="whitespace-pre-wrap">
+            {part.content}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
 
 const AgentTestChatPage = () => {
   const { agentId } = useParams();
@@ -246,7 +365,11 @@ const AgentTestChatPage = () => {
                       ? 'bg-slate-900 text-white rounded-2xl rounded-br-sm'
                       : 'bg-white border border-slate-200 text-slate-700 rounded-2xl rounded-bl-sm shadow-sm'
                   }`}>
-                    {msg.text}
+                    {msg.role === 'assistant' ? (
+                      <MessageContent text={msg.text} />
+                    ) : (
+                      msg.text
+                    )}
                   </div>
                 </div>
               </div>
