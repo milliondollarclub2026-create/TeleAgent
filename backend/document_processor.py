@@ -15,6 +15,8 @@ from docx import Document as DocxDocument
 import pandas as pd
 from openai import AsyncOpenAI
 
+from token_logger import log_token_usage_fire_and_forget
+
 logger = logging.getLogger(__name__)
 
 # Lazy initialization of OpenAI client
@@ -388,7 +390,7 @@ def process_text(content: str, title: str) -> List[Dict]:
 
 # ============ Embedding Generation ============
 
-async def generate_embedding(text: str) -> List[float]:
+async def generate_embedding(text: str, tenant_id: Optional[str] = None) -> List[float]:
     """Generate embedding for a single text using OpenAI"""
     try:
         response = await get_openai_client().embeddings.create(
@@ -396,13 +398,24 @@ async def generate_embedding(text: str) -> List[float]:
             input=text,
             dimensions=EMBEDDING_DIMENSIONS
         )
+
+        # Log token usage for billing/transparency (fire-and-forget)
+        if tenant_id and hasattr(response, 'usage') and response.usage:
+            log_token_usage_fire_and_forget(
+                tenant_id=tenant_id,
+                model=EMBEDDING_MODEL,
+                request_type="embedding",
+                input_tokens=response.usage.total_tokens,
+                output_tokens=0,  # Embeddings don't have output tokens
+            )
+
         return response.data[0].embedding
     except Exception as e:
         logger.error(f"Embedding generation error: {e}")
         raise
 
 
-async def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
+async def generate_embeddings_batch(texts: List[str], tenant_id: Optional[str] = None) -> List[List[float]]:
     """Generate embeddings for multiple texts in batch"""
     try:
         response = await get_openai_client().embeddings.create(
@@ -410,6 +423,17 @@ async def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
             input=texts,
             dimensions=EMBEDDING_DIMENSIONS
         )
+
+        # Log token usage for billing/transparency (fire-and-forget)
+        if tenant_id and hasattr(response, 'usage') and response.usage:
+            log_token_usage_fire_and_forget(
+                tenant_id=tenant_id,
+                model=EMBEDDING_MODEL,
+                request_type="embedding",
+                input_tokens=response.usage.total_tokens,
+                output_tokens=0,  # Embeddings don't have output tokens
+            )
+
         return [item.embedding for item in response.data]
     except Exception as e:
         logger.error(f"Batch embedding error: {e}")

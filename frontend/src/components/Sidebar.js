@@ -20,7 +20,8 @@ import {
   MessagesSquare,
   ChevronDown,
   User,
-  Globe
+  Globe,
+  Activity
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -282,6 +283,13 @@ const Sidebar = () => {
                 <p className="text-xs text-slate-500 truncate">{user?.email || ''}</p>
               </div>
               <div className="py-1">
+                <DropdownMenuItem
+                  className="gap-2.5 px-3 py-2 text-[13px] cursor-pointer"
+                  onClick={() => navigate('/app/usage-logs')}
+                >
+                  <Activity className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                  <span>Usage Logs</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="gap-2.5 px-3 py-2 text-[13px] cursor-pointer"
                   onClick={() => navigate('/app/settings')}

@@ -417,7 +417,7 @@ async def process_lead_action(
     
     # Sync to Bitrix (demo mode)
     bitrix = BitrixService(is_demo=True)
-    conversation_summary = await summarize_conversation(history)
+    conversation_summary = await summarize_conversation(history, tenant_id=tenant_id)
     
     bitrix_data = map_lead_to_bitrix_fields(
         customer_name=customer.name,

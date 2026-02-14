@@ -34,6 +34,7 @@ import GlobalKnowledgeBasePage from "./pages/GlobalKnowledgeBasePage";
 import DocumentTemplatesPage from "./pages/DocumentTemplatesPage";
 import SettingsPage from "./pages/SettingsPage";
 import AccountPage from "./pages/AccountPage";
+import UsageLogsPage from "./pages/UsageLogsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import PricingPage from "./pages/PricingPage";
@@ -104,6 +105,7 @@ function AppRoutes() {
         <Route path="dialogue/:customerId" element={<AgentDialoguePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="account" element={<AccountPage />} />
+        <Route path="usage-logs" element={<UsageLogsPage />} />
         {/* Global Knowledge Base */}
         <Route path="global-knowledge" element={<GlobalKnowledgeBasePage />} />
         <Route path="global-knowledge/templates" element={<DocumentTemplatesPage />} />

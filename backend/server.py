@@ -55,6 +55,9 @@ from google_sheets_service import (
     FIELD_LABEL_MAP,
 )
 
+# Import token usage logger for API billing/transparency
+from token_logger import log_token_usage_fire_and_forget
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -1229,7 +1232,7 @@ async def connect_telegram_bot(request: TelegramBotCreate, current_user: Dict = 
         raise HTTPException(status_code=400, detail="Invalid bot token")
     
     tenant_id = current_user["tenant_id"]
-    backend_url = os.environ.get('REACT_APP_BACKEND_URL', 'https://aiagent-hub-17.preview.emergentagent.com')
+    backend_url = os.environ.get('BACKEND_PUBLIC_URL') or os.environ.get('RENDER_EXTERNAL_URL') or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')
 
     # Check if bot already exists for this tenant
     result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
@@ -1277,7 +1280,7 @@ async def connect_bitrix(request: BitrixConnectRequest, current_user: Dict = Dep
     """Store Bitrix24 credentials and return OAuth URL for user to authorize"""
     # Note: Bitrix integration requires 'integrations_bitrix' table in Supabase
     # For now, return placeholder with OAuth URL
-    redirect_uri = f"{os.environ.get('REACT_APP_BACKEND_URL')}/api/bitrix/callback"
+    redirect_uri = f"{os.environ.get('BACKEND_PUBLIC_URL') or os.environ.get('RENDER_EXTERNAL_URL') or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')}/api/bitrix/callback"
     oauth_url = f"https://{request.bitrix_domain}/oauth/authorize/?client_id={request.client_id}&response_type=code&redirect_uri={redirect_uri}"
     
     return {"oauth_url": oauth_url, "message": "Bitrix24 integration pending database setup. OAuth URL generated.", "is_demo": True}
@@ -2176,6 +2179,16 @@ Language: Respond in the same language the user uses (English, Russian, or Uzbek
                 max_tokens=1500
             )
 
+            # Log token usage for billing/transparency (fire-and-forget)
+            if hasattr(response, 'usage') and response.usage:
+                log_token_usage_fire_and_forget(
+                    tenant_id=tenant_id,
+                    model="gpt-4o-mini",
+                    request_type="crm_chat",
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens,
+                )
+
             reply = response.choices[0].message.content
             charts = _parse_charts(reply)
             clean_reply = _clean_chart_blocks(reply)
@@ -2295,6 +2308,16 @@ Language: Respond in the same language the user uses (English, Russian, or Uzbek
             temperature=0.3,
             max_tokens=1500
         )
+
+        # Log token usage for billing/transparency (fire-and-forget)
+        if hasattr(response, 'usage') and response.usage:
+            log_token_usage_fire_and_forget(
+                tenant_id=tenant_id,
+                model="gpt-4o",
+                request_type="crm_chat",
+                input_tokens=response.usage.prompt_tokens,
+                output_tokens=response.usage.completion_tokens,
+            )
 
         reply = response.choices[0].message.content
 
@@ -3885,6 +3908,16 @@ async def call_sales_agent(
             timeout=45.0  # 45 second timeout for LLM calls
         )
 
+        # Log token usage for billing/transparency (fire-and-forget)
+        if tenant_id and hasattr(response, 'usage') and response.usage:
+            log_token_usage_fire_and_forget(
+                tenant_id=tenant_id,
+                model="gpt-4o",
+                request_type="sales_agent",
+                input_tokens=response.usage.prompt_tokens,
+                output_tokens=response.usage.completion_tokens,
+            )
+
         content = response.choices[0].message.content
         logger.info(f"LLM Response: {content[:500]}...")
 
@@ -4842,6 +4875,209 @@ async def get_agent_analytics(days: int = 7, current_user: Dict = Depends(get_cu
     }
 
 
+# ============ Token Usage Logs Endpoints ============
+
+@api_router.get("/usage/logs")
+async def get_usage_logs(
+    days: int = 7,
+    model: Optional[str] = None,
+    request_type: Optional[str] = None,
+    page: int = 1,
+    limit: int = 50,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get paginated token usage logs for the tenant"""
+    tenant_id = current_user["tenant_id"]
+
+    try:
+        # Calculate date range
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+
+        # Build query
+        query = supabase.table('token_usage_logs').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat())
+
+        # Apply filters
+        if model:
+            query = query.eq('model', model)
+        if request_type:
+            query = query.eq('request_type', request_type)
+
+        # Get total count first
+        count_result = query.execute()
+        total_count = len(count_result.data) if count_result.data else 0
+
+        # Apply pagination
+        offset = (page - 1) * limit
+        query = supabase.table('token_usage_logs').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat())
+
+        if model:
+            query = query.eq('model', model)
+        if request_type:
+            query = query.eq('request_type', request_type)
+
+        result = query.order('created_at', desc=True).range(offset, offset + limit - 1).execute()
+
+        logs = []
+        for log in (result.data or []):
+            logs.append({
+                "id": log["id"],
+                "model": log["model"],
+                "request_type": log["request_type"],
+                "input_tokens": log["input_tokens"],
+                "output_tokens": log["output_tokens"],
+                "total_tokens": log.get("total_tokens", log["input_tokens"] + log["output_tokens"]),
+                "cost_usd": float(log.get("cost_usd", 0)),
+                "created_at": log["created_at"]
+            })
+
+        return {
+            "logs": logs,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total_count,
+                "total_pages": (total_count + limit - 1) // limit
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching usage logs: {e}")
+        return {"logs": [], "pagination": {"page": 1, "limit": limit, "total": 0, "total_pages": 0}}
+
+
+@api_router.get("/usage/summary")
+async def get_usage_summary(
+    days: int = 7,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get usage summary stats for dashboard cards"""
+    tenant_id = current_user["tenant_id"]
+
+    try:
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+        prev_start = start_date - timedelta(days=days)
+
+        # Current period stats
+        result = supabase.table('token_usage_logs').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat()).execute()
+
+        current_logs = result.data or []
+
+        total_tokens = sum(log.get("total_tokens", log["input_tokens"] + log["output_tokens"]) for log in current_logs)
+        total_cost = sum(float(log.get("cost_usd", 0)) for log in current_logs)
+        total_requests = len(current_logs)
+
+        # Model breakdown
+        model_counts = {}
+        for log in current_logs:
+            model = log["model"]
+            model_counts[model] = model_counts.get(model, 0) + 1
+
+        most_used_model = max(model_counts.items(), key=lambda x: x[1])[0] if model_counts else "None"
+        most_used_pct = round(model_counts.get(most_used_model, 0) / total_requests * 100) if total_requests > 0 else 0
+
+        # Previous period for comparison
+        prev_result = supabase.table('token_usage_logs').select('*').eq('tenant_id', tenant_id).gte('created_at', prev_start.isoformat()).lt('created_at', start_date.isoformat()).execute()
+
+        prev_logs = prev_result.data or []
+        prev_tokens = sum(log.get("total_tokens", log["input_tokens"] + log["output_tokens"]) for log in prev_logs)
+        prev_cost = sum(float(log.get("cost_usd", 0)) for log in prev_logs)
+        prev_requests = len(prev_logs)
+
+        # Calculate changes
+        tokens_change = round((total_tokens - prev_tokens) / prev_tokens * 100, 1) if prev_tokens > 0 else 0
+        cost_change = round((total_cost - prev_cost) / prev_cost * 100, 1) if prev_cost > 0 else 0
+        requests_change = round((total_requests - prev_requests) / prev_requests * 100, 1) if prev_requests > 0 else 0
+
+        return {
+            "total_tokens": {
+                "value": total_tokens,
+                "change": tokens_change
+            },
+            "total_cost": {
+                "value": round(total_cost, 4),
+                "change": cost_change
+            },
+            "total_requests": {
+                "value": total_requests,
+                "change": requests_change
+            },
+            "most_used_model": {
+                "name": most_used_model,
+                "percentage": most_used_pct
+            },
+            "model_breakdown": model_counts,
+            "period_days": days
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching usage summary: {e}")
+        return {
+            "total_tokens": {"value": 0, "change": 0},
+            "total_cost": {"value": 0, "change": 0},
+            "total_requests": {"value": 0, "change": 0},
+            "most_used_model": {"name": "None", "percentage": 0},
+            "model_breakdown": {},
+            "period_days": days
+        }
+
+
+@api_router.get("/usage/chart")
+async def get_usage_chart(
+    days: int = 7,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get daily token usage for chart visualization"""
+    tenant_id = current_user["tenant_id"]
+
+    try:
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+
+        result = supabase.table('token_usage_logs').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat()).execute()
+
+        logs = result.data or []
+
+        # Aggregate by day
+        daily_data = {}
+        for log in logs:
+            date_str = log["created_at"][:10]
+            if date_str not in daily_data:
+                daily_data[date_str] = {"tokens": 0, "cost": 0, "requests": 0}
+            daily_data[date_str]["tokens"] += log.get("total_tokens", log["input_tokens"] + log["output_tokens"])
+            daily_data[date_str]["cost"] += float(log.get("cost_usd", 0))
+            daily_data[date_str]["requests"] += 1
+
+        # Build chart data with all days (fill gaps with zeros)
+        chart_data = []
+        for i in range(days):
+            date = (datetime.now(timezone.utc) - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d")
+            if date in daily_data:
+                chart_data.append({
+                    "date": date,
+                    "tokens": daily_data[date]["tokens"],
+                    "cost": round(daily_data[date]["cost"], 4),
+                    "requests": daily_data[date]["requests"]
+                })
+            else:
+                chart_data.append({
+                    "date": date,
+                    "tokens": 0,
+                    "cost": 0,
+                    "requests": 0
+                })
+
+        return {
+            "chart_data": chart_data,
+            "period_days": days
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching usage chart data: {e}")
+        return {
+            "chart_data": [],
+            "period_days": days
+        }
+
+
 # ============ Leads Endpoints ============
 @api_router.get("/leads")
 async def get_leads(status: Optional[str] = None, hotness: Optional[str] = None, stage: Optional[str] = None, limit: int = 50, current_user: Dict = Depends(get_current_user)):
@@ -5324,7 +5560,7 @@ async def load_embeddings_from_db(tenant_id: str):
                         # Generate embeddings
                         try:
                             chunk_texts = [c["text"] for c in chunks]
-                            embeddings = await generate_embeddings_batch(chunk_texts)
+                            embeddings = await generate_embeddings_batch(chunk_texts, tenant_id=tenant_id)
                             
                             chunks_with_embeddings = []
                             for chunk, embedding in zip(chunks, embeddings):
@@ -5413,8 +5649,8 @@ async def create_document(request: DocumentCreate, current_user: Dict = Depends(
         
         # Generate embeddings for chunks
         chunk_texts = [chunk["text"] for chunk in chunks]
-        embeddings = await generate_embeddings_batch(chunk_texts)
-        
+        embeddings = await generate_embeddings_batch(chunk_texts, tenant_id=tenant_id)
+
         # Prepare chunks with embeddings
         chunks_with_embeddings = []
         for chunk, embedding in zip(chunks, embeddings):
@@ -5727,6 +5963,9 @@ async def list_global_documents(current_user: Dict = Depends(get_current_user)):
 async def create_global_document(request: DocumentCreate, current_user: Dict = Depends(get_current_user)):
     """Create a global text document (available to all agents)"""
     try:
+        # Use current user's tenant for billing purposes
+        billing_tenant_id = current_user.get("tenant_id")
+
         # Process text content into chunks
         chunks = process_text(request.content, request.title)
 
@@ -5735,7 +5974,7 @@ async def create_global_document(request: DocumentCreate, current_user: Dict = D
 
         # Generate embeddings for chunks
         chunk_texts = [chunk["text"] for chunk in chunks]
-        embeddings = await generate_embeddings_batch(chunk_texts)
+        embeddings = await generate_embeddings_batch(chunk_texts, tenant_id=billing_tenant_id)
 
         # Prepare chunks with embeddings
         chunks_with_embeddings = []
