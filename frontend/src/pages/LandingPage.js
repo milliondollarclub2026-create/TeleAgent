@@ -794,16 +794,16 @@ export default function LandingPage() {
       {/* ================================================================ */}
       {/* TRUST & SECURITY SECTION                                         */}
       {/* ================================================================ */}
-      <section className="bg-[#0f172a] py-20 relative">
+      <section className="bg-white py-20 border-y border-slate-200">
         <div className="max-w-7xl mx-auto px-6 md:px-12">
           <div className="text-center mb-12">
-            <p className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mb-3">
+            <p className="text-xs font-semibold text-emerald-600 uppercase tracking-widest mb-3">
               Enterprise-Grade Security
             </p>
-            <h2 className="text-3xl md:text-4xl font-bold text-white font-['Plus_Jakarta_Sans'] mb-3">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-3">
               Your data, protected at every layer
             </h2>
-            <p className="text-slate-400 text-sm max-w-lg mx-auto">
+            <p className="text-slate-500 text-sm max-w-lg mx-auto">
               Built with security-first architecture so you can focus on selling, not worrying.
             </p>
           </div>
@@ -815,10 +815,10 @@ export default function LandingPage() {
               { icon: Users, title: 'Multi-Tenant Isolation', desc: 'Row-Level Security ensures zero data leakage' },
               { icon: Fingerprint, title: 'Webhook Verified', desc: 'Cryptographic signature checks on all inbound hooks' },
             ].map((badge) => (
-              <div key={badge.title} className="bg-white/5 border border-white/10 rounded-xl p-5 text-center hover:border-emerald-500/30 transition-colors duration-300">
-                <badge.icon className="w-5 h-5 text-emerald-400 mx-auto mb-3" strokeWidth={1.75} />
-                <h3 className="text-sm font-semibold text-white mb-1">{badge.title}</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">{badge.desc}</p>
+              <div key={badge.title} className="group bg-[#F5F7F6] border border-slate-200 rounded-xl p-5 text-center hover:border-slate-300 hover:shadow-sm transition-all duration-300">
+                <badge.icon className="w-5 h-5 text-slate-900 mx-auto mb-3 group-hover:text-emerald-600 transition-colors duration-300" strokeWidth={1.75} />
+                <h3 className="text-sm font-semibold text-slate-900 mb-1">{badge.title}</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">{badge.desc}</p>
               </div>
             ))}
           </div>
@@ -826,7 +826,7 @@ export default function LandingPage() {
           <div className="text-center">
             <Link
               to="/security"
-              className="group inline-flex items-center gap-2 text-sm text-emerald-400 hover:text-emerald-300 transition-colors duration-300"
+              className="group inline-flex items-center gap-2 text-sm font-medium text-slate-900 hover:text-emerald-600 transition-colors duration-300"
             >
               Learn more about our security practices
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={1.75} />
