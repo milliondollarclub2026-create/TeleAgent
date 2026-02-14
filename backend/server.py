@@ -11,6 +11,7 @@ from typing import List, Optional, Dict, Any, Tuple
 import uuid
 from datetime import datetime, timezone, timedelta
 import hashlib
+import hmac
 import secrets
 import jwt
 import httpx
@@ -1486,6 +1487,10 @@ VIP_THRESHOLD_UZS = 10_000_000
 _google_sheets_data_cache = {}
 GOOGLE_SHEETS_DATA_CACHE_TTL = 600  # 10 minutes
 GOOGLE_SHEETS_FETCH_TIMEOUT = 10.0  # 10 second timeout
+
+# Instagram webhook message dedup cache {message_id: timestamp}
+_instagram_dedup_cache = {}
+INSTAGRAM_DEDUP_TTL = 300  # 5 minutes
 
 
 async def fetch_google_sheet_csv(sheet_id: str) -> Optional[Dict]:
@@ -4500,25 +4505,28 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
 
 async def process_instagram_message(tenant_id: str, access_token: str, sender_id: str, text: str):
     """Thin wrapper: process Instagram DM via process_channel_message."""
-    # Fetch sender profile for username/name (best effort)
-    profile = await ig_get_user_profile(access_token, sender_id)
-    sender_username = profile.get("username") if profile else None
-    sender_name = profile.get("name") if profile else None
+    try:
+        # Fetch sender profile for username/name (best effort)
+        profile = await ig_get_user_profile(access_token, sender_id)
+        sender_username = profile.get("username") if profile else None
+        sender_name = profile.get("name") if profile else None
 
-    async def send_fn(reply_text):
-        return await ig_send_message(access_token, sender_id, reply_text)
+        async def send_fn(reply_text):
+            return await ig_send_message(access_token, sender_id, reply_text)
 
-    await process_channel_message(
-        tenant_id=tenant_id,
-        channel="instagram",
-        sender_id=sender_id,
-        sender_username=sender_username,
-        sender_name=sender_name,
-        text=text,
-        language_code=None,
-        send_fn=send_fn,
-        typing_fn=None,
-    )
+        await process_channel_message(
+            tenant_id=tenant_id,
+            channel="instagram",
+            sender_id=sender_id,
+            sender_username=sender_username,
+            sender_name=sender_name,
+            text=text,
+            language_code=None,
+            send_fn=send_fn,
+            typing_fn=None,
+        )
+    except Exception as e:
+        logger.error(f"Failed to process Instagram message from {sender_id} for tenant {tenant_id}: {e}")
 
 
 async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Optional[Dict], llm_result: Dict, source_channel: str = "telegram"):
@@ -6799,9 +6807,11 @@ async def instagram_oauth_callback(code: str = "", state: str = ""):
     # Decode & verify state
     try:
         state_data = jwt.decode(state, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        tenant_id = state_data["tenant_id"]
-        if datetime.now(timezone.utc).timestamp() > state_data.get("exp", 0):
-            return RedirectResponse(f"{FRONTEND_URL}/app/connections?instagram_error=state_expired")
+        tenant_id = state_data.get("tenant_id")
+        if not tenant_id:
+            return RedirectResponse(f"{FRONTEND_URL}/app/connections?instagram_error=invalid_state")
+    except jwt.ExpiredSignatureError:
+        return RedirectResponse(f"{FRONTEND_URL}/app/connections?instagram_error=state_expired")
     except Exception:
         return RedirectResponse(f"{FRONTEND_URL}/app/connections?instagram_error=invalid_state")
 
@@ -6825,7 +6835,9 @@ async def instagram_oauth_callback(code: str = "", state: str = ""):
             return RedirectResponse(f"{FRONTEND_URL}/app/connections?instagram_error=no_ig_account")
 
         # Subscribe to webhooks
-        await ig_subscribe_to_webhooks(ig_info["page_id"], access_token)
+        subscribed = await ig_subscribe_to_webhooks(ig_info["page_id"], access_token)
+        if not subscribed:
+            logger.warning(f"Instagram webhook subscription failed for tenant {tenant_id}, page {ig_info['page_id']}")
 
         # Store in DB (upsert by tenant_id)
         now = now_iso()
@@ -6834,8 +6846,8 @@ async def instagram_oauth_callback(code: str = "", state: str = ""):
         # Deactivate any existing accounts for this tenant
         try:
             supabase.table('instagram_accounts').update({"is_active": False}).eq('tenant_id', tenant_id).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to deactivate old Instagram accounts for tenant {tenant_id}: {e}")
 
         account_data = {
             "id": str(uuid.uuid4()),
@@ -6922,17 +6934,55 @@ async def instagram_webhook_verify(request: Request):
 async def instagram_webhook_receive(request: Request, background_tasks: BackgroundTasks):
     """Receive Instagram DM webhooks from Meta."""
     try:
-        payload = await request.json()
+        # --- Signature verification ---
+        raw_body = await request.body()
+
+        if META_APP_SECRET:
+            signature_header = request.headers.get("X-Hub-Signature-256", "")
+            if signature_header.startswith("sha256="):
+                expected_sig = signature_header[7:]
+                computed_sig = hmac.new(
+                    META_APP_SECRET.encode("utf-8"),
+                    raw_body,
+                    digestmod=hashlib.sha256,
+                ).hexdigest()
+                if not hmac.compare_digest(computed_sig, expected_sig):
+                    logger.warning("Instagram webhook signature mismatch")
+                    return {"ok": True}
+            else:
+                logger.warning("Instagram webhook missing X-Hub-Signature-256 header")
+                return {"ok": True}
+        else:
+            logger.debug("META_APP_SECRET not set, skipping webhook signature verification")
+
+        payload = json.loads(raw_body)
         logger.info(f"Received Instagram webhook: {json.dumps(payload, default=str)[:500]}")
 
         messages = parse_instagram_webhook(payload)
         if not messages:
             return {"ok": True}
 
+        now = datetime.now(timezone.utc).timestamp()
+
         for msg in messages:
             page_id = msg["page_id"]
             sender_id = msg["sender_id"]
             text = msg["text"]
+            message_id = msg.get("message_id")
+
+            # --- Deduplication ---
+            if message_id:
+                if message_id in _instagram_dedup_cache:
+                    cached_ts = _instagram_dedup_cache[message_id]
+                    if now - cached_ts < INSTAGRAM_DEDUP_TTL:
+                        logger.debug(f"Skipping duplicate Instagram message {message_id}")
+                        continue
+                _instagram_dedup_cache[message_id] = now
+                # Prune expired entries when cache gets large
+                if len(_instagram_dedup_cache) > 1000:
+                    expired = [k for k, v in _instagram_dedup_cache.items() if now - v >= INSTAGRAM_DEDUP_TTL]
+                    for k in expired:
+                        del _instagram_dedup_cache[k]
 
             # Truncate overly long messages
             if len(text) > 4000:
@@ -7000,6 +7050,9 @@ async def refresh_instagram_tokens_loop():
                     new_token_data = await ig_refresh_long_lived_token(
                         account["access_token"], META_APP_ID, META_APP_SECRET
                     )
+                    if "access_token" not in new_token_data:
+                        logger.error(f"Instagram token refresh returned no access_token for {account['id']}: {new_token_data}")
+                        continue
                     new_expires_at = (datetime.now(timezone.utc) + timedelta(seconds=new_token_data.get("expires_in", 5184000))).isoformat()
                     supabase.table('instagram_accounts').update({
                         "access_token": new_token_data["access_token"],
@@ -7009,6 +7062,15 @@ async def refresh_instagram_tokens_loop():
                     logger.info(f"Refreshed Instagram token for tenant {account['tenant_id']}")
                 except Exception as e:
                     logger.error(f"Failed to refresh Instagram token for {account['id']}: {e}")
+                    # If token is already expired, deactivate to prevent silent failures
+                    try:
+                        if account.get("token_expires_at"):
+                            expires = datetime.fromisoformat(account["token_expires_at"].replace("Z", "+00:00"))
+                            if expires < datetime.now(timezone.utc):
+                                supabase.table('instagram_accounts').update({"is_active": False}).eq('id', account['id']).execute()
+                                logger.warning(f"Deactivated Instagram account {account['id']} due to expired token")
+                    except Exception:
+                        pass
 
         except Exception as e:
             logger.error(f"Instagram token refresh loop error: {e}")

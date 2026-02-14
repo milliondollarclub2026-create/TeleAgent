@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -44,6 +44,7 @@ const StatusDot = ({ connected }) => (
 const ConnectionsPage = () => {
   const { agentId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [integrations, setIntegrations] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -60,6 +61,21 @@ const ConnectionsPage = () => {
     }
     return `/app/connections/${service}`;
   };
+
+  // Handle Instagram OAuth error redirects
+  useEffect(() => {
+    const igError = searchParams.get('instagram_error');
+    if (igError) {
+      const errorMessages = {
+        missing_params: 'Instagram OAuth was missing required parameters. Please try again.',
+        state_expired: 'The Instagram authorization request expired. Please try again.',
+        invalid_state: 'Invalid Instagram authorization. Please try again.',
+        no_ig_account: 'No Instagram Business account found. Make sure your Instagram is linked to a Facebook Page.',
+        exchange_failed: 'Failed to complete Instagram authorization. Please try again.',
+      };
+      toast.error(errorMessages[igError] || 'Instagram connection failed. Please try again.');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchIntegrations();

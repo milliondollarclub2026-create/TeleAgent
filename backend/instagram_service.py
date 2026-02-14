@@ -42,6 +42,7 @@ async def exchange_code_for_token(
     """Exchange authorization code for short-lived token, then long-lived token.
 
     Returns: {"access_token": str, "expires_in": int, "token_type": str}
+    Raises: ValueError if Meta returns an error or unexpected response structure.
     """
     async with httpx.AsyncClient(timeout=30.0) as client:
         # Step 1: Exchange code for short-lived token
@@ -56,6 +57,9 @@ async def exchange_code_for_token(
         )
         resp.raise_for_status()
         short_lived = resp.json()
+        if "access_token" not in short_lived:
+            error_msg = short_lived.get("error", {}).get("message", str(short_lived))
+            raise ValueError(f"Meta token exchange failed: {error_msg}")
         short_token = short_lived["access_token"]
 
         # Step 2: Exchange for long-lived token (60 days)
@@ -70,6 +74,9 @@ async def exchange_code_for_token(
         )
         resp.raise_for_status()
         long_lived = resp.json()
+        if "access_token" not in long_lived:
+            error_msg = long_lived.get("error", {}).get("message", str(long_lived))
+            raise ValueError(f"Meta long-lived token exchange failed: {error_msg}")
         return long_lived
 
 
@@ -99,32 +106,39 @@ async def get_instagram_account_info(access_token: str) -> Optional[Dict]:
 
     Returns: {"page_id": str, "instagram_user_id": str, "username": str} or None
     """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        # Get user's pages
-        resp = await client.get(
-            f"{GRAPH_API_BASE}/me/accounts",
-            params={"access_token": access_token, "fields": "id,name,instagram_business_account"},
-        )
-        resp.raise_for_status()
-        pages = resp.json().get("data", [])
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Get user's pages
+            resp = await client.get(
+                f"{GRAPH_API_BASE}/me/accounts",
+                params={"access_token": access_token, "fields": "id,name,instagram_business_account"},
+            )
+            resp.raise_for_status()
+            pages = resp.json().get("data", [])
 
-        for page in pages:
-            ig_account = page.get("instagram_business_account")
-            if ig_account:
-                ig_id = ig_account["id"]
-                # Fetch IG username
-                ig_resp = await client.get(
-                    f"{GRAPH_API_BASE}/{ig_id}",
-                    params={"access_token": access_token, "fields": "id,username"},
-                )
-                ig_resp.raise_for_status()
-                ig_data = ig_resp.json()
-                return {
-                    "page_id": page["id"],
-                    "instagram_user_id": ig_id,
-                    "username": ig_data.get("username"),
-                }
+            for page in pages:
+                ig_account = page.get("instagram_business_account")
+                if ig_account and ig_account.get("id"):
+                    ig_id = ig_account["id"]
+                    # Fetch IG username
+                    ig_resp = await client.get(
+                        f"{GRAPH_API_BASE}/{ig_id}",
+                        params={"access_token": access_token, "fields": "id,username"},
+                    )
+                    ig_resp.raise_for_status()
+                    ig_data = ig_resp.json()
+                    return {
+                        "page_id": page["id"],
+                        "instagram_user_id": ig_id,
+                        "username": ig_data.get("username"),
+                    }
 
+            return None
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Meta API error fetching Instagram account info: {e.response.status_code} {e.response.text}")
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching Instagram account info: {e}")
         return None
 
 
@@ -190,7 +204,7 @@ async def get_user_profile(access_token: str, user_id: str) -> Optional[Dict]:
 def parse_instagram_webhook(payload: Dict) -> List[Dict]:
     """Parse Instagram webhook payload into normalized messages.
 
-    Returns list of: {"page_id": str, "sender_id": str, "text": str}
+    Returns list of: {"page_id": str, "sender_id": str, "text": str, "message_id": str|None}
     Only returns text messages; skips images, stickers, etc.
     """
     messages = []
@@ -219,6 +233,7 @@ def parse_instagram_webhook(payload: Dict) -> List[Dict]:
                 "page_id": page_id,
                 "sender_id": sender_id,
                 "text": text,
+                "message_id": message_data.get("mid"),
             })
 
     return messages

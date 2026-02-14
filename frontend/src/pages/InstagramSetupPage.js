@@ -45,11 +45,21 @@ const InstagramSetupPage = () => {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
 
-  // Check for OAuth callback status
+  // Check for OAuth callback status (success or error)
   useEffect(() => {
     const oauthStatus = searchParams.get('status');
+    const oauthError = searchParams.get('instagram_error');
     if (oauthStatus === 'success') {
       toast.success('Instagram account connected successfully!');
+    } else if (oauthError) {
+      const errorMessages = {
+        missing_params: 'OAuth callback was missing required parameters. Please try again.',
+        state_expired: 'The authorization request expired. Please try connecting again.',
+        invalid_state: 'Invalid authorization state. Please try connecting again.',
+        no_ig_account: 'No Instagram Business account found. Make sure your Instagram is linked to a Facebook Page.',
+        exchange_failed: 'Failed to complete Instagram authorization. Please try again.',
+      };
+      toast.error(errorMessages[oauthError] || 'Instagram connection failed. Please try again.');
     }
   }, [searchParams]);
 

@@ -294,8 +294,23 @@ RLS is enabled on `instagram_accounts` with a service-role-only policy.
 
 A background loop runs every 6 hours to refresh tokens expiring within 10 days. Long-lived tokens last 60 days. The loop sleeps first on startup to avoid an unnecessary immediate refresh.
 
+### Webhook Signature Verification
+
+Meta signs every webhook POST with `X-Hub-Signature-256` (HMAC-SHA256 of the request body using the App Secret). The webhook handler verifies this signature before processing. If `META_APP_SECRET` is not set (local development), verification is skipped with a debug log.
+
+### Message Deduplication
+
+Meta may deliver the same webhook multiple times. The webhook handler tracks seen message IDs (`mid`) in an in-memory cache with a 5-minute TTL. Duplicate deliveries are skipped with a debug log. The cache self-prunes expired entries when it exceeds 1000 items.
+
 ### Self-Message Prevention
 
 Two layers of defense prevent the bot from responding to its own messages:
 1. `parse_instagram_webhook()` skips messages with `is_echo: true`
 2. Webhook handler skips messages where `sender_id` matches `page_id` or `instagram_user_id`
+
+### Error Resilience
+
+- **Background task isolation**: `process_instagram_message` is wrapped in try/except so a single message failure does not affect other messages.
+- **OAuth response validation**: `exchange_code_for_token` validates Meta API responses before accessing keys, raising `ValueError` with details on malformed responses.
+- **Token refresh auto-deactivation**: If a token refresh fails AND the token has already expired, the account is automatically deactivated to prevent silent message delivery failures.
+- **Unique active account constraint**: A partial unique index on `(tenant_id) WHERE is_active=TRUE` prevents duplicate active connections from race conditions during OAuth.
