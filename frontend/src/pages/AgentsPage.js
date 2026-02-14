@@ -136,7 +136,7 @@ const getChannelInfo = (channel) => {
   const channels = {
     telegram: { name: 'Telegram', color: 'bg-[#0088cc]/10 text-[#0088cc] hover:bg-[#0088cc]/10 cursor-default' },
     whatsapp: { name: 'WhatsApp', color: 'bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366]/10 cursor-default' },
-    instagram: { name: 'Instagram', color: 'bg-[#E4405F]/10 text-[#E4405F] hover:bg-[#E4405F]/10 cursor-default' },
+    instagram: { name: 'Instagram', color: 'bg-[#E1306C]/10 text-[#E1306C] hover:bg-[#E1306C]/10 cursor-default' },
     messenger: { name: 'Messenger', color: 'bg-[#0084FF]/10 text-[#0084FF] hover:bg-[#0084FF]/10 cursor-default' },
   };
   return channels[channel] || { name: channel, color: 'bg-slate-100 text-slate-600 hover:bg-slate-100 cursor-default' };

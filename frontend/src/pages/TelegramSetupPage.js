@@ -376,17 +376,17 @@ const TelegramSetupPage = () => {
             <div className="rounded-xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-5">
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-4">After connecting</p>
               <div className="grid gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                    <MessageSquare className="w-4 h-4 text-[#0088cc]" strokeWidth={1.75} />
+                <div className="group flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
+                    <MessageSquare className="w-4 h-4 text-white" strokeWidth={1.75} />
                   </div>
                   <div>
                     <p className="text-[13px] font-medium text-slate-900">Receive messages instantly</p>
                     <p className="text-[12px] text-slate-500 mt-0.5">All Telegram messages forwarded to your AI</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <div className="group flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
                     <Zap className="w-4 h-4 text-white" strokeWidth={1.75} />
                   </div>
                   <div>
@@ -394,9 +394,9 @@ const TelegramSetupPage = () => {
                     <p className="text-[12px] text-slate-500 mt-0.5">Responses based on your knowledge base</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                    <Globe className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+                <div className="group flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
+                    <Globe className="w-4 h-4 text-white" strokeWidth={1.75} />
                   </div>
                   <div>
                     <p className="text-[13px] font-medium text-slate-900">Track & qualify leads</p>

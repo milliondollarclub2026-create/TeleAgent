@@ -148,7 +148,7 @@ const InstagramSetupPage = () => {
       <div className="flex items-start justify-between mb-8">
         <div className="flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center">
-            <InstagramIcon className="w-5.5 h-5.5 text-slate-700" />
+            <InstagramIcon className="w-5.5 h-5.5 text-[#E1306C]" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Instagram DM</h1>
@@ -331,17 +331,17 @@ const InstagramSetupPage = () => {
           <div className="rounded-xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-5">
             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-4">After connecting</p>
             <div className="grid gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                  <MessageSquare className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+              <div className="group flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
+                  <MessageSquare className="w-4 h-4 text-white" strokeWidth={1.75} />
                 </div>
                 <div>
                   <p className="text-[13px] font-medium text-slate-900">Receive DMs instantly</p>
                   <p className="text-[12px] text-slate-500 mt-0.5">Instagram messages forwarded to your AI</p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <div className="group flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
                   <Zap className="w-4 h-4 text-white" strokeWidth={1.75} />
                 </div>
                 <div>
@@ -349,9 +349,9 @@ const InstagramSetupPage = () => {
                   <p className="text-[12px] text-slate-500 mt-0.5">Same sales agent, new channel</p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                  <Globe className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+              <div className="group flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
+                  <Globe className="w-4 h-4 text-white" strokeWidth={1.75} />
                 </div>
                 <div>
                   <p className="text-[13px] font-medium text-slate-900">Track & qualify leads</p>

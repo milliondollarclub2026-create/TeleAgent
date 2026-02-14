@@ -1,6 +1,6 @@
 """AI Sales Agent for Telegram + Bitrix24 - Enhanced Version with Sales Pipeline & RAG"""
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, Request, BackgroundTasks, UploadFile, File, Form
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 import os
@@ -225,6 +225,24 @@ class RateLimiter:
 # Rate limiter: max 10 messages per minute per user
 message_rate_limiter = RateLimiter(max_requests=10, window_seconds=60)
 
+# ============ Auth Rate Limiting ============
+auth_rate_limiter = {}  # ip -> {attempts, window_start}
+AUTH_RATE_LIMIT = 5       # max attempts
+AUTH_RATE_WINDOW = 300    # per 5-minute window
+
+def check_auth_rate_limit(request: Request) -> None:
+    """IP-based rate limiting for auth endpoints to prevent brute force."""
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    entry = auth_rate_limiter.get(ip, {"attempts": 0, "window_start": now})
+    if now - entry["window_start"] > AUTH_RATE_WINDOW:
+        entry = {"attempts": 0, "window_start": now}
+    entry["attempts"] += 1
+    auth_rate_limiter[ip] = entry
+    if entry["attempts"] > AUTH_RATE_LIMIT:
+        logger.warning(f"Auth rate limit exceeded for IP {ip[:8]}***")
+        raise HTTPException(status_code=429, detail="Too many attempts. Please try again later.")
+
 # ============ Sales Pipeline Constants ============
 SALES_STAGES = {
     "awareness": {"order": 1, "name": "Awareness", "goal": "Educate about products/services"},
@@ -422,6 +440,17 @@ def apply_hotness_rules(llm_hotness: str, score: int, stage: str, fields: Dict) 
 
 
 # ============ Auth Helpers ============
+def validate_password_strength(password: str) -> None:
+    """Enforce minimum password complexity requirements."""
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+    if not any(c.isupper() for c in password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter.")
+    if not any(c.islower() for c in password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter.")
+    if not any(c.isdigit() for c in password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one number.")
+
 def hash_password(password: str) -> str:
     """Hash password using bcrypt."""
     return _bcrypt_lib.hashpw(password.encode(), _bcrypt_lib.gensalt()).decode()
@@ -445,12 +474,21 @@ def _needs_password_rehash(stored_hash: str) -> bool:
 
 def create_access_token(user_id: str, tenant_id: str, email: str) -> str:
     expiration = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
+    jti = secrets.token_hex(16)
     # Use int for exp claim per RFC 7519 (NumericDate must be integer seconds)
-    return jwt.encode({"user_id": user_id, "tenant_id": tenant_id, "email": email, "exp": int(expiration.timestamp())}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode({"user_id": user_id, "tenant_id": tenant_id, "email": email, "jti": jti, "exp": int(expiration.timestamp())}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+# In-memory token blacklist (supplemented by DB for persistence)
+_token_blacklist: set = set()
 
 def verify_token(token: str) -> Optional[Dict]:
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        # Check if token has been revoked
+        jti = payload.get("jti")
+        if jti and jti in _token_blacklist:
+            return None
+        return payload
     except:
         return None
 
@@ -588,13 +626,13 @@ async def send_password_reset_email(email: str, name: str, token: str) -> bool:
 # ============ Pydantic Models ============
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str
-    name: str
-    business_name: str
+    password: str = Field(max_length=128)
+    name: str = Field(max_length=100)
+    business_name: str = Field(max_length=200)
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(max_length=128)
 
 class AuthResponse(BaseModel):
     token: Optional[str] = None
@@ -609,19 +647,19 @@ class InstagramOAuthState(BaseModel):
     exp: float
 
 class TenantConfigUpdate(BaseModel):
-    vertical: Optional[str] = None
-    business_name: Optional[str] = None
-    business_description: Optional[str] = None
-    products_services: Optional[str] = None
-    faq_objections: Optional[str] = None
+    vertical: Optional[str] = Field(None, max_length=100)
+    business_name: Optional[str] = Field(None, max_length=200)
+    business_description: Optional[str] = Field(None, max_length=2000)
+    products_services: Optional[str] = Field(None, max_length=5000)
+    faq_objections: Optional[str] = Field(None, max_length=5000)
     collect_phone: Optional[bool] = None
-    greeting_message: Optional[str] = None
-    closing_message: Optional[str] = None
-    agent_tone: Optional[str] = None
-    primary_language: Optional[str] = None
+    greeting_message: Optional[str] = Field(None, max_length=1000)
+    closing_message: Optional[str] = Field(None, max_length=1000)
+    agent_tone: Optional[str] = Field(None, max_length=100)
+    primary_language: Optional[str] = Field(None, max_length=50)
     secondary_languages: Optional[List[str]] = None
-    emoji_usage: Optional[str] = None
-    response_length: Optional[str] = None
+    emoji_usage: Optional[str] = Field(None, max_length=50)
+    response_length: Optional[str] = Field(None, max_length=50)
     min_response_delay: Optional[int] = None
     max_messages_per_minute: Optional[int] = None
     objection_playbook: Optional[List[Dict]] = None
@@ -649,9 +687,9 @@ class TenantConfigUpdate(BaseModel):
     # Hard constraints for AI anti-hallucination
     promo_codes: Optional[List[Dict]] = None  # [{"code": "SUMMER20", "discount_percent": 20, "valid_until": "2026-03-01"}]
     payment_plans_enabled: Optional[bool] = None
-    discount_authority: Optional[str] = None  # "none" | "manager_only" | "agent_can_offer"
+    discount_authority: Optional[str] = Field(None, max_length=50)  # "none" | "manager_only" | "agent_can_offer"
     # Prebuilt agent type (e.g., 'sales' for Jasur)
-    prebuilt_type: Optional[str] = None
+    prebuilt_type: Optional[str] = Field(None, max_length=50)
     # AI Capabilities
     image_responses_enabled: Optional[bool] = None
 
@@ -748,11 +786,14 @@ def db_execute_with_retry(operation, max_retries=3):
 
 # ============ Auth Endpoints (Custom Auth with Resend) ============
 @api_router.post("/auth/register", response_model=AuthResponse)
-async def register(request: RegisterRequest):
+async def register(request: RegisterRequest, req: Request = None):
     """
     Register a new user with custom auth and Resend email verification.
     Uses direct REST API calls to avoid HTTP/2 StreamReset issues on Render.
     """
+    if req:
+        check_auth_rate_limit(req)
+    validate_password_strength(request.password)
     try:
         # Check if user already exists (using direct REST API - HTTP/1.1)
         existing = db_rest_select('users', {'email': f'eq.{request.email}'})
@@ -822,8 +863,8 @@ async def register(request: RegisterRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Registration error: {e}")
-        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+        logger.exception("Registration error")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @api_router.get("/auth/confirm-email")
@@ -861,8 +902,10 @@ async def confirm_email(token: str = None, type: str = None, access_token: str =
 
 
 @api_router.post("/auth/resend-confirmation")
-async def resend_confirmation(email: EmailStr):
+async def resend_confirmation(email: EmailStr, req: Request = None):
     """Resend confirmation email via Resend using direct REST API"""
+    if req:
+        check_auth_rate_limit(req)
     try:
         # Find user using direct REST API (HTTP/1.1)
         result = db_rest_select('users', {'email': f'eq.{email}'})
@@ -888,8 +931,10 @@ async def resend_confirmation(email: EmailStr):
 
 
 @api_router.post("/auth/forgot-password")
-async def forgot_password(email: EmailStr):
+async def forgot_password(email: EmailStr, req: Request = None):
     """Request password reset via Resend using direct REST API"""
+    if req:
+        check_auth_rate_limit(req)
     try:
         result = db_rest_select('users', {'email': f'eq.{email}'})
         if result:
@@ -913,13 +958,14 @@ async def forgot_password(email: EmailStr):
 
 
 class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str
+    token: str = Field(max_length=256)
+    new_password: str = Field(max_length=128)
 
 
 @api_router.post("/auth/reset-password")
 async def reset_password(request: ResetPasswordRequest):
     """Reset password using custom token with direct REST API"""
+    validate_password_strength(request.new_password)
     try:
         result = db_rest_select('users', {'password_reset_token': f'eq.{request.token}'})
         if not result:
@@ -949,58 +995,14 @@ async def reset_password(request: ResetPasswordRequest):
         raise HTTPException(status_code=400, detail="Password reset failed. Please try again.")
 
 
-@api_router.get("/debug/email-test")
-async def debug_email_test():
-    """Diagnostic endpoint to test Resend email configuration"""
-    diagnostics = {
-        "resend_api_key_set": bool(resend.api_key),
-        "resend_api_key_prefix": resend.api_key[:12] + "..." if resend.api_key else "NOT SET",
-        "sender_email": SENDER_EMAIL,
-        "frontend_url": FRONTEND_URL,
-    }
-
-    if not resend.api_key:
-        diagnostics["error"] = "RESEND_API_KEY environment variable is not set"
-        return diagnostics
-
-    # Try sending a test email to a known-good address
-    try:
-        params = {
-            "from": SENDER_EMAIL,
-            "to": ["delivered@resend.dev"],
-            "subject": "LeadRelay Email Test",
-            "html": "<p>If you see this, email sending works.</p>"
-        }
-        result = await asyncio.to_thread(resend.Emails.send, params)
-        # Handle both dict and object responses
-        if hasattr(result, 'id'):
-            diagnostics["success"] = True
-            diagnostics["email_id"] = result.id
-        elif isinstance(result, dict):
-            diagnostics["success"] = True
-            diagnostics["email_id"] = result.get('id')
-        else:
-            diagnostics["success"] = True
-            diagnostics["result_type"] = str(type(result))
-            diagnostics["result"] = str(result)
-    except Exception as e:
-        diagnostics["success"] = False
-        diagnostics["error_type"] = type(e).__name__
-        diagnostics["error_message"] = str(e)
-        # If it's a Resend API error, try to get more details
-        if hasattr(e, 'status_code'):
-            diagnostics["status_code"] = e.status_code
-        if hasattr(e, 'message'):
-            diagnostics["api_message"] = e.message
-
-    return diagnostics
-
 
 @api_router.post("/auth/login", response_model=AuthResponse)
-async def login(request: LoginRequest):
+async def login(request: LoginRequest, req: Request = None):
     """
     Login using custom auth with direct REST API to avoid HTTP/2 StreamReset issues.
     """
+    if req:
+        check_auth_rate_limit(req)
     # Use direct REST API (HTTP/1.1) instead of supabase-py client
     result = db_rest_select('users', {'email': f'eq.{request.email}'})
     if not result:
@@ -1033,6 +1035,37 @@ async def login(request: LoginRequest):
         token=token,
         user={"id": user["id"], "email": user["email"], "name": user.get("name"), "tenant_id": user["tenant_id"], "business_name": tenant["name"] if tenant else None, "email_confirmed": user.get("email_confirmed", False)}
     )
+
+
+@api_router.post("/auth/logout")
+async def logout(authorization: Optional[str] = Header(None)):
+    """Revoke the current JWT token by adding its jti to the blacklist."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Invalid authentication scheme")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid authorization header")
+
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        jti = payload.get("jti")
+        if jti:
+            _token_blacklist.add(jti)
+            # Persist to DB for cross-restart durability
+            exp_timestamp = payload.get("exp", 0)
+            expires_at = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc).isoformat()
+            try:
+                supabase.table('token_blacklist').insert({"jti": jti, "expires_at": expires_at}).execute()
+                # Cleanup expired entries
+                supabase.table('token_blacklist').delete().lt('expires_at', now_iso()).execute()
+            except Exception as e:
+                logger.warning(f"Could not persist token blacklist: {e}")
+        return {"message": "Logged out successfully"}
+    except Exception:
+        return {"message": "Logged out successfully"}
 
 
 @api_router.get("/auth/me")
@@ -1113,9 +1146,7 @@ async def send_telegram_message(bot_token: str, chat_id: int, text: str) -> bool
                     
             return result.get("ok", False)
     except Exception as e:
-        logger.error(f"Failed to send Telegram message: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Failed to send Telegram message")
         return False
 
 async def send_typing_action(bot_token: str, chat_id: int):
@@ -2161,7 +2192,8 @@ async def get_bitrix_leads(
         leads = await client.list_leads(limit=limit)
         return {"leads": leads, "total": len(leads)}
     except BitrixAPIError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Bitrix CRM leads error")
+        raise HTTPException(status_code=500, detail="Failed to fetch CRM leads. Please try again.")
 
 
 @api_router.get("/bitrix-crm/deals")
@@ -2178,7 +2210,8 @@ async def get_bitrix_deals(
         deals = await client.list_deals(limit=limit)
         return {"deals": deals, "total": len(deals)}
     except BitrixAPIError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Bitrix CRM deals error")
+        raise HTTPException(status_code=500, detail="Failed to fetch CRM deals. Please try again.")
 
 
 @api_router.get("/bitrix-crm/products")
@@ -2195,7 +2228,8 @@ async def get_bitrix_products(
         products = await client.list_products(limit=limit)
         return {"products": products, "total": len(products)}
     except BitrixAPIError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Bitrix CRM products error")
+        raise HTTPException(status_code=500, detail="Failed to fetch CRM products. Please try again.")
 
 
 @api_router.get("/bitrix-crm/analytics")
@@ -2211,7 +2245,8 @@ async def get_bitrix_analytics(current_user: Dict = Depends(get_current_user)):
         analytics["top_products"] = top_products
         return analytics
     except BitrixAPIError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Bitrix CRM analytics error")
+        raise HTTPException(status_code=500, detail="Failed to fetch CRM analytics. Please try again.")
 
 
 @api_router.post("/bitrix-crm/chat")
@@ -2539,10 +2574,11 @@ Language: Respond in the same language the user uses (English, Russian, or Uzbek
         }
 
     except BitrixAPIError as e:
-        raise HTTPException(status_code=500, detail=f"CRM error: {str(e)}")
+        logger.exception("CRM Chat Bitrix error")
+        raise HTTPException(status_code=500, detail="A CRM error occurred. Please try again.")
     except Exception as e:
-        logger.error(f"CRM Chat error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("CRM Chat error")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 # ============ Analytics Helper Functions ============
@@ -2650,8 +2686,8 @@ async def initialize_analytics(
         }
 
     except Exception as e:
-        logger.error(f"Failed to initialize analytics: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to initialize analytics")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @api_router.post("/analytics/stop")
@@ -3560,9 +3596,7 @@ async def get_business_context_semantic(tenant_id: str, query: str, top_k: int =
         return context[:top_k]
 
     except Exception as e:
-        logger.error(f"RAG context retrieval error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("RAG context retrieval error")
         return []
 
 
@@ -4137,9 +4171,7 @@ async def call_sales_agent(
             "fields_collected": {}
         }
     except Exception as e:
-        logger.error(f"LLM call failed: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("LLM call failed")
         return {
             "reply_text": "I apologize, a technical error occurred. Please try again.",
             "sales_stage": current_stage,
@@ -4214,9 +4246,7 @@ async def telegram_webhook_with_bot_id(bot_id: str, request: Request, background
         logger.error(f"Invalid JSON in webhook: {e}")
         return {"ok": True}
     except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Webhook error")
         return {"ok": True}
 
 
@@ -4500,9 +4530,7 @@ async def process_channel_message(
             logger.warning(f"Could not log event: {e}")
 
     except Exception as e:
-        logger.error(f"[{channel}] Error processing message: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"[{channel}] Error processing message")
 
         # Send error message to user
         try:
@@ -4725,9 +4753,7 @@ async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Op
             logger.warning(f"Bitrix sync error (non-blocking): {bitrix_error}")
 
     except Exception as e:
-        logger.error(f"Failed to update/create lead: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Failed to update/create lead")
         # Don't re-raise - we don't want to break message flow for DB errors
 
 
@@ -4972,9 +4998,7 @@ async def sync_lead_to_bitrix(tenant_id: str, customer: Dict, lead_data: Dict, e
                     logger.warning(f"Failed to save Bitrix lead ID: {e}")
 
     except Exception as e:
-        logger.warning(f"Bitrix24 sync failed (non-blocking): {e}")
-        import traceback
-        traceback.print_exc()
+        logger.warning(f"Bitrix24 sync failed (non-blocking): {e}", exc_info=True)
         # Don't re-raise - Bitrix sync failure shouldn't break message flow
 
 
@@ -5885,6 +5909,31 @@ async def get_config_defaults():
 # Maximum file size (10MB)
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
+# ============ File Upload Magic Byte Validation ============
+MAGIC_BYTES = {
+    'pdf': [b'%PDF'],
+    'docx': [b'PK\x03\x04'],  # ZIP/OOXML format
+    'xlsx': [b'PK\x03\x04'],  # ZIP/OOXML format
+    'xls': [b'\xd0\xcf\x11\xe0'],  # OLE2 format
+    'csv': None,  # Text-based, skip magic check
+    'txt': None,  # Text-based, skip magic check
+    'png': [b'\x89PNG'],
+    'jpg': [b'\xff\xd8\xff'],
+    'jpeg': [b'\xff\xd8\xff'],
+    'gif': [b'GIF87a', b'GIF89a'],
+    'webp': [b'RIFF'],
+}
+
+def validate_file_magic(content: bytes, filename: str) -> bool:
+    """Validate file content matches expected magic bytes for the file extension."""
+    if not filename or '.' not in filename:
+        return True
+    ext = filename.rsplit('.', 1)[-1].lower()
+    signatures = MAGIC_BYTES.get(ext)
+    if signatures is None:
+        return True  # Text-based or unknown, skip check
+    return any(content[:len(sig)] == sig for sig in signatures)
+
 # In-memory cache for document embeddings (per tenant)
 # This cache is populated from DB on first access
 document_embeddings_cache = {}
@@ -6088,8 +6137,8 @@ async def create_document(request: DocumentCreate, current_user: Dict = Depends(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Document creation error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Document creation error")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @api_router.post("/documents/upload")
@@ -6111,16 +6160,21 @@ async def upload_document(
         
         if file_size > MAX_FILE_SIZE:
             raise HTTPException(status_code=400, detail=f"File too large. Maximum size is {MAX_FILE_SIZE // 1024 // 1024}MB")
-        
+
         if file_size == 0:
             raise HTTPException(status_code=400, detail="File is empty")
-        
+
         filename = file.filename or "uploaded_file"
+
+        # Validate magic bytes to prevent disguised file uploads
+        if not validate_file_magic(file_content, filename):
+            raise HTTPException(status_code=400, detail="File content does not match its extension. Upload rejected.")
+
         doc_title = title or filename
         content_type = file.content_type or "application/octet-stream"
-        
+
         logger.info(f"Processing upload: {filename}, type: {content_type}, size: {file_size}")
-        
+
         # Process document and generate embeddings
         chunks, embeddings = await process_document(file_content, filename, content_type)
         
@@ -6201,8 +6255,8 @@ async def upload_document(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Upload error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+        logger.exception("Document upload error")
+        raise HTTPException(status_code=500, detail="Failed to process file. Please try again.")
 
 
 @api_router.delete("/documents/{doc_id}")
@@ -6252,8 +6306,8 @@ async def search_documents(
         }
         
     except Exception as e:
-        logger.error(f"Search error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Document search error")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 # ============ Global Knowledge Base Endpoints ============
@@ -6336,8 +6390,8 @@ async def list_global_documents(current_user: Dict = Depends(get_current_user)):
             for doc in (result.data or [])
         ]
     except Exception as e:
-        logger.error(f"Error listing global documents: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Error listing global documents")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @api_router.post("/documents/global")
@@ -6410,8 +6464,8 @@ async def create_global_document(request: DocumentCreate, current_user: Dict = D
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Global document creation error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Global document creation error")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @api_router.post("/documents/global/upload")
@@ -6434,6 +6488,11 @@ async def upload_global_document(
             raise HTTPException(status_code=400, detail="File is empty")
 
         filename = file.filename or "uploaded_file"
+
+        # Validate magic bytes to prevent disguised file uploads
+        if not validate_file_magic(file_content, filename):
+            raise HTTPException(status_code=400, detail="File content does not match its extension. Upload rejected.")
+
         doc_title = title or filename
         content_type = file.content_type or "application/octet-stream"
 
@@ -6516,8 +6575,8 @@ async def upload_global_document(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Global upload error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+        logger.exception("Global document upload error")
+        raise HTTPException(status_code=500, detail="Failed to process file. Please try again.")
 
 
 @api_router.delete("/documents/global/{doc_id}")
@@ -6545,8 +6604,8 @@ async def delete_global_document(doc_id: str, current_user: Dict = Depends(get_c
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting global document: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Error deleting global document")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @api_router.get("/documents/global/settings")
@@ -6579,8 +6638,8 @@ async def get_global_doc_settings(current_user: Dict = Depends(get_current_user)
         ]
 
     except Exception as e:
-        logger.error(f"Error getting global doc settings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Error getting global doc settings")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @api_router.put("/documents/global/{doc_id}/toggle")
@@ -6612,8 +6671,8 @@ async def toggle_global_document(doc_id: str, enabled: bool, current_user: Dict 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error toggling global document: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Error toggling global document")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 # ============ Integration Status ============
@@ -6908,10 +6967,8 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
         }
         
     except Exception as e:
-        logger.error(f"Test chat error: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Test chat error")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 # ============ Instagram Integration ============
@@ -7014,9 +7071,7 @@ async def instagram_oauth_callback(code: str = "", state: str = ""):
         return RedirectResponse(f"{FRONTEND_URL}/app/connections/instagram?status=success")
 
     except Exception as e:
-        logger.error(f"Instagram OAuth callback error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Instagram OAuth callback error")
         return RedirectResponse(f"{FRONTEND_URL}/app/connections?instagram_error=exchange_failed")
 
 
@@ -7224,6 +7279,18 @@ async def refresh_instagram_tokens_loop():
 
 
 @app.on_event("startup")
+async def load_token_blacklist():
+    """Load persisted token blacklist from DB on startup."""
+    try:
+        result = supabase.table('token_blacklist').select('jti').gte('expires_at', now_iso()).execute()
+        if result.data:
+            for row in result.data:
+                _token_blacklist.add(row['jti'])
+            logger.info(f"Loaded {len(result.data)} blacklisted tokens from DB")
+    except Exception as e:
+        logger.warning(f"Could not load token blacklist (table may not exist yet): {e}")
+
+@app.on_event("startup")
 async def start_instagram_token_refresh():
     """Launch the Instagram token refresh background task."""
     if META_APP_ID and META_APP_SECRET:
@@ -7304,8 +7371,8 @@ async def list_media(current_user: Dict = Depends(get_current_user)):
             "image_responses_enabled": image_responses_enabled
         }
     except Exception as e:
-        logger.error(f"Error listing media: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Error listing media")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @api_router.get("/media/{media_id}")
@@ -7322,8 +7389,8 @@ async def get_media(media_id: str, current_user: Dict = Depends(get_current_user
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting media: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Error getting media")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @api_router.post("/media/upload")
@@ -7372,6 +7439,10 @@ async def upload_media(
         if file_ext not in allowed_extensions:
             raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: {', '.join(allowed_extensions)}")
 
+        # Validate magic bytes to prevent disguised file uploads
+        if not validate_file_magic(file_content, filename):
+            raise HTTPException(status_code=400, detail="File content does not match its extension. Upload rejected.")
+
         content_type = file.content_type or "image/jpeg"
 
         # Validate and sanitize name (used as AI reference)
@@ -7412,8 +7483,8 @@ async def upload_media(
             public_url = supabase.storage.from_(MEDIA_STORAGE_BUCKET).get_public_url(storage_path)
 
         except Exception as e:
-            logger.error(f"Storage upload error: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
+            logger.exception("Storage upload error")
+            raise HTTPException(status_code=500, detail="Failed to upload file. Please try again.")
 
         # Generate embedding for description (if provided)
         embedding = None
@@ -7460,10 +7531,8 @@ async def upload_media(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Media upload error: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to upload media: {str(e)}")
+        logger.exception("Media upload error")
+        raise HTTPException(status_code=500, detail="Failed to upload media. Please try again.")
 
 
 @api_router.put("/media/{media_id}")
@@ -7519,8 +7588,8 @@ async def update_media(media_id: str, request: MediaUpdate, current_user: Dict =
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Media update error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Media update error")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @api_router.delete("/media/{media_id}")
@@ -7553,8 +7622,8 @@ async def delete_media(media_id: str, current_user: Dict = Depends(get_current_u
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Media delete error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Media delete error")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 @api_router.get("/media/by-name/{name}")
@@ -7571,8 +7640,8 @@ async def get_media_by_name(name: str, current_user: Dict = Depends(get_current_
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting media by name: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Error getting media by name")
+        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
 # ============ Health Check ============
@@ -7700,3 +7769,34 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+# ============ Security Headers Middleware ============
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    # HSTS only on HTTPS
+    if request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+# ============ CSRF Origin Checking ============
+CSRF_EXEMPT_PATHS = ("/api/telegram/webhook", "/api/instagram/webhook", "/health", "/api/health")
+
+@app.middleware("http")
+async def csrf_origin_check(request: Request, call_next):
+    if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+        path = request.url.path
+        # Skip webhook endpoints and health checks
+        if not any(path.startswith(exempt) for exempt in CSRF_EXEMPT_PATHS):
+            origin = request.headers.get("origin") or ""
+            referer = request.headers.get("referer") or ""
+            check_value = origin or referer
+            if check_value and not any(check_value.startswith(allowed) for allowed in cors_origins):
+                logger.warning(f"CSRF check failed: origin={origin[:50]}, path={path}")
+                return JSONResponse(status_code=403, content={"detail": "Origin not allowed"})
+    return await call_next(request)

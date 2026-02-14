@@ -39,6 +39,7 @@ import UsageLogsPage from "./pages/UsageLogsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import PricingPage from "./pages/PricingPage";
+import SecurityPage from "./pages/SecurityPage";
 
 // Protected route wrapper - redirects to landing if not authenticated
 function ProtectedRoute({ children }) {
@@ -83,6 +84,7 @@ function AppRoutes() {
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/security" element={<SecurityPage />} />
       
       {/* Protected routes */}
       <Route path="/app" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>

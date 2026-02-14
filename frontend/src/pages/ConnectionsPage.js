@@ -133,17 +133,17 @@ const ConnectionsPage = () => {
         <p className="text-[13px] text-slate-500 mt-0.5">Manage your integrations with external services</p>
       </div>
 
-      {/* Connection Cards Grid */}
+      {/* Messaging Channels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {/* Telegram Bot Card - Simplified */}
+        {/* Telegram Bot Card */}
         <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="telegram-connection">
           <div className="p-5">
             {/* Header */}
             <div className="flex items-start justify-between mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
+                  <Bot className="w-5 h-5 text-[#0088cc]" strokeWidth={1.75} />
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-900 text-sm">Telegram Bot</h3>
@@ -197,65 +197,6 @@ const ConnectionsPage = () => {
           </div>
         </Card>
 
-        {/* Bitrix24 CRM Card - Simplified */}
-        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="bitrix-connection">
-          <div className="p-5">
-            {/* Header */}
-            <div className="flex items-start justify-between mb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                  <Link2 className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900 text-sm">Bitrix24 CRM</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Sync leads and contacts</p>
-                </div>
-              </div>
-              <StatusDot connected={bitrixStatus?.connected} />
-            </div>
-
-            {/* Content */}
-            {bitrixStatus?.connected ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
-                  <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
-                    <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900">CRM Connected</p>
-                    {bitrixStatus.connected_at && (
-                      <p className="text-xs text-slate-500">
-                        Since {new Date(bitrixStatus.connected_at).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs border-slate-200"
-                  onClick={() => navigate(getConnectionPath('bitrix'))}
-                >
-                  Manage
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-[13px] text-slate-500">
-                  Sync leads and contacts with your CRM
-                </p>
-                <Button
-                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
-                  onClick={() => navigate(getConnectionPath('bitrix'))}
-                  data-testid="setup-bitrix-btn"
-                >
-                  Connect
-                </Button>
-              </div>
-            )}
-          </div>
-        </Card>
-
         {/* Instagram DM Card */}
         <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="instagram-connection">
           <div className="p-5">
@@ -263,7 +204,7 @@ const ConnectionsPage = () => {
             <div className="flex items-start justify-between mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                  <InstagramIcon className="w-5 h-5 text-slate-600" />
+                  <InstagramIcon className="w-5 h-5 text-[#E1306C]" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-900 text-sm">Instagram DM</h3>
@@ -319,14 +260,74 @@ const ConnectionsPage = () => {
 
       </div>
 
-      {/* Data Sources Section */}
+      {/* Data Sources & CRM Section */}
       <div className="pt-2">
-        <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Data Sources</h2>
-        <p className="text-[13px] text-slate-500 mt-0.5">Connect external data to power your AI agent</p>
+        <h2 className="text-lg font-semibold text-slate-900 tracking-tight">Data Sources & CRM</h2>
+        <p className="text-[13px] text-slate-500 mt-0.5">Connect external data and CRM tools to power your AI agent</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Google Sheets Card - Simplified, links to setup page */}
+
+        {/* Bitrix24 CRM Card */}
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="bitrix-connection">
+          <div className="p-5">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                  <Link2 className="w-5 h-5 text-[#2FC6F6]" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 text-sm">Bitrix24 CRM</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Sync leads and contacts</p>
+                </div>
+              </div>
+              <StatusDot connected={bitrixStatus?.connected} />
+            </div>
+
+            {/* Content */}
+            {bitrixStatus?.connected ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                    <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900">CRM Connected</p>
+                    {bitrixStatus.connected_at && (
+                      <p className="text-xs text-slate-500">
+                        Since {new Date(bitrixStatus.connected_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs border-slate-200"
+                  onClick={() => navigate(getConnectionPath('bitrix'))}
+                >
+                  Manage
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-[13px] text-slate-500">
+                  Sync leads and contacts with your CRM
+                </p>
+                <Button
+                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  onClick={() => navigate(getConnectionPath('bitrix'))}
+                  data-testid="setup-bitrix-btn"
+                >
+                  Connect
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Google Sheets Card */}
         <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="gsheets-connection">
           <div className="p-5">
             {/* Header */}

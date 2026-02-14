@@ -400,17 +400,17 @@ const GoogleSheetsSetupPage = () => {
           <div className="rounded-xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-5">
             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-4">After connecting</p>
             <div className="grid gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#0F9D58]/10 flex items-center justify-center flex-shrink-0">
-                  <BookOpen className="w-4 h-4 text-[#0F9D58]" strokeWidth={1.75} />
+              <div className="group flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
+                  <BookOpen className="w-4 h-4 text-white" strokeWidth={1.75} />
                 </div>
                 <div>
                   <p className="text-[13px] font-medium text-slate-900">Product catalog sync</p>
                   <p className="text-[12px] text-slate-500 mt-0.5">First tab becomes your AI's knowledge</p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <div className="group flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
                   <FileSpreadsheet className="w-4 h-4 text-white" strokeWidth={1.75} />
                 </div>
                 <div>
@@ -418,9 +418,9 @@ const GoogleSheetsSetupPage = () => {
                   <p className="text-[12px] text-slate-500 mt-0.5">"Leads" tab created for you</p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
-                  <Zap className="w-4 h-4 text-slate-600" strokeWidth={1.75} />
+              <div className="group flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-4 h-4 text-white" strokeWidth={1.75} />
                 </div>
                 <div>
                   <p className="text-[13px] font-medium text-slate-900">Real-time updates</p>
