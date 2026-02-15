@@ -406,8 +406,8 @@ class AnalyticsContextBuilder:
 
         # Fetch raw data
         try:
-            leads = await self.bitrix.list_leads(limit=500)
-            deals = await self.bitrix.list_deals(limit=500)
+            leads = await self.bitrix.list_leads(limit=500, fetch_all=True)
+            deals = await self.bitrix.list_deals(limit=500, fetch_all=True)
         except Exception as e:
             logger.error(f"Failed to fetch CRM data: {e}")
             return aggregations

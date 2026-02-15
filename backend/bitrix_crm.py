@@ -341,20 +341,43 @@ class BitrixCRMClient:
     
     # ==================== Deal Management ====================
     
-    async def list_deals(self, limit: int = 50, filter_params: dict = None) -> List[Dict]:
-        """List deals with optional filters"""
+    async def list_deals(self, limit: int = 50, filter_params: dict = None, fetch_all: bool = False) -> List[Dict]:
+        """List deals with optional filters and pagination."""
         params = {
-            "select": ["ID", "TITLE", "STAGE_ID", "OPPORTUNITY", "CURRENCY_ID", 
+            "select": ["ID", "TITLE", "STAGE_ID", "OPPORTUNITY", "CURRENCY_ID",
                       "CONTACT_ID", "COMPANY_ID", "DATE_CREATE", "CLOSEDATE"],
             "order": {"DATE_CREATE": "DESC"}
         }
         if filter_params:
             params["filter"] = filter_params
-        
+
         try:
-            result = await self._call("crm.deal.list", params)
-            deals = result if isinstance(result, list) else []
-            return deals[:limit]
+            all_deals = []
+            start = 0
+
+            while True:
+                params["start"] = start
+                result = await self._call("crm.deal.list", params)
+                deals = result if isinstance(result, list) else []
+
+                if not deals:
+                    break
+
+                all_deals.extend(deals)
+
+                if not fetch_all or len(all_deals) >= limit:
+                    break
+
+                if len(deals) < 50:
+                    break
+
+                start += 50
+
+                if start > 5000:
+                    logger.warning("Hit safety limit of 5000 deals while fetching")
+                    break
+
+            return all_deals[:limit] if limit else all_deals
         except:
             return []
     
@@ -455,8 +478,8 @@ class BitrixCRMClient:
             leads = await self.list_leads(limit=1000, fetch_all=True, days=days)
 
             # Get recent deals
-            deals = await self.list_deals(limit=500)
-            
+            deals = await self.list_deals(limit=500, fetch_all=True)
+
             # Get products
             products = await self.list_products(limit=100)
             
