@@ -205,9 +205,7 @@ const KnowledgeBasePage = () => {
     formData.append('category', isPolicyDoc ? 'policy' : 'knowledge');
 
     try {
-      await axios.post(`${API}/documents/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      await axios.post(`${API}/documents/upload`, formData);
 
       setUploadComplete(true);
 
@@ -280,9 +278,7 @@ const KnowledgeBasePage = () => {
     formData.append('tags', newMedia.tags || '');
 
     try {
-      await axios.post(`${API}/media/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      await axios.post(`${API}/media/upload`, formData);
       toast.success('Media uploaded successfully');
       resetMediaDialog();
       fetchAllDocuments();
@@ -773,7 +769,7 @@ const KnowledgeBasePage = () => {
           else setMediaDialogOpen(open);
         }
       }}>
-        <DialogContent className="sm:max-w-[480px] p-0 gap-0 overflow-hidden">
+        <DialogContent className="sm:max-w-[480px] p-0 gap-0 overflow-hidden" onInteractOutside={(e) => { if (uploadingMedia) e.preventDefault(); }}>
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
             <DialogTitle className="text-lg font-semibold text-slate-900 flex items-center gap-2">
               <Image className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
@@ -798,7 +794,7 @@ const KnowledgeBasePage = () => {
                 <input
                   ref={mediaFileInputRef}
                   type="file"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  className="hidden"
                   onChange={handleMediaFileSelect}
                   accept=".png,.jpg,.jpeg,.gif,.webp"
                 />

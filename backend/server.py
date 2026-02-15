@@ -143,6 +143,9 @@ def db_rest_update(table: str, data: dict, eq_column: str, eq_value: str):
 resend.api_key = (os.environ.get('RESEND_API_KEY') or '').strip()
 SENDER_EMAIL = (os.environ.get('SENDER_EMAIL') or 'noreply@leadrelay.net').strip()
 FRONTEND_URL = (os.environ.get('FRONTEND_URL') or 'https://leadrelay.net').strip()
+BACKEND_PUBLIC_URL = (os.environ.get('BACKEND_PUBLIC_URL') or os.environ.get('RENDER_EXTERNAL_URL') or '').strip()
+if not BACKEND_PUBLIC_URL:
+    logger.warning("BACKEND_PUBLIC_URL not set — webhook URLs will default to localhost (set BACKEND_PUBLIC_URL for production)")
 
 # Log Resend configuration status (without exposing key)
 if resend.api_key:
@@ -1453,7 +1456,7 @@ async def connect_telegram_bot(request: TelegramBotCreate, current_user: Dict = 
         raise HTTPException(status_code=400, detail="Invalid bot token")
     
     tenant_id = current_user["tenant_id"]
-    backend_url = os.environ.get('BACKEND_PUBLIC_URL') or os.environ.get('RENDER_EXTERNAL_URL') or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')
+    backend_url = BACKEND_PUBLIC_URL or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')
 
     # Check if bot already exists for this tenant
     result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
@@ -1504,7 +1507,7 @@ async def connect_bitrix(request: BitrixConnectRequest, current_user: Dict = Dep
     """Store Bitrix24 credentials and return OAuth URL for user to authorize"""
     # Note: Bitrix integration requires 'integrations_bitrix' table in Supabase
     # For now, return placeholder with OAuth URL
-    redirect_uri = f"{os.environ.get('BACKEND_PUBLIC_URL') or os.environ.get('RENDER_EXTERNAL_URL') or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')}/api/bitrix/callback"
+    redirect_uri = f"{BACKEND_PUBLIC_URL or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')}/api/bitrix/callback"
     oauth_url = f"https://{request.bitrix_domain}/oauth/authorize/?client_id={request.client_id}&response_type=code&redirect_uri={redirect_uri}"
     
     return {"oauth_url": oauth_url, "message": "Bitrix24 integration pending database setup. OAuth URL generated.", "is_demo": True}
@@ -7400,12 +7403,8 @@ async def instagram_oauth_start(current_user: Dict = Depends(get_current_user)):
 
     tenant_id = current_user["tenant_id"]
 
-    # Resolve the backend's public URL (same pattern as Bitrix OAuth)
-    backend_url = (
-        os.environ.get('BACKEND_PUBLIC_URL')
-        or os.environ.get('RENDER_EXTERNAL_URL')
-        or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')
-    ).strip().rstrip('/')
+    # Resolve the backend's public URL
+    backend_url = (BACKEND_PUBLIC_URL or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')).rstrip('/')
     redirect_uri = f"{backend_url}/api/instagram/oauth/callback"
 
     # JWT-encode tenant_id as state (CSRF protection, 10-min expiry)
@@ -7439,11 +7438,7 @@ async def instagram_oauth_callback(code: str = "", state: str = ""):
         return RedirectResponse(f"{FRONTEND_URL}/app/connections?instagram_error=invalid_state")
 
     # Build redirect URI (must match what was used in /oauth/start)
-    backend_url = (
-        os.environ.get('BACKEND_PUBLIC_URL')
-        or os.environ.get('RENDER_EXTERNAL_URL')
-        or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')
-    ).strip().rstrip('/')
+    backend_url = (BACKEND_PUBLIC_URL or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')).rstrip('/')
     redirect_uri = f"{backend_url}/api/instagram/oauth/callback"
 
     try:
@@ -8152,22 +8147,27 @@ async def admin_reregister_webhooks(current_user: Dict = Depends(get_current_use
     bots = supabase.table('telegram_bots').select('*').eq('is_active', True).execute()
     results = []
 
+    backend_url = BACKEND_PUBLIC_URL or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')
+
     for bot in (bots.data or []):
         bot_token = decrypt_value(bot["bot_token"])
-        webhook_url = bot.get("webhook_url", "")
+        # Always use current public URL (fixes localhost webhook URLs)
+        webhook_url = f"{backend_url}/api/telegram/webhook/{bot['id']}"
 
         # Generate new secret if missing
         existing_secret = decrypt_value(bot.get("webhook_secret") or "")
         if not existing_secret:
             new_secret = secrets.token_hex(32)
-            supabase.table('telegram_bots').update({
-                "webhook_secret": encrypt_value(new_secret)
-            }).eq('id', bot['id']).execute()
             existing_secret = new_secret
 
-        # Re-register webhook with secret
+        # Update stored webhook URL and secret, then re-register
+        supabase.table('telegram_bots').update({
+            "webhook_url": webhook_url,
+            "webhook_secret": encrypt_value(existing_secret)
+        }).eq('id', bot['id']).execute()
+
         result = await set_telegram_webhook(bot_token, webhook_url, secret_token=existing_secret)
-        results.append({"bot_id": bot['id'], "ok": result.get("ok", False)})
+        results.append({"bot_id": bot['id'], "ok": result.get("ok", False), "webhook_url": webhook_url})
 
     return {"success": True, "results": results}
 

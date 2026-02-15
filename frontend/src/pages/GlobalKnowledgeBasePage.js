@@ -142,9 +142,7 @@ const GlobalKnowledgeBasePage = () => {
     formData.append('category', isPolicyDoc ? 'policy' : 'knowledge');
 
     try {
-      await axios.post(`${API}/documents/global/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      await axios.post(`${API}/documents/global/upload`, formData);
 
       setUploadComplete(true);
 
