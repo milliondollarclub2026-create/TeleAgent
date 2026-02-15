@@ -142,15 +142,15 @@ const getChannelInfo = (channel) => {
   return channels[channel] || { name: channel, color: 'bg-slate-100 text-slate-600 hover:bg-slate-100 cursor-default' };
 };
 
-// Prebuilt AI Employees with Uzbek market personalities
+// Prebuilt AI Employees — specialized team leads
 // Each has unique orb colors: [primary, secondary, tertiary]
 const prebuiltEmployees = [
   {
     id: 'prebuilt-sales',
     name: 'Jasur',
-    role: 'the Sales Agent',
-    description: 'Jasur handles customer conversations on Telegram, qualifies leads based on purchase intent, collects contact information, and never misses a sales opportunity. He speaks Uzbek and Russian fluently.',
-    integrations: ['telegram', 'bitrix', 'sheets'], // Multiple integrations
+    role: 'the Sales Team Lead',
+    description: 'Jasur leads your sales team across Telegram and Instagram. Qualifies leads, collects contact information, and never lets a sales opportunity slip. Fluent in 20+ languages.',
+    integrations: ['telegram', 'instagram', 'bitrix', 'sheets'], // Multiple integrations
     type: 'sales',
     // Emerald/teal gradient - sales = growth = green
     orbColors: ['#10b981', '#059669', '#14b8a6']
@@ -158,8 +158,8 @@ const prebuiltEmployees = [
   {
     id: 'prebuilt-onboarding',
     name: 'Nilufar',
-    role: 'the Onboarding Agent',
-    description: 'Nilufar streamlines your hiring process by creating detailed application forms with personality assessments and IQ tests. She helps you find the best candidates for your sales department automatically.',
+    role: 'the Onboarding Team Lead',
+    description: 'Nilufar streamlines your hiring process by creating detailed application forms with personality assessments and screening tests. She finds the best candidates for your sales department automatically.',
     integrations: [], // No integrations shown
     type: 'onboarding',
     // Blue/violet gradient - HR = professional = blue
@@ -168,9 +168,9 @@ const prebuiltEmployees = [
   {
     id: 'prebuilt-analytics',
     name: 'Bobur',
-    role: 'the Analytics Engineer',
-    description: 'Bobur connects to your Bitrix24 CRM to analyze leads, visualize conversion rates, and generate insightful charts. He turns your raw sales data into actionable intelligence with beautiful plots.',
-    integrations: ['bitrix', 'sheets'], // Bitrix + Google Sheets
+    role: 'the Analytics Team Lead',
+    description: 'Bobur connects to your CRM to analyze leads, visualize conversion rates, and generate insightful charts. He turns your raw sales data into actionable intelligence with beautiful plots.',
+    integrations: ['bitrix', 'sheets'], // CRM + Google Sheets
     type: 'analytics',
     // Orange/amber gradient - matches Bitrix24 brand
     orbColors: ['#f97316', '#ea580c', '#f59e0b']

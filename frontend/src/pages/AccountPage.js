@@ -158,7 +158,7 @@ export default function AccountPage() {
               </div>
               <div className="text-left">
                 <p className="text-[13px] font-medium text-slate-900">Connections</p>
-                <p className="text-[12px] text-slate-500">Telegram, Bitrix24, Google Sheets</p>
+                <p className="text-[12px] text-slate-500">Telegram, Instagram, CRM, Google Sheets</p>
               </div>
             </div>
             <ChevronRight className="w-4 h-4 text-slate-400" strokeWidth={1.75} />

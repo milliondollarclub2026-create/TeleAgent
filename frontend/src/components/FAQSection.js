@@ -13,19 +13,19 @@ const faqData = [
     id: 'faq-1',
     question: 'How does the AI sales agent work?',
     answer:
-      "LeadRelay gives you a team of AI employees, each specialized for a different role. Your Sales Agent handles customer conversations and qualifies leads on Telegram. Your Knowledge Specialist answers product questions from your uploaded materials. Your CRM Analyst gives you conversational access to your Bitrix24 data. Each one is trained on your specific business information and speaks Uzbek, Russian, and English.",
+      "LeadRelay gives you a team of AI employees, each specialized for a different role. Your Sales Team Lead handles customer conversations and qualifies leads across Telegram and Instagram. Your Knowledge Specialist answers product questions from your uploaded materials. Your Analytics Team Lead gives you conversational access to your CRM data. Each one is trained on your specific business information and speaks 20+ languages.",
   },
   {
     id: 'faq-2',
     question: 'What languages does LeadRelay support?',
     answer:
-      "LeadRelay supports Uzbek, Russian, and English. The AI automatically detects the customer's language and responds naturally in their preferred language, switching seamlessly if the conversation changes.",
+      "LeadRelay supports 20+ languages including English, Spanish, Arabic, Russian, French, and more. The AI automatically detects the customer's language and responds naturally in their preferred language, switching seamlessly if the conversation changes.",
   },
   {
     id: 'faq-3',
-    question: 'How does the Bitrix24 integration work?',
+    question: 'How does the CRM integration work?',
     answer:
-      'LeadRelay syncs in real time with your Bitrix24 CRM. All leads, conversations, and customer data are automatically logged and updated, keeping your sales pipeline organized without any manual work.',
+      'LeadRelay syncs in real time with your CRM — supporting HubSpot, Bitrix24, Zoho, and Freshsales. All leads, conversations, and customer data are automatically logged and updated, keeping your sales pipeline organized without any manual work.',
   },
   {
     id: 'faq-4',

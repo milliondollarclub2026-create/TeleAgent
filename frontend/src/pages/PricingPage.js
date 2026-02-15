@@ -63,7 +63,7 @@ export default function PricingPage() {
       icon: Users,
       title: '3 Specialized AI Agents',
       description:
-        'Jasur handles sales, Nilufar answers questions in three languages, and Bobur keeps your CRM in sync. Each agent is trained on your business.',
+        'Jasur leads sales, Nilufar handles onboarding, and Bobur keeps your CRM in sync. Each team lead is trained on your business.',
     },
     {
       icon: MessageSquare,
@@ -73,9 +73,9 @@ export default function PricingPage() {
     },
     {
       icon: Database,
-      title: 'Bitrix24 CRM Integration',
+      title: 'CRM Integration',
       description:
-        'Two-way sync for leads, deals, contacts, and products. Qualified leads flow into your pipeline automatically.',
+        'Two-way sync with HubSpot, Bitrix24, Zoho, and Freshsales. Qualified leads flow into your pipeline automatically.',
     },
     {
       icon: FileText,
@@ -87,7 +87,7 @@ export default function PricingPage() {
       icon: Globe,
       title: 'Multi-Language Support',
       description:
-        "Fluent in Uzbek, Russian, and English. Auto-detects and responds in the customer's language.",
+        "Fluent in 20+ languages. Auto-detects and responds in the customer's language.",
     },
     {
       icon: Zap,

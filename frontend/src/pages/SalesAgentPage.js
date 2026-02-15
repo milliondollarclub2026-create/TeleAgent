@@ -81,7 +81,7 @@ const SalesAgentPage = () => {
     <div className="space-y-5 animate-fade-in" data-testid="sales-agent-page">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900">Sales Agent</h1>
+          <h1 className="text-xl font-bold font-['Plus_Jakarta_Sans'] text-slate-900">Sales Team Lead</h1>
           <p className="text-slate-500 text-sm mt-0.5">Configure your AI sales agent behavior and personality</p>
         </div>
         <Button 
@@ -272,7 +272,7 @@ const SalesAgentPage = () => {
           </CardHeader>
           <CardContent>
             <Textarea
-              placeholder="Assalomu alaykum! Men sizga qanday yordam bera olaman? / Здравствуйте! Чем могу помочь? / Hello! How can I help you?"
+              placeholder="Hello! How can I help you today?"
               value={config.greeting_message || ''}
               onChange={(e) => handleChange('greeting_message', e.target.value)}
               rows={3}
@@ -280,7 +280,7 @@ const SalesAgentPage = () => {
               data-testid="greeting-message-input"
             />
             <p className="text-xs text-slate-500 mt-2">
-              Leave empty to use the default trilingual greeting (Uzbek, Russian, English)
+              Leave empty to use the default multilingual greeting
             </p>
           </CardContent>
         </Card>

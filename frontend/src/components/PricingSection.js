@@ -10,22 +10,22 @@ const agents = [
   {
     id: 'jasur',
     name: 'Jasur',
-    role: 'Sales Agent',
-    desc: 'Qualifies leads and collects contacts on Telegram around the clock.',
+    role: 'Sales Team Lead',
+    desc: 'Leads your sales across Telegram and Instagram around the clock.',
     orbColors: ['#10b981', '#059669', '#14b8a6'],
   },
   {
     id: 'nilufar',
     name: 'Nilufar',
-    role: 'Onboarding Agent',
+    role: 'Onboarding Team Lead',
     desc: 'Streamlines hiring with application forms, assessments, and auto-screening.',
     orbColors: ['#6366f1', '#8b5cf6', '#3b82f6'],
   },
   {
     id: 'bobur',
     name: 'Bobur',
-    role: 'Analytics Engineer',
-    desc: 'Connects to Bitrix24 to analyze leads and generate insightful charts.',
+    role: 'Analytics Team Lead',
+    desc: 'Connects to your CRM to analyze leads and generate insightful charts.',
     orbColors: ['#f97316', '#ea580c', '#f59e0b'],
   },
 ];

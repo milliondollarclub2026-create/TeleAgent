@@ -76,7 +76,7 @@ export default function PremiumHero({ heroVisible, handleCTA, scrollToSection, h
               }`}
               style={{ transitionDelay: '160ms' }}
             >
-              Deploy intelligent sales agents on Telegram that qualify leads, answer questions, and convert prospects around the clock. Integrated with Bitrix24 CRM.
+              Deploy intelligent sales agents across Telegram and Instagram that qualify leads, answer questions, and convert prospects around the clock. Integrated with your CRM.
             </p>
 
             {/* Premium CTA Buttons */}
@@ -211,8 +211,8 @@ export default function PremiumHero({ heroVisible, handleCTA, scrollToSection, h
                       <p className="text-slate-700 text-sm leading-relaxed mb-3">Great question! Three key advantages:</p>
                       <div className="space-y-2">
                         {[
-                          { num: '1', text: 'Native Bitrix24 integration' },
-                          { num: '2', text: 'Multi-language (UZ/RU/EN)' },
+                          { num: '1', text: 'Native CRM integration' },
+                          { num: '2', text: 'Multi-language (20+ languages)' },
                           { num: '3', text: 'Custom knowledge training' }
                         ].map((item, i) => (
                           <div key={i} className="flex items-center gap-2 hero-list-item" style={{ animationDelay: `${1200 + i * 100}ms` }}>

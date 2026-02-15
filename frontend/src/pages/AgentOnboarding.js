@@ -37,7 +37,7 @@ const JASUR_COLORS = ['#10b981', '#059669', '#14b8a6'];
 const PREBUILT_INFO = {
   sales: {
     name: 'Jasur',
-    role: 'the Sales Agent',
+    role: 'the Sales Team Lead',
     colors: ['#10b981', '#059669', '#14b8a6']
   }
 };
@@ -134,8 +134,8 @@ const AgentOnboarding = () => {
         agent_tone: 'friendly_professional',
         collect_phone: true,
         collect_name: true,
-        primary_language: 'uz',
-        secondary_languages: ['ru', 'en'],
+        primary_language: 'en',
+        secondary_languages: ['es', 'fr'],
       };
 
       // If this is a prebuilt agent (e.g., Jasur), store the type
@@ -320,7 +320,7 @@ const AgentOnboarding = () => {
                       </Label>
                       <Input
                         id="businessName"
-                        placeholder="e.g., TechStore Uzbekistan"
+                        placeholder="e.g., Acme Corp"
                         value={businessInfo.name}
                         onChange={(e) => setBusinessInfo(prev => ({ ...prev, name: e.target.value }))}
                         className="h-10 border-slate-200"

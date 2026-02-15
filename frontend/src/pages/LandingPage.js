@@ -39,9 +39,9 @@ function CRMChatSection() {
   const revenueResponseText = "This week's total:";
 
   const productData = [
-    { rank: 1, name: 'Tiramisu Cake', orders: 45, growth: '+12%' },
-    { rank: 2, name: 'Napoleon', orders: 32, growth: '+8%' },
-    { rank: 3, name: 'Medovik', orders: 28, growth: '+15%' }
+    { rank: 1, name: 'Wireless Earbuds Pro', orders: 45, growth: '+12%' },
+    { rank: 2, name: 'Smart Watch Ultra', orders: 32, growth: '+8%' },
+    { rank: 3, name: 'Leather Crossbody Bag', orders: 28, growth: '+15%' }
   ];
 
   useEffect(() => {
@@ -152,14 +152,14 @@ function CRMChatSection() {
             </h2>
 
             <p className="text-slate-500 text-lg leading-relaxed mb-8">
-              Revenue this week? Top-selling product? Best leads? Type it in plain language — Uzbek, Russian, or English — and get answers from your Bitrix24 data instantly.
+              Revenue this week? Top-selling product? Best leads? Type it in plain language and get answers from your CRM data instantly.
             </p>
 
             <ul className="space-y-4">
               {[
                 { text: 'Plain language queries in any language', icon: MessageSquare },
-                { text: 'Live Bitrix24 data, always current', icon: BarChart3 },
-                { text: 'Works in Uzbek, Russian, and English', icon: Globe }
+                { text: 'Live CRM data, always current', icon: BarChart3 },
+                { text: 'Works in 20+ languages', icon: Globe }
               ].map((item, i) => (
                 <li
                   key={i}
@@ -182,7 +182,7 @@ function CRMChatSection() {
                   <AiOrb size={40} colors={['#f97316', '#ea580c', '#f59e0b']} />
                   <div>
                     <span className="font-semibold text-slate-900 text-sm block">Bobur</span>
-                    <span className="text-xs text-slate-400">Analytics Engineer</span>
+                    <span className="text-xs text-slate-400">Analytics Team Lead</span>
                   </div>
                 </div>
 
@@ -577,27 +577,27 @@ export default function LandingPage() {
             {[
               {
                 name: 'Jasur',
-                role: 'Sales Agent',
+                role: 'Sales Team Lead',
                 roleColor: 'text-emerald-600',
                 orbColors: ['#10b981', '#059669', '#14b8a6'],
-                desc: 'Handles customer conversations on Telegram, qualifies leads based on purchase intent, collects contact information, and never misses a sales opportunity. Speaks Uzbek and Russian fluently.',
-                tags: ['Telegram', 'Lead Gen', 'Multilingual'],
+                desc: 'Leads your sales team across Telegram and Instagram. Qualifies leads, collects contact information, and never lets a sales opportunity slip. Fluent in 20+ languages.',
+                tags: ['Telegram', 'Instagram', 'Lead Gen', 'Multilingual'],
               },
               {
                 name: 'Nilufar',
-                role: 'Onboarding Agent',
+                role: 'Onboarding Team Lead',
                 roleColor: 'text-indigo-600',
                 orbColors: ['#6366f1', '#8b5cf6', '#3b82f6'],
-                desc: 'Streamlines your hiring process by creating detailed application forms with personality assessments and IQ tests. Helps you find the best candidates for your sales department automatically.',
+                desc: 'Leads your onboarding team by creating detailed application forms with personality assessments and screening tests. Finds the best candidates for your sales department automatically.',
                 tags: ['Telegram', 'HR Forms', 'Screening'],
               },
               {
                 name: 'Bobur',
-                role: 'Analytics Engineer',
+                role: 'Analytics Team Lead',
                 roleColor: 'text-orange-600',
                 orbColors: ['#f97316', '#ea580c', '#f59e0b'],
-                desc: 'Connects to your Bitrix24 CRM to analyze leads, visualize conversion rates, and generate insightful charts. Turns your raw sales data into actionable intelligence.',
-                tags: ['Bitrix24', 'Reports', 'Analytics'],
+                desc: 'Connects to your CRM to analyze leads, visualize conversion rates, and generate insightful charts. Turns your raw sales data into actionable intelligence.',
+                tags: ['CRM', 'Reports', 'Analytics'],
               },
             ].map((agent) => (
               <div
@@ -688,7 +688,7 @@ export default function LandingPage() {
               {
                 step: 2,
                 title: 'Connect your tools',
-                description: 'Paste your Telegram bot token, link Bitrix24, and upload your product docs. Your AI team reads everything and starts learning your business.',
+                description: 'Connect your Telegram bot, link your CRM, and upload your product docs. Your AI team reads everything and starts learning your business.',
               },
               {
                 step: 3,
@@ -859,7 +859,7 @@ export default function LandingPage() {
                   </span>
                 </Link>
                 <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-8">
-                  AI sales agents that qualify leads, close deals, and keep your CRM accurate — 24 hours a day, 7 days a week. Built for businesses across Uzbekistan and the CIS.
+                  AI sales agents that qualify leads, close deals, and keep your CRM accurate — 24 hours a day, 7 days a week. Built for businesses worldwide.
                 </p>
 
                 {/* Social */}

@@ -35,7 +35,7 @@ const CHAT_STORAGE_KEY = 'analytics_chat_history';
 const PENDING_QUESTION_KEY = 'analytics_pending_question';
 
 // Bobur's intro message - always shown first
-const INTRO_MESSAGE = "Hi! I'm Bobur, your Analytics Engineer. I can analyze your CRM data, visualize conversion rates with charts, and turn your sales pipeline into actionable insights. What would you like to explore?";
+const INTRO_MESSAGE = "Hi! I'm Bobur, your Analytics Team Lead. I can analyze your CRM data, visualize conversion rates with charts, and turn your sales pipeline into actionable insights. What would you like to explore?";
 
 // Bitrix24 icon component
 const BitrixIcon = ({ className }) => (
@@ -181,7 +181,7 @@ export default function CRMChatPage() {
         // No pending question - show generic connected message
         const connectedMsg = {
           role: 'assistant',
-          text: "Great! Your Bitrix24 CRM is now connected. I can now access your leads and sales data. How can I help you today?",
+          text: "Great! Your CRM is now connected. I can now access your leads and sales data. How can I help you today?",
           isWelcomeBack: true
         };
         loadedMessages = [...loadedMessages, connectedMsg];
@@ -409,7 +409,7 @@ export default function CRMChatPage() {
           />
           <div className="text-center">
             <h1 className="text-[14px] font-semibold text-slate-900 leading-tight">Bobur</h1>
-            <p className="text-[10px] text-slate-400 font-medium">Analytics Engineer</p>
+            <p className="text-[10px] text-slate-400 font-medium">Analytics Team Lead</p>
           </div>
         </div>
 
@@ -462,14 +462,14 @@ export default function CRMChatPage() {
                       Let's get connected!
                     </p>
                     <p className="text-[14px] text-slate-500 mb-4 leading-relaxed">
-                      To access your CRM data and help you manage leads, I need to connect to your Bitrix24 account. This takes less than a minute.
+                      To access your CRM data and help you manage leads, I need to connect to your CRM account. This takes less than a minute.
                     </p>
                     <Button
                       onClick={handleConnectCRM}
                       className="bg-[#FF5722] hover:bg-[#E64A19] text-white h-10 px-4 text-[14px] font-medium gap-2 shadow-sm"
                     >
                       <BitrixIcon className="w-4 h-4" />
-                      Connect Bitrix24
+                      Connect CRM
                       <ExternalLink className="w-3.5 h-3.5 ml-1 opacity-70" strokeWidth={2} />
                     </Button>
                   </div>
