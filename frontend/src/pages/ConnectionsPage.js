@@ -26,6 +26,28 @@ const InstagramIcon = ({ className }) => (
     <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
   </svg>
 );
+
+// HubSpot icon
+const HubSpotIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.16 5.67V3.39a1.7 1.7 0 0 0 1-1.55 1.7 1.7 0 0 0-1.71-1.71 1.7 1.7 0 0 0-1.71 1.71c0 .67.4 1.25.97 1.52v2.31a5.07 5.07 0 0 0-2.54 1.35l-6.7-5.22a2.04 2.04 0 0 0 .06-.47A2.06 2.06 0 0 0 5.47 0a2.06 2.06 0 0 0-2.06 2.06 2.06 2.06 0 0 0 2.06 2.06c.47 0 .9-.16 1.26-.42l6.58 5.12a5.1 5.1 0 0 0-.56 2.32 5.1 5.1 0 0 0 .7 2.57l-2.13 2.13a1.64 1.64 0 0 0-.48-.08 1.65 1.65 0 0 0-1.65 1.65 1.65 1.65 0 0 0 1.65 1.65 1.65 1.65 0 0 0 1.65-1.65c0-.17-.03-.33-.08-.48l2.1-2.1a5.12 5.12 0 1 0 3.64-8.76zm-.71 7.67a2.57 2.57 0 0 1-2.57-2.57 2.57 2.57 0 0 1 2.57-2.57 2.57 2.57 0 0 1 2.57 2.57 2.57 2.57 0 0 1-2.57 2.57z" />
+  </svg>
+);
+
+// Zoho icon
+const ZohoIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M5.6 9.6L1.2 17.4H6l4.4-7.8H5.6zM14 6.6l-5 10.8h4.2l5-10.8H14zM19.6 2.4l-2.8 6h3.6l2.8-6h-3.6z" />
+  </svg>
+);
+
+// Freshsales icon
+const FreshsalesIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15.5v-3.07c-1.64-.34-3-1.47-3.62-3.07L9.2 10.5c.44 1.3 1.57 2.25 2.8 2.45V8.83c-1.89-.42-3-1.65-3-3.33 0-1.8 1.49-3.25 3.43-3.25.32 0 .63.04.93.11l-.36 1.72c-.18-.04-.37-.06-.57-.06-.93 0-1.68.6-1.68 1.42 0 .83.69 1.34 1.75 1.59V2.5H13v4.35c1.49.42 2.5 1.6 2.5 3.15 0 1.9-1.37 3.3-3.5 3.68v3.82H11zm2-6.5c0-.93-.63-1.55-1.5-1.82v3.57c.98-.25 1.5-.93 1.5-1.75z" />
+  </svg>
+);
+
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -54,6 +76,11 @@ const ConnectionsPage = () => {
   // Google Sheets state
   const [gSheetsStatus, setGSheetsStatus] = useState({ connected: false });
 
+  // New CRM states
+  const [hubspotStatus, setHubspotStatus] = useState({ connected: false });
+  const [zohoStatus, setZohoStatus] = useState({ connected: false });
+  const [freshsalesStatus, setFreshsalesStatus] = useState({ connected: false });
+
   // Helper to get the correct path (works with or without agentId)
   const getConnectionPath = (service) => {
     if (agentId) {
@@ -81,6 +108,9 @@ const ConnectionsPage = () => {
     fetchIntegrations();
     fetchBitrixStatus();
     fetchGSheetsStatus();
+    fetchHubspotStatus();
+    fetchZohoStatus();
+    fetchFreshsalesStatus();
   }, []);
 
   const fetchIntegrations = async () => {
@@ -111,6 +141,33 @@ const ConnectionsPage = () => {
       setGSheetsStatus(response.data);
     } catch (error) {
       console.error('Failed to fetch Google Sheets status:', error);
+    }
+  };
+
+  const fetchHubspotStatus = async () => {
+    try {
+      const response = await axios.get(`${API}/hubspot/status`);
+      setHubspotStatus(response.data);
+    } catch (error) {
+      console.error('Failed to fetch HubSpot status:', error);
+    }
+  };
+
+  const fetchZohoStatus = async () => {
+    try {
+      const response = await axios.get(`${API}/zoho/status`);
+      setZohoStatus(response.data);
+    } catch (error) {
+      console.error('Failed to fetch Zoho status:', error);
+    }
+  };
+
+  const fetchFreshsalesStatus = async () => {
+    try {
+      const response = await axios.get(`${API}/freshsales/status`);
+      setFreshsalesStatus(response.data);
+    } catch (error) {
+      console.error('Failed to fetch Freshsales status:', error);
     }
   };
 
@@ -380,6 +437,174 @@ const ConnectionsPage = () => {
                   className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('google-sheets'))}
                   data-testid="setup-gsheets-btn"
+                >
+                  Connect
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* HubSpot CRM Card */}
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="hubspot-connection">
+          <div className="p-5">
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                  <HubSpotIcon className="w-5 h-5 text-[#FF7A59]" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 text-sm">HubSpot CRM</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Contacts, deals & pipelines</p>
+                </div>
+              </div>
+              <StatusDot connected={hubspotStatus?.connected} />
+            </div>
+
+            {hubspotStatus?.connected ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                    <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900">CRM Connected</p>
+                    {hubspotStatus.connected_at && (
+                      <p className="text-xs text-slate-500">
+                        Since {new Date(hubspotStatus.connected_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs border-slate-200"
+                  onClick={() => navigate(getConnectionPath('hubspot'))}
+                >
+                  Manage
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-[13px] text-slate-500">
+                  Sync contacts and deals with HubSpot
+                </p>
+                <Button
+                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  onClick={() => navigate(getConnectionPath('hubspot'))}
+                >
+                  Connect
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Zoho CRM Card */}
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="zoho-connection">
+          <div className="p-5">
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                  <ZohoIcon className="w-5 h-5 text-[#E42527]" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 text-sm">Zoho CRM</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Leads, contacts & deals</p>
+                </div>
+              </div>
+              <StatusDot connected={zohoStatus?.connected} />
+            </div>
+
+            {zohoStatus?.connected ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                    <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900">CRM Connected</p>
+                    {zohoStatus.connected_at && (
+                      <p className="text-xs text-slate-500">
+                        Since {new Date(zohoStatus.connected_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs border-slate-200"
+                  onClick={() => navigate(getConnectionPath('zoho'))}
+                >
+                  Manage
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-[13px] text-slate-500">
+                  Sync leads and contacts with Zoho CRM
+                </p>
+                <Button
+                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  onClick={() => navigate(getConnectionPath('zoho'))}
+                >
+                  Connect
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Freshsales Card */}
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="freshsales-connection">
+          <div className="p-5">
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                  <FreshsalesIcon className="w-5 h-5 text-[#F26522]" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 text-sm">Freshsales</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Contacts & deal tracking</p>
+                </div>
+              </div>
+              <StatusDot connected={freshsalesStatus?.connected} />
+            </div>
+
+            {freshsalesStatus?.connected ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                    <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900">CRM Connected</p>
+                    {freshsalesStatus.connected_at && (
+                      <p className="text-xs text-slate-500">
+                        Since {new Date(freshsalesStatus.connected_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs border-slate-200"
+                  onClick={() => navigate(getConnectionPath('freshsales'))}
+                >
+                  Manage
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-[13px] text-slate-500">
+                  Connect your Freshsales account for deal tracking
+                </p>
+                <Button
+                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  onClick={() => navigate(getConnectionPath('freshsales'))}
                 >
                   Connect
                 </Button>

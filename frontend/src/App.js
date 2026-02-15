@@ -29,6 +29,9 @@ import GoogleSheetsSetupPage from "./pages/GoogleSheetsSetupPage";
 import TelegramSetupPage from "./pages/TelegramSetupPage";
 import InstagramSetupPage from "./pages/InstagramSetupPage";
 import BitrixSetupPage from "./pages/BitrixSetupPage";
+import HubSpotSetupPage from "./pages/HubSpotSetupPage";
+import ZohoSetupPage from "./pages/ZohoSetupPage";
+import FreshsalesSetupPage from "./pages/FreshsalesSetupPage";
 import SalesAgentPage from "./pages/SalesAgentPage";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
 import GlobalKnowledgeBasePage from "./pages/GlobalKnowledgeBasePage";
@@ -100,6 +103,9 @@ function AppRoutes() {
         <Route path="agents/:agentId/connections/telegram" element={<TelegramSetupPage />} />
         <Route path="agents/:agentId/connections/instagram" element={<InstagramSetupPage />} />
         <Route path="agents/:agentId/connections/bitrix" element={<BitrixSetupPage />} />
+        <Route path="agents/:agentId/connections/hubspot" element={<HubSpotSetupPage />} />
+        <Route path="agents/:agentId/connections/zoho" element={<ZohoSetupPage />} />
+        <Route path="agents/:agentId/connections/freshsales" element={<FreshsalesSetupPage />} />
         <Route path="agents/:agentId/leads" element={<AgentLeadsPage />} />
         <Route path="agents/:agentId/dialogue" element={<AgentDialoguePage />} />
         <Route path="agents/:agentId/dialogue/:customerId" element={<AgentDialoguePage />} />
@@ -118,6 +124,9 @@ function AppRoutes() {
         <Route path="connections/telegram" element={<TelegramSetupPage />} />
         <Route path="connections/instagram" element={<InstagramSetupPage />} />
         <Route path="connections/bitrix" element={<BitrixSetupPage />} />
+        <Route path="connections/hubspot" element={<HubSpotSetupPage />} />
+        <Route path="connections/zoho" element={<ZohoSetupPage />} />
+        <Route path="connections/freshsales" element={<FreshsalesSetupPage />} />
         <Route path="connections/google-sheets" element={<GoogleSheetsSetupPage />} />
         {/* Legacy routes kept for backward compatibility */}
         <Route path="sales-agent" element={<SalesAgentPage />} />

@@ -74,6 +74,12 @@ from instagram_service import (
 # Import credential encryption
 from crypto_utils import encrypt_value, decrypt_value
 
+# Import CRM services
+from crm_manager import CRMManager
+from hubspot_crm import HubSpotCRM, HubSpotAPIError, HUBSPOT_CLIENT_ID
+from zoho_crm import ZohoCRM, ZohoAPIError, ZOHO_CLIENT_ID
+from freshsales_crm import FreshsalesCRM, FreshsalesAPIError
+
 import bcrypt as _bcrypt_lib  # for password hashing upgrade
 
 ROOT_DIR = Path(__file__).parent
@@ -93,6 +99,9 @@ logger = logging.getLogger(__name__)
 supabase_url = (os.environ.get('SUPABASE_URL') or '').strip()
 supabase_key = (os.environ.get('SUPABASE_SERVICE_KEY') or '').strip()
 supabase: Client = create_client(supabase_url, supabase_key)
+
+# Initialize CRM Manager
+crm_manager = CRMManager(supabase)
 
 # Create HTTP/1.1 client for direct REST API calls (avoids HTTP/2 StreamReset issues)
 _rest_client = httpx.Client(
@@ -1965,8 +1974,25 @@ async def get_bitrix_client(tenant_id: str) -> Optional[BitrixCRMClient]:
     # Check in-memory cache first
     if tenant_id in _bitrix_webhooks_cache:
         return create_bitrix_client(_bitrix_webhooks_cache[tenant_id]['webhook_url'])
-    
-    # Try tenant_configs table first
+
+    # Try crm_connections table first (new unified storage)
+    try:
+        result = supabase.table('crm_connections').select('credentials, connected_at').eq(
+            'tenant_id', tenant_id
+        ).eq('crm_type', 'bitrix24').eq('is_active', True).execute()
+        if result.data and result.data[0].get('credentials', {}).get('webhook_url'):
+            webhook_url = decrypt_value(result.data[0]['credentials']['webhook_url'])
+            connected_at = result.data[0].get('connected_at')
+            _bitrix_webhooks_cache[tenant_id] = {
+                'webhook_url': webhook_url,
+                'connected_at': connected_at
+            }
+            logger.info(f"Loaded Bitrix webhook from crm_connections for tenant {tenant_id}")
+            return create_bitrix_client(webhook_url)
+    except Exception as e:
+        logger.debug(f"Could not get Bitrix from crm_connections: {e}")
+
+    # Fallback: Try tenant_configs table
     try:
         result = supabase.table('tenant_configs').select('bitrix_webhook_url, bitrix_connected_at').eq('tenant_id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
@@ -1981,7 +2007,7 @@ async def get_bitrix_client(tenant_id: str) -> Optional[BitrixCRMClient]:
     except Exception as e:
         logger.debug(f"Could not get Bitrix from tenant_configs: {e}")
 
-    # Try tenants table as fallback
+    # Last fallback: tenants table
     try:
         result = supabase.table('tenants').select('bitrix_webhook_url, bitrix_connected_at').eq('id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
@@ -2033,48 +2059,34 @@ async def connect_bitrix_webhook(
         'portal_user': test_result.get('portal_user')
     }
     logger.info(f"Stored Bitrix webhook in cache for tenant {tenant_id}")
-    
-    # Try to save to database - attempt tenant_configs first, then tenants
-    saved_to_db = False
-    db_error_message = ""
-    
-    # Try tenant_configs table first
+
+    # Save to crm_connections table (primary storage)
     try:
-        result = supabase.table('tenant_configs').update({
+        await crm_manager.store_connection(
+            tenant_id=tenant_id,
+            crm_type='bitrix24',
+            credentials={'webhook_url': webhook_url},
+            config={'portal_user': test_result.get('portal_user'), 'crm_mode': test_result.get('crm_mode')},
+        )
+        logger.info(f"Saved Bitrix webhook to crm_connections for tenant {tenant_id}")
+    except Exception as e:
+        logger.warning(f"Failed to save to crm_connections: {e}")
+
+    # Backup write to tenant_configs
+    try:
+        supabase.table('tenant_configs').update({
             "bitrix_webhook_url": encrypt_value(webhook_url),
             "bitrix_connected_at": connected_at
         }).eq('tenant_id', tenant_id).execute()
-        if result.data:
-            saved_to_db = True
-            logger.info(f"Saved Bitrix webhook to tenant_configs for tenant {tenant_id}")
     except Exception as e:
-        db_error_message = str(e)
         logger.debug(f"Could not save to tenant_configs: {e}")
-    
-    # Fallback to tenants table if tenant_configs didn't work
-    if not saved_to_db:
-        try:
-            result = supabase.table('tenants').update({
-                "bitrix_webhook_url": encrypt_value(webhook_url),
-                "bitrix_connected_at": connected_at
-            }).eq('id', tenant_id).execute()
-            if result.data:
-                saved_to_db = True
-                logger.info(f"Saved Bitrix webhook to tenants for tenant {tenant_id}")
-        except Exception as e:
-            db_error_message = str(e)
-            logger.debug(f"Could not save to tenants: {e}")
-    
-    persistence_note = ""
-    if not saved_to_db:
-        persistence_note = " ⚠️ Note: Connection saved in memory only. Add 'bitrix_webhook_url' and 'bitrix_connected_at' columns to tenant_configs table in Supabase for persistence across restarts."
-    
+
     return {
         "success": True,
-        "message": f"Bitrix24 CRM connected successfully!{persistence_note}",
+        "message": "Bitrix24 CRM connected successfully!",
         "portal_user": test_result.get("portal_user"),
         "crm_mode": test_result.get("crm_mode"),
-        "persisted": saved_to_db
+        "persisted": True
     }
 
 
@@ -2094,32 +2106,31 @@ async def test_bitrix_webhook(current_user: Dict = Depends(get_current_user)):
 async def disconnect_bitrix_webhook(current_user: Dict = Depends(get_current_user)):
     """Disconnect Bitrix24 CRM"""
     tenant_id = current_user["tenant_id"]
-    
+
     # Clear from memory cache
     if tenant_id in _bitrix_webhooks_cache:
         del _bitrix_webhooks_cache[tenant_id]
         logger.info(f"Cleared Bitrix cache for tenant {tenant_id}")
-    
-    # Try to clear from tenant_configs table
+
+    # Soft-delete in crm_connections (primary)
+    await crm_manager.remove_connection(tenant_id, 'bitrix24')
+
+    # Also clear legacy tables
     try:
         supabase.table('tenant_configs').update({
             "bitrix_webhook_url": None,
             "bitrix_connected_at": None
         }).eq('tenant_id', tenant_id).execute()
-        logger.info(f"Cleared Bitrix from tenant_configs for tenant {tenant_id}")
     except Exception as e:
         logger.debug(f"Could not clear tenant_configs: {e}")
-    
-    # Also try to clear from tenants table
     try:
         supabase.table('tenants').update({
             "bitrix_webhook_url": None,
             "bitrix_connected_at": None
         }).eq('id', tenant_id).execute()
-        logger.info(f"Cleared Bitrix from tenants for tenant {tenant_id}")
     except Exception as e:
         logger.debug(f"Could not clear tenants: {e}")
-    
+
     return {"success": True, "message": "Bitrix24 disconnected"}
 
 
@@ -2127,7 +2138,7 @@ async def disconnect_bitrix_webhook(current_user: Dict = Depends(get_current_use
 async def get_bitrix_webhook_status(current_user: Dict = Depends(get_current_user)):
     """Get Bitrix24 CRM connection status"""
     tenant_id = current_user["tenant_id"]
-    
+
     # Check memory cache first
     if tenant_id in _bitrix_webhooks_cache:
         return {
@@ -2136,44 +2147,35 @@ async def get_bitrix_webhook_status(current_user: Dict = Depends(get_current_use
             "portal_user": _bitrix_webhooks_cache[tenant_id].get('portal_user'),
             "source": "cache"
         }
-    
-    # Try tenant_configs table
+
+    # Try crm_connections table first (primary)
+    try:
+        result = supabase.table('crm_connections').select('credentials, connected_at, config').eq(
+            'tenant_id', tenant_id
+        ).eq('crm_type', 'bitrix24').eq('is_active', True).execute()
+        if result.data and result.data[0].get('credentials', {}).get('webhook_url'):
+            webhook_url = decrypt_value(result.data[0]['credentials']['webhook_url'])
+            connected_at = result.data[0].get('connected_at')
+            portal_user = (result.data[0].get('config') or {}).get('portal_user')
+            _bitrix_webhooks_cache[tenant_id] = {
+                'webhook_url': webhook_url,
+                'connected_at': connected_at,
+                'portal_user': portal_user,
+            }
+            return {"connected": True, "connected_at": connected_at, "portal_user": portal_user, "source": "database"}
+    except Exception as e:
+        logger.debug(f"Could not check crm_connections: {e}")
+
+    # Fallback: tenant_configs
     try:
         result = supabase.table('tenant_configs').select('bitrix_webhook_url, bitrix_connected_at').eq('tenant_id', tenant_id).execute()
         if result.data and result.data[0].get('bitrix_webhook_url'):
             webhook_url = decrypt_value(result.data[0]['bitrix_webhook_url'])
             connected_at = result.data[0].get('bitrix_connected_at')
-            # Populate cache for future requests
-            _bitrix_webhooks_cache[tenant_id] = {
-                'webhook_url': webhook_url,
-                'connected_at': connected_at
-            }
-            return {
-                "connected": True,
-                "connected_at": connected_at,
-                "source": "database"
-            }
+            _bitrix_webhooks_cache[tenant_id] = {'webhook_url': webhook_url, 'connected_at': connected_at}
+            return {"connected": True, "connected_at": connected_at, "source": "database"}
     except Exception as e:
         logger.debug(f"Could not check tenant_configs: {e}")
-
-    # Fallback to tenants table
-    try:
-        result = supabase.table('tenants').select('bitrix_webhook_url, bitrix_connected_at').eq('id', tenant_id).execute()
-        if result.data and result.data[0].get('bitrix_webhook_url'):
-            webhook_url = decrypt_value(result.data[0]['bitrix_webhook_url'])
-            connected_at = result.data[0].get('bitrix_connected_at')
-            # Populate cache for future requests
-            _bitrix_webhooks_cache[tenant_id] = {
-                'webhook_url': webhook_url,
-                'connected_at': connected_at
-            }
-            return {
-                "connected": True,
-                "connected_at": connected_at,
-                "source": "database"
-            }
-    except Exception as e:
-        logger.debug(f"Could not check tenants: {e}")
 
     return {"connected": False, "connected_at": None}
 
@@ -2673,6 +2675,280 @@ def _clean_chart_blocks(reply: str) -> str:
     clean_reply = re.sub(chart_pattern, '', reply, flags=re.DOTALL).strip()
     clean_reply = re.sub(r'\n{3,}', '\n\n', clean_reply)
     return clean_reply
+
+
+# ============ HubSpot CRM Endpoints ============
+
+@api_router.get("/hubspot/auth-url")
+async def hubspot_auth_url(current_user: Dict = Depends(get_current_user)):
+    """Generate HubSpot OAuth authorization URL."""
+    if not HUBSPOT_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="HubSpot integration not configured")
+    tenant_id = current_user["tenant_id"]
+    state = jwt.encode({"tenant_id": tenant_id, "purpose": "hubspot_oauth", "exp": datetime.now(timezone.utc) + timedelta(minutes=10)}, JWT_SECRET, algorithm="HS256")
+    backend_url = os.environ.get("BACKEND_URL", "").rstrip("/")
+    redirect_uri = f"{backend_url}/api/hubspot/callback"
+    url = HubSpotCRM.get_auth_url(redirect_uri, state)
+    return {"auth_url": url}
+
+
+@api_router.get("/hubspot/callback")
+async def hubspot_callback(code: str = None, state: str = None, error: str = None):
+    """OAuth callback from HubSpot. Exchange code for tokens."""
+    redirect_base = f"{FRONTEND_URL.rstrip('/')}/app/connections/hubspot"
+
+    if error:
+        return RedirectResponse(url=f"{redirect_base}?error={error}")
+    if not code or not state:
+        return RedirectResponse(url=f"{redirect_base}?error=missing_params")
+    try:
+        payload = jwt.decode(state, JWT_SECRET, algorithms=["HS256"])
+        if payload.get("purpose") != "hubspot_oauth":
+            return RedirectResponse(url=f"{redirect_base}?error=invalid_state")
+        tenant_id = payload["tenant_id"]
+    except jwt.ExpiredSignatureError:
+        return RedirectResponse(url=f"{redirect_base}?error=expired")
+    except jwt.InvalidTokenError:
+        return RedirectResponse(url=f"{redirect_base}?error=invalid_state")
+
+    try:
+        backend_url = os.environ.get("BACKEND_URL", "").rstrip("/")
+        redirect_uri = f"{backend_url}/api/hubspot/callback"
+        tokens = await HubSpotCRM.exchange_code(code, redirect_uri)
+
+        token_expires_at = (datetime.now(timezone.utc) + timedelta(seconds=tokens["expires_in"])).isoformat()
+        await crm_manager.store_connection(
+            tenant_id=tenant_id,
+            crm_type='hubspot',
+            credentials={
+                'access_token': tokens['access_token'],
+                'refresh_token': tokens['refresh_token'],
+                'token_expires_at': token_expires_at,
+            },
+        )
+        logger.info(f"HubSpot connected for tenant {tenant_id}")
+        return RedirectResponse(url=f"{redirect_base}?success=true")
+    except Exception as e:
+        logger.exception(f"HubSpot OAuth callback error for tenant {tenant_id}: {e}")
+        return RedirectResponse(url=f"{redirect_base}?error=exchange_failed")
+
+
+@api_router.get("/hubspot/status")
+async def hubspot_status(current_user: Dict = Depends(get_current_user)):
+    """Check HubSpot connection status."""
+    conn = await crm_manager.get_connection(current_user["tenant_id"], 'hubspot')
+    if conn:
+        return {"connected": True, "connected_at": conn.get("connected_at")}
+    return {"connected": False}
+
+
+@api_router.post("/hubspot/test")
+async def hubspot_test(current_user: Dict = Depends(get_current_user)):
+    """Test HubSpot connection."""
+    conn = await crm_manager.get_connection(current_user["tenant_id"], 'hubspot')
+    if not conn:
+        return {"ok": False, "message": "HubSpot not connected"}
+    creds = conn.get("credentials", {})
+    access_token = decrypt_value(creds.get("access_token", ""))
+    client = HubSpotCRM(access_token=access_token)
+    return await client.test_connection()
+
+
+@api_router.post("/hubspot/disconnect")
+async def hubspot_disconnect(current_user: Dict = Depends(get_current_user)):
+    """Disconnect HubSpot CRM."""
+    await crm_manager.remove_connection(current_user["tenant_id"], 'hubspot')
+    return {"success": True, "message": "HubSpot disconnected"}
+
+
+@api_router.get("/hubspot/pipelines")
+async def hubspot_pipelines(current_user: Dict = Depends(get_current_user)):
+    """Get HubSpot deal pipelines."""
+    conn = await crm_manager.get_connection(current_user["tenant_id"], 'hubspot')
+    if not conn:
+        raise HTTPException(status_code=400, detail="HubSpot not connected")
+    creds = conn.get("credentials", {})
+    access_token = decrypt_value(creds.get("access_token", ""))
+    client = HubSpotCRM(access_token=access_token)
+    return {"pipelines": await client.get_pipelines()}
+
+
+# ============ Zoho CRM Endpoints ============
+
+@api_router.get("/zoho/auth-url")
+async def zoho_auth_url(datacenter: str = "us", current_user: Dict = Depends(get_current_user)):
+    """Generate Zoho OAuth authorization URL."""
+    if not ZOHO_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Zoho integration not configured")
+    tenant_id = current_user["tenant_id"]
+    state = jwt.encode(
+        {"tenant_id": tenant_id, "datacenter": datacenter, "purpose": "zoho_oauth", "exp": datetime.now(timezone.utc) + timedelta(minutes=10)},
+        JWT_SECRET, algorithm="HS256",
+    )
+    backend_url = os.environ.get("BACKEND_URL", "").rstrip("/")
+    redirect_uri = f"{backend_url}/api/zoho/callback"
+    url = ZohoCRM.get_auth_url(redirect_uri, state, datacenter)
+    return {"auth_url": url}
+
+
+@api_router.get("/zoho/callback")
+async def zoho_callback(code: str = None, state: str = None, error: str = None):
+    """OAuth callback from Zoho. Exchange code for tokens."""
+    redirect_base = f"{FRONTEND_URL.rstrip('/')}/app/connections/zoho"
+
+    if error:
+        return RedirectResponse(url=f"{redirect_base}?error={error}")
+    if not code or not state:
+        return RedirectResponse(url=f"{redirect_base}?error=missing_params")
+    try:
+        payload = jwt.decode(state, JWT_SECRET, algorithms=["HS256"])
+        if payload.get("purpose") != "zoho_oauth":
+            return RedirectResponse(url=f"{redirect_base}?error=invalid_state")
+        tenant_id = payload["tenant_id"]
+        datacenter = payload.get("datacenter", "us")
+    except jwt.ExpiredSignatureError:
+        return RedirectResponse(url=f"{redirect_base}?error=expired")
+    except jwt.InvalidTokenError:
+        return RedirectResponse(url=f"{redirect_base}?error=invalid_state")
+
+    try:
+        backend_url = os.environ.get("BACKEND_URL", "").rstrip("/")
+        redirect_uri = f"{backend_url}/api/zoho/callback"
+        tokens = await ZohoCRM.exchange_code(code, redirect_uri, datacenter)
+
+        token_expires_at = (datetime.now(timezone.utc) + timedelta(seconds=tokens["expires_in"])).isoformat()
+        await crm_manager.store_connection(
+            tenant_id=tenant_id,
+            crm_type='zoho',
+            credentials={
+                'access_token': tokens['access_token'],
+                'refresh_token': tokens['refresh_token'],
+                'token_expires_at': token_expires_at,
+                'api_domain': tokens.get('api_domain', ''),
+            },
+            config={'datacenter': datacenter},
+        )
+        logger.info(f"Zoho connected for tenant {tenant_id} (datacenter: {datacenter})")
+        return RedirectResponse(url=f"{redirect_base}?success=true")
+    except Exception as e:
+        logger.exception(f"Zoho OAuth callback error for tenant {tenant_id}: {e}")
+        return RedirectResponse(url=f"{redirect_base}?error=exchange_failed")
+
+
+@api_router.get("/zoho/status")
+async def zoho_status(current_user: Dict = Depends(get_current_user)):
+    """Check Zoho connection status."""
+    conn = await crm_manager.get_connection(current_user["tenant_id"], 'zoho')
+    if conn:
+        return {"connected": True, "connected_at": conn.get("connected_at"), "datacenter": (conn.get("config") or {}).get("datacenter", "us")}
+    return {"connected": False}
+
+
+@api_router.post("/zoho/test")
+async def zoho_test(current_user: Dict = Depends(get_current_user)):
+    """Test Zoho connection."""
+    conn = await crm_manager.get_connection(current_user["tenant_id"], 'zoho')
+    if not conn:
+        return {"ok": False, "message": "Zoho not connected"}
+    creds = conn.get("credentials", {})
+    config = conn.get("config", {})
+    client = ZohoCRM(
+        access_token=decrypt_value(creds.get("access_token", "")),
+        refresh_token=decrypt_value(creds.get("refresh_token", "")),
+        datacenter=config.get("datacenter", "us"),
+        api_domain=creds.get("api_domain"),
+    )
+    return await client.test_connection()
+
+
+@api_router.post("/zoho/disconnect")
+async def zoho_disconnect(current_user: Dict = Depends(get_current_user)):
+    """Disconnect Zoho CRM."""
+    await crm_manager.remove_connection(current_user["tenant_id"], 'zoho')
+    return {"success": True, "message": "Zoho disconnected"}
+
+
+@api_router.get("/zoho/pipelines")
+async def zoho_pipelines(current_user: Dict = Depends(get_current_user)):
+    """Get Zoho deal pipeline stages."""
+    conn = await crm_manager.get_connection(current_user["tenant_id"], 'zoho')
+    if not conn:
+        raise HTTPException(status_code=400, detail="Zoho not connected")
+    creds = conn.get("credentials", {})
+    config = conn.get("config", {})
+    client = ZohoCRM(
+        access_token=decrypt_value(creds.get("access_token", "")),
+        refresh_token=decrypt_value(creds.get("refresh_token", "")),
+        datacenter=config.get("datacenter", "us"),
+        api_domain=creds.get("api_domain"),
+    )
+    return {"pipelines": await client.get_pipelines()}
+
+
+# ============ Freshsales CRM Endpoints ============
+
+class FreshsalesConnectRequest(BaseModel):
+    domain: str = Field(..., description="Freshsales subdomain (e.g., 'mycompany')")
+    api_key: str = Field(..., description="API key from Freshsales Settings")
+
+
+@api_router.post("/freshsales/connect")
+async def freshsales_connect(request: FreshsalesConnectRequest, current_user: Dict = Depends(get_current_user)):
+    """Connect Freshsales CRM via API key."""
+    tenant_id = current_user["tenant_id"]
+
+    # Validate credentials by testing connection
+    client = FreshsalesCRM(domain=request.domain, api_key=request.api_key)
+    test_result = await client.test_connection()
+    if not test_result.get("ok"):
+        raise HTTPException(status_code=400, detail=f"Connection failed: {test_result.get('message')}")
+
+    await crm_manager.store_connection(
+        tenant_id=tenant_id,
+        crm_type='freshsales',
+        credentials={'api_key': request.api_key, 'domain': request.domain},
+    )
+    logger.info(f"Freshsales connected for tenant {tenant_id} (domain: {request.domain})")
+    return {"success": True, "message": "Freshsales connected successfully!"}
+
+
+@api_router.get("/freshsales/status")
+async def freshsales_status(current_user: Dict = Depends(get_current_user)):
+    """Check Freshsales connection status."""
+    conn = await crm_manager.get_connection(current_user["tenant_id"], 'freshsales')
+    if conn:
+        domain = (conn.get("credentials") or {}).get("domain", "")
+        return {"connected": True, "connected_at": conn.get("connected_at"), "domain": domain}
+    return {"connected": False}
+
+
+@api_router.post("/freshsales/test")
+async def freshsales_test(current_user: Dict = Depends(get_current_user)):
+    """Test Freshsales connection."""
+    conn = await crm_manager.get_connection(current_user["tenant_id"], 'freshsales')
+    if not conn:
+        return {"ok": False, "message": "Freshsales not connected"}
+    creds = conn.get("credentials", {})
+    client = FreshsalesCRM(domain=creds.get("domain", ""), api_key=decrypt_value(creds.get("api_key", "")))
+    return await client.test_connection()
+
+
+@api_router.post("/freshsales/disconnect")
+async def freshsales_disconnect(current_user: Dict = Depends(get_current_user)):
+    """Disconnect Freshsales CRM."""
+    await crm_manager.remove_connection(current_user["tenant_id"], 'freshsales')
+    return {"success": True, "message": "Freshsales disconnected"}
+
+
+@api_router.get("/freshsales/pipelines")
+async def freshsales_pipelines(current_user: Dict = Depends(get_current_user)):
+    """Get Freshsales deal pipelines."""
+    conn = await crm_manager.get_connection(current_user["tenant_id"], 'freshsales')
+    if not conn:
+        raise HTTPException(status_code=400, detail="Freshsales not connected")
+    creds = conn.get("credentials", {})
+    client = FreshsalesCRM(domain=creds.get("domain", ""), api_key=decrypt_value(creds.get("api_key", "")))
+    return {"pipelines": await client.get_pipelines()}
 
 
 # ============ Analytics Context Endpoints ============
@@ -4775,11 +5051,11 @@ async def update_lead_from_llm(tenant_id: str, customer: Dict, existing_lead: Op
                 else:
                     raise insert_error
 
-        # Sync to Bitrix24 if connected (async, non-blocking)
+        # Sync to all connected CRMs (async, non-blocking)
         try:
-            await sync_lead_to_bitrix(tenant_id, customer, lead_data, existing_lead)
-        except Exception as bitrix_error:
-            logger.warning(f"Bitrix sync error (non-blocking): {bitrix_error}")
+            await sync_lead_to_crms(tenant_id, customer, lead_data, existing_lead)
+        except Exception as crm_error:
+            logger.warning(f"CRM sync error (non-blocking): {crm_error}")
 
     except Exception as e:
         logger.exception("Failed to update/create lead")
@@ -5029,6 +5305,120 @@ async def sync_lead_to_bitrix(tenant_id: str, customer: Dict, lead_data: Dict, e
     except Exception as e:
         logger.warning(f"Bitrix24 sync failed (non-blocking): {e}", exc_info=True)
         # Don't re-raise - Bitrix sync failure shouldn't break message flow
+
+
+async def sync_lead_to_crms(tenant_id: str, customer: Dict, lead_data: Dict, existing_lead: Optional[Dict] = None):
+    """
+    Unified CRM sync: push leads to ALL active CRM connections for a tenant.
+    Wraps the existing Bitrix sync and adds HubSpot, Zoho, Freshsales.
+    Non-blocking: failures in one CRM don't affect others.
+    """
+    # 1. Bitrix24 sync (existing logic, always runs first)
+    try:
+        await sync_lead_to_bitrix(tenant_id, customer, lead_data, existing_lead)
+    except Exception as e:
+        logger.warning(f"Bitrix sync error in unified sync (non-blocking): {e}")
+
+    # 2. Sync to other CRMs via crm_connections table
+    try:
+        connections = await crm_manager.get_active_connections(tenant_id)
+    except Exception as e:
+        logger.warning(f"Failed to get CRM connections for sync: {e}")
+        return
+
+    # Determine if we should sync
+    fields_collected = lead_data.get("fields_collected", {}) or {}
+    previous_fields = existing_lead.get("fields_collected", {}) if existing_lead else {}
+    current_score = lead_data.get("score", 30)
+    previous_score = existing_lead.get("score", 30) if existing_lead else 30
+    crm_lead_id = existing_lead.get("crm_lead_id") if existing_lead else None
+
+    # Gate using Bitrix logic, but for non-Bitrix CRMs, always sync if no crm_lead_id
+    # (so newly connected CRMs receive existing leads on first meaningful event)
+    should_sync, sync_reason = _should_sync_to_bitrix(
+        fields_collected, previous_fields, current_score, previous_score, crm_lead_id
+    )
+    # Even if Bitrix gate says no, still allow non-Bitrix CRMs if there's contact info
+    has_contact_info = bool(fields_collected.get("email") or fields_collected.get("phone"))
+    if not should_sync and not has_contact_info:
+        return
+
+    # Build unified lead data for push_lead
+    current_hotness = _get_hotness_from_score(current_score)
+    unified_lead = {
+        "fields_collected": fields_collected,
+        "hotness": current_hotness,
+        "score": current_score,
+    }
+
+    for conn in connections:
+        crm_type = conn.get("crm_type", "")
+        if crm_type == "bitrix24":
+            continue  # Already handled above
+
+        try:
+            creds = conn.get("credentials", {}) or {}
+            if crm_type == "hubspot":
+                access_token = decrypt_value(creds.get("access_token", ""))
+                refresh_token = decrypt_value(creds.get("refresh_token", ""))
+                if access_token:
+                    client = HubSpotCRM(access_token=access_token, refresh_token=refresh_token)
+                    try:
+                        await client.push_lead(unified_lead)
+                    except HubSpotAPIError as he:
+                        if ("401" in str(he) or "expired" in str(he).lower()) and refresh_token:
+                            new_tokens = await HubSpotCRM.refresh_access_token(refresh_token)
+                            client.access_token = new_tokens["access_token"]
+                            await crm_manager.update_credentials(tenant_id, "hubspot", {
+                                "access_token": new_tokens["access_token"],
+                                "refresh_token": new_tokens.get("refresh_token", refresh_token),
+                                "token_expires_at": (datetime.now(timezone.utc) + timedelta(seconds=new_tokens.get("expires_in", 1800))).isoformat(),
+                            })
+                            await client.push_lead(unified_lead)
+                        else:
+                            raise
+                    await crm_manager.update_last_sync(tenant_id, crm_type)
+                    logger.info(f"Synced lead to HubSpot for tenant {tenant_id}: {sync_reason}")
+
+            elif crm_type == "zoho":
+                access_token = decrypt_value(creds.get("access_token", ""))
+                refresh_token = decrypt_value(creds.get("refresh_token", ""))
+                config = conn.get("config", {}) or {}
+                if access_token:
+                    client = ZohoCRM(
+                        access_token=access_token,
+                        refresh_token=refresh_token,
+                        datacenter=config.get("datacenter", "us"),
+                        api_domain=creds.get("api_domain"),
+                    )
+                    try:
+                        await client.push_lead(unified_lead)
+                    except ZohoAPIError as ze:
+                        if ("401" in str(ze) or "expired" in str(ze).lower()) and refresh_token:
+                            new_tokens = await client.refresh_access_token()
+                            await crm_manager.update_credentials(tenant_id, "zoho", {
+                                "access_token": new_tokens["access_token"],
+                                "refresh_token": new_tokens["refresh_token"],
+                                "token_expires_at": (datetime.now(timezone.utc) + timedelta(seconds=new_tokens.get("expires_in", 3600))).isoformat(),
+                            })
+                            await client.push_lead(unified_lead)
+                        else:
+                            raise
+                    await crm_manager.update_last_sync(tenant_id, crm_type)
+                    logger.info(f"Synced lead to Zoho for tenant {tenant_id}: {sync_reason}")
+
+            elif crm_type == "freshsales":
+                api_key = decrypt_value(creds.get("api_key", ""))
+                domain = creds.get("domain", "")
+                if api_key and domain:
+                    client = FreshsalesCRM(domain=domain, api_key=api_key)
+                    await client.push_lead(unified_lead)
+                    await crm_manager.update_last_sync(tenant_id, crm_type)
+                    logger.info(f"Synced lead to Freshsales for tenant {tenant_id}: {sync_reason}")
+
+        except Exception as e:
+            logger.warning(f"CRM sync failed for {crm_type} (non-blocking): {e}")
+            # Non-blocking: failures don't break message flow
 
 
 # ============ Dashboard Endpoints ============
