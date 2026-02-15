@@ -4747,16 +4747,19 @@ async def process_channel_message(
             logger.info(f"Contact collection urgency: score={current_score}, has_phone={bool(fields_collected.get('phone'))}")
 
         # Product Context Builder
-        crm_products = []
+        crm_product_dicts = []
+        crm_product_names = []
         if crm_query_context:
-            crm_products = [p.get('name', p.get('NAME', '')) for p in (crm_context or {}).get('recent_products', []) if p]
+            raw_products = (crm_context or {}).get('recent_products', [])
+            crm_product_dicts = [p for p in raw_products if p and isinstance(p, dict)]
+            crm_product_names = [p.get('name', p.get('NAME', '')) for p in crm_product_dicts]
 
         kb_products = []
         for ctx in business_context:
             if 'product' in ctx.lower() or 'mahsulot' in ctx.lower():
                 kb_products.append(ctx[:100])
 
-        product_context = build_product_context(crm_products, kb_products, config) if (crm_products or kb_products) else None
+        product_context = build_product_context(crm_product_dicts, kb_products, config) if (crm_product_dicts or kb_products) else None
 
         # Get media context for image responses
         media_context = await get_media_context_for_ai(tenant_id)
@@ -4770,8 +4773,8 @@ async def process_channel_message(
         )
 
         # Response Validation
-        reply_text = llm_result.get("reply_text", "I'm here to help!")
-        is_valid, violations = validate_response_promises(reply_text, config, crm_products, kb_products)
+        reply_text = llm_result.get("reply_text") or "I'm here to help! How can I assist you today?"
+        is_valid, violations = validate_response_promises(reply_text, config, crm_product_names, kb_products)
         if not is_valid:
             logger.warning(f"Response validation violations: {violations}")
             reply_text = correct_response_if_needed(reply_text, violations, config)
@@ -4867,17 +4870,24 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
 
     # Handle /start command (Telegram-specific)
     if text.strip() == "/start":
-        config_result = supabase.table('tenant_configs').select('*').eq('tenant_id', tenant_id).execute()
-        config = config_result.data[0] if config_result.data else {}
-        business_name = config.get("business_name", "")
-        greeting = config.get("greeting_message")
-        if not greeting:
-            if business_name:
-                greeting = f"Hello! 👋 Welcome to {business_name}. How can I help you today?\n\nAssalomu alaykum! Sizga qanday yordam bera olaman?\n\nЗдравствуйте! Чем могу помочь?"
-            else:
-                greeting = "Hello! Welcome. How can I help you today?\n\nAssalomu alaykum! Sizga qanday yordam bera olaman?\n\nЗдравствуйте! Чем могу помочь?"
-        await send_telegram_message(bot_token, chat_id, greeting)
-        logger.info(f"Sent greeting to user_{redact_id(str(username or user_id))}")
+        try:
+            config_result = supabase.table('tenant_configs').select('*').eq('tenant_id', tenant_id).execute()
+            config = config_result.data[0] if config_result.data else {}
+            business_name = config.get("business_name", "")
+            greeting = config.get("greeting_message")
+            if not greeting:
+                if business_name:
+                    greeting = f"Hello! 👋 Welcome to {business_name}. How can I help you today?\n\nAssalomu alaykum! Sizga qanday yordam bera olaman?\n\nЗдравствуйте! Чем могу помочь?"
+                else:
+                    greeting = "Hello! Welcome. How can I help you today?\n\nAssalomu alaykum! Sizga qanday yordam bera olaman?\n\nЗдравствуйте! Чем могу помочь?"
+            await send_telegram_message(bot_token, chat_id, greeting)
+            logger.info(f"Sent greeting to user_{redact_id(str(username or user_id))}")
+        except Exception as e:
+            logger.error(f"Error handling /start command: {e}")
+            try:
+                await send_telegram_message(bot_token, chat_id, "Hello! 👋 How can I help you today?")
+            except Exception:
+                logger.error(f"Failed to send fallback greeting to chat {redact_id(str(chat_id))}")
         return
 
     async def send_fn(reply_text):
