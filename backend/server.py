@@ -4617,6 +4617,8 @@ async def process_channel_message(
     language_code: Optional[str],
     send_fn,
     typing_fn=None,
+    bot_token: str = None,
+    chat_id: int = None,
 ):
     """Channel-agnostic message processing with enhanced sales pipeline.
 
@@ -4797,7 +4799,7 @@ async def process_channel_message(
         supabase.table('conversations').update({"last_message_at": now_iso()}).eq('id', conversation['id']).execute()
 
         # Send response via channel (with image support for Telegram if enabled)
-        if channel == "telegram" and media_context:
+        if channel == "telegram" and media_context and bot_token and chat_id:
             # Image responses enabled for Telegram - use image-aware sender
             success = await send_telegram_response_with_images(bot_token, chat_id, reply_text, tenant_id)
         else:
@@ -4894,6 +4896,8 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
         language_code=language_code,
         send_fn=send_fn,
         typing_fn=typing_fn,
+        bot_token=bot_token,
+        chat_id=chat_id,
     )
 
 
