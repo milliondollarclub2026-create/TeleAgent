@@ -46,7 +46,7 @@ import SecurityPage from "./pages/SecurityPage";
 
 // Protected route wrapper - redirects to landing if not authenticated
 function ProtectedRoute({ children }) {
-  const { token, loading } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#F5F7F6]">
@@ -54,7 +54,7 @@ function ProtectedRoute({ children }) {
       </div>
     );
   }
-  if (!token) {
+  if (!isAuthenticated) {
     return <Navigate to="/" replace />;
   }
   return children;

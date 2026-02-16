@@ -71,6 +71,9 @@ const LeadsPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [leadToDelete, setLeadToDelete] = useState(null);
   const [defaultAgentId, setDefaultAgentId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const LEADS_PER_PAGE = 50;
 
   // Fetch the default agent for navigation
   useEffect(() => {
@@ -87,14 +90,19 @@ const LeadsPage = () => {
     fetchDefaultAgent();
   }, []);
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [hotnessFilter, statusFilter]);
+
   useEffect(() => {
     fetchLeads();
-  }, [hotnessFilter, statusFilter]);
+  }, [hotnessFilter, statusFilter, page]);
 
   const fetchLeads = async () => {
     setLoading(true);
     try {
-      let url = `${API}/leads?limit=100`;
+      let url = `${API}/leads?limit=${LEADS_PER_PAGE}&offset=${(page - 1) * LEADS_PER_PAGE}`;
       if (hotnessFilter !== 'all') {
         url += `&hotness=${hotnessFilter}`;
       }
@@ -103,11 +111,14 @@ const LeadsPage = () => {
       }
       const response = await axios.get(url);
       // Only show real leads from API - no demo data (multi-tenancy security)
-      setLeads(response.data || []);
+      const data = response.data || [];
+      setLeads(data);
+      setHasMore(data.length === LEADS_PER_PAGE);
     } catch (error) {
       console.error('Failed to fetch leads:', error);
       // On error, show empty state - never show demo data
       setLeads([]);
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
@@ -302,12 +313,13 @@ const LeadsPage = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
+                          {/* TODO: lead.agent_id may not always be populated; falls back to defaultAgentId */}
                           {lead.customer_id && defaultAgentId && (
                             <Button
                               variant="ghost"
                               size="sm"
                               className="h-7 w-7 p-0 text-slate-400 hover:text-emerald-600"
-                              onClick={() => navigate(`/app/agents/${defaultAgentId}/dialogue/${lead.customer_id}`)}
+                              onClick={() => navigate(`/app/agents/${lead.agent_id || defaultAgentId}/dialogue/${lead.customer_id}`)}
                               data-testid={`view-chat-${lead.id}`}
                               title="View conversation"
                             >
@@ -329,6 +341,29 @@ const LeadsPage = () => {
                   ))}
                 </TableBody>
               </Table>
+              {(page > 1 || hasMore) && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page === 1}
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    className="text-sm"
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-slate-500">Page {page}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!hasMore}
+                    onClick={() => setPage(p => p + 1)}
+                    className="text-sm"
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

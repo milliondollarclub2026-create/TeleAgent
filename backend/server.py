@@ -15,7 +15,6 @@ import hmac
 import secrets
 import jwt
 import httpx
-from openai import AsyncOpenAI
 import json
 import asyncio
 import re
@@ -171,7 +170,8 @@ META_APP_SECRET = (os.environ.get('META_APP_SECRET') or '').strip()
 INSTAGRAM_WEBHOOK_VERIFY_TOKEN = (os.environ.get('INSTAGRAM_WEBHOOK_VERIFY_TOKEN') or '').strip()
 
 # OpenAI client
-openai_client = AsyncOpenAI(api_key=(os.environ.get('OPENAI_API_KEY') or '').strip())
+from llm_service import client as _llm_client
+openai_client = _llm_client  # Reuse the singleton from llm_service
 
 # ============ Input Sanitization ============
 def sanitize_html(text: str) -> str:
@@ -233,6 +233,14 @@ class RateLimiter:
         oldest = min(self.requests[user_id])
         wait = self.window_seconds - (time.time() - oldest)
         return max(0, int(wait))
+
+    def cleanup(self):
+        """Remove expired entries to prevent memory leak"""
+        now = time.time()
+        expired = [uid for uid, timestamps in self.requests.items()
+                   if all(now - t >= self.window_seconds for t in timestamps)]
+        for uid in expired:
+            del self.requests[uid]
 
 # Rate limiter: max 10 messages per minute per user
 message_rate_limiter = RateLimiter(max_requests=10, window_seconds=60)
@@ -490,8 +498,8 @@ def create_access_token(user_id: str, tenant_id: str, email: str) -> str:
     # Use int for exp claim per RFC 7519 (NumericDate must be integer seconds)
     return jwt.encode({"user_id": user_id, "tenant_id": tenant_id, "email": email, "jti": jti, "exp": int(expiration.timestamp())}, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-# In-memory token blacklist (supplemented by DB for persistence)
-_token_blacklist: set = set()
+# In-memory token blacklist: {jti: expiry_timestamp} (supplemented by DB for persistence)
+_token_blacklist: dict = {}
 
 def verify_token(token: str) -> Optional[Dict]:
     try:
@@ -501,7 +509,7 @@ def verify_token(token: str) -> Optional[Dict]:
         if jti and jti in _token_blacklist:
             return None
         return payload
-    except:
+    except Exception:
         return None
 
 def generate_confirmation_token() -> str:
@@ -708,6 +716,7 @@ class TenantConfigUpdate(BaseModel):
 class DocumentCreate(BaseModel):
     title: str
     content: str
+    category: Optional[str] = "knowledge"
 
 class MediaCreate(BaseModel):
     name: str
@@ -1065,9 +1074,9 @@ async def logout(authorization: Optional[str] = Header(None)):
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         jti = payload.get("jti")
         if jti:
-            _token_blacklist.add(jti)
-            # Persist to DB for cross-restart durability
             exp_timestamp = payload.get("exp", 0)
+            _token_blacklist[jti] = exp_timestamp
+            # Persist to DB for cross-restart durability
             expires_at = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc).isoformat()
             try:
                 supabase.table('token_blacklist').insert({"jti": jti, "expires_at": expires_at}).execute()
@@ -1129,15 +1138,30 @@ async def delete_telegram_webhook(bot_token: str) -> Dict:
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+def sanitize_telegram_html(text: str) -> str:
+    """Sanitize HTML for Telegram Bot API. Only allow Telegram-safe tags."""
+    import re
+    # Telegram supports: <b>, <i>, <u>, <s>, <code>, <pre>, <a href="">, <tg-spoiler>, <blockquote>
+    ALLOWED_TAGS = {'b', 'i', 'u', 's', 'code', 'pre', 'a', 'tg-spoiler', 'blockquote', 'em', 'strong'}
+    def replace_tag(match):
+        tag = match.group(1).lower().split()[0].strip('/')  # Get tag name
+        if tag in ALLOWED_TAGS:
+            return match.group(0)
+        # Escape the angle brackets for unsupported tags
+        return match.group(0).replace('<', '&lt;').replace('>', '&gt;')
+    return re.sub(r'<(/?\w[^>]*)>', replace_tag, text)
+
+
 async def send_telegram_message(bot_token: str, chat_id: int, text: str) -> bool:
     """Send a message via Telegram Bot API"""
     try:
+        text = sanitize_telegram_html(text)
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{TELEGRAM_API_BASE}{bot_token}/sendMessage", 
+                f"{TELEGRAM_API_BASE}{bot_token}/sendMessage",
                 json={
-                    "chat_id": chat_id, 
-                    "text": text, 
+                    "chat_id": chat_id,
+                    "text": text,
                     "parse_mode": "HTML"
                 }, 
                 timeout=30.0
@@ -1165,7 +1189,7 @@ async def send_typing_action(bot_token: str, chat_id: int):
     try:
         async with httpx.AsyncClient() as client:
             await client.post(f"{TELEGRAM_API_BASE}{bot_token}/sendChatAction", json={"chat_id": chat_id, "action": "typing"}, timeout=10.0)
-    except:
+    except Exception:
         pass
 
 
@@ -3098,7 +3122,7 @@ async def connect_payme(
     try:
         result = supabase.table('tenant_configs').update({
             "payme_merchant_id": request.merchant_id,
-            "payme_secret_key": request.secret_key,
+            "payme_secret_key": encrypt_value(request.secret_key),
             "payme_connected_at": connected_at
         }).eq('tenant_id', tenant_id).execute()
         if result.data:
@@ -3210,7 +3234,7 @@ async def connect_click(
     try:
         result = supabase.table('tenant_configs').update({
             "click_service_id": request.service_id,
-            "click_secret_key": request.secret_key,
+            "click_secret_key": encrypt_value(request.secret_key),
             "click_connected_at": connected_at
         }).eq('tenant_id', tenant_id).execute()
         if result.data:
@@ -4148,7 +4172,7 @@ If they hesitate, explain the value:
 
     # Moderate: Score 40-59 at consideration+ stage
     if score >= 40 and stage in ["consideration", "intent", "evaluation", "purchase"]:
-        return """## 📞 Contact Collection Reminder
+        return f"""## 📞 Contact Collection Reminder
 
 Customer is engaged at {stage} stage. Look for opportunities to ask for contact info.
 
@@ -4309,6 +4333,9 @@ def build_product_context(crm_products: List[Dict], kb_products: List[str], conf
     if crm_products:
         context_parts.append("### Products from CRM (Authoritative Pricing):")
         for product in crm_products[:20]:  # Limit to 20 products
+            if isinstance(product, str):
+                context_parts.append(f"- {product}")
+                continue
             name = product.get('name', product.get('NAME', 'Unknown'))
             price = product.get('price', product.get('PRICE', 'Contact for price'))
             currency = product.get('currency', product.get('CURRENCY_ID', 'UZS'))
@@ -4559,52 +4586,14 @@ async def telegram_webhook_with_bot_id(bot_id: str, request: Request, background
 
 
 @api_router.post("/telegram/webhook")
-async def telegram_webhook_legacy(request: Request, background_tasks: BackgroundTasks):
+async def telegram_webhook_legacy(request: Request):
     """
     DEPRECATED: Legacy webhook endpoint without bot_id.
-    For security, new bots should use /telegram/webhook/{bot_id}
-    This endpoint only works for single-tenant scenarios as a fallback.
+    This endpoint is disabled for security - messages are dropped silently.
+    All bots should use /telegram/webhook/{bot_id} instead.
     """
-    logger.warning("DEPRECATED: Using legacy /telegram/webhook endpoint without bot_id. Migrate to /telegram/webhook/{bot_id}")
-
-    try:
-        update = await request.json()
-
-        message = update.get("message")
-        if not message or not isinstance(message, dict):
-            return {"ok": True}
-
-        text = message.get("text")
-        if not text:
-            return {"ok": True}
-
-        # Rate limiting
-        user_id = str(message.get("from", {}).get("id", "unknown"))
-        if not message_rate_limiter.is_allowed(user_id):
-            return {"ok": True}
-
-        # SECURITY WARNING: This queries all bots - only safe in single-tenant mode
-        # Get the first active bot as fallback (DEPRECATED behavior)
-        result = supabase.table('telegram_bots').select('*').eq('is_active', True).limit(1).execute()
-
-        if not result.data:
-            logger.warning("No active Telegram bots configured")
-            return {"ok": True}
-
-        bot = result.data[0]
-        logger.warning(f"Legacy webhook: Processing for tenant {bot['tenant_id']} - PLEASE MIGRATE TO /telegram/webhook/{bot['id']}")
-
-        try:
-            supabase.table('telegram_bots').update({"last_webhook_at": now_iso()}).eq('id', bot['id']).execute()
-        except Exception as e:
-            logger.warning(f"Could not update webhook timestamp: {e}")
-
-        background_tasks.add_task(process_telegram_message, bot["tenant_id"], decrypt_value(bot["bot_token"]), update)
-        return {"ok": True}
-
-    except Exception as e:
-        logger.error(f"Legacy webhook error: {e}")
-        return {"ok": True}
+    logger.critical("SECURITY: Legacy /telegram/webhook called - messages dropped. Migrate to /telegram/webhook/{bot_id}")
+    return {"ok": True}
 
 
 async def process_channel_message(
@@ -5445,7 +5434,7 @@ async def get_dashboard_stats(current_user: Dict = Depends(get_current_user)):
     today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     
     conv_result = supabase.table('conversations').select('id', count='exact').eq('tenant_id', tenant_id).execute()
-    leads_result = supabase.table('leads').select('*').eq('tenant_id', tenant_id).execute()
+    leads_result = supabase.table('leads').select('id, final_hotness, sales_stage').eq('tenant_id', tenant_id).execute()
     
     leads = leads_result.data or []
     total_leads = len(leads)
@@ -5462,7 +5451,7 @@ async def get_dashboard_stats(current_user: Dict = Depends(get_current_user)):
     purchase_leads = leads_by_stage.get('purchase', 0)
     conversion_rate = (purchase_leads / total_leads * 100) if total_leads > 0 else 0
     
-    customers_result = supabase.table('customers').select('*').eq('tenant_id', tenant_id).execute()
+    customers_result = supabase.table('customers').select('first_seen_at, last_seen_at').eq('tenant_id', tenant_id).execute()
     returning_customers = sum(1 for c in (customers_result.data or []) if c.get('first_seen_at') != c.get('last_seen_at'))
     
     today_result = supabase.table('leads').select('id', count='exact').eq('tenant_id', tenant_id).gte('created_at', today).execute()
@@ -5513,13 +5502,13 @@ async def get_agent_analytics(days: int = 7, current_user: Dict = Depends(get_cu
     # Current period data
     # Note: conversations table uses 'started_at' instead of 'created_at'
     try:
-        conversations = supabase.table('conversations').select('*').eq('tenant_id', tenant_id).gte('started_at', start_date).execute()
+        conversations = supabase.table('conversations').select('id').eq('tenant_id', tenant_id).gte('started_at', start_date).execute()
     except Exception as e:
         logger.warning(f"Conversations query error: {e}")
         conversations = type('obj', (object,), {'data': []})()
     
     try:
-        leads = supabase.table('leads').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date).execute()
+        leads = supabase.table('leads').select('id, final_hotness, status, product, intent, lead_score, source').eq('tenant_id', tenant_id).gte('created_at', start_date).execute()
     except Exception as e:
         logger.warning(f"Leads query error: {e}")
         leads = type('obj', (object,), {'data': []})()
@@ -6539,6 +6528,7 @@ async def create_document(request: DocumentCreate, current_user: Dict = Depends(
             "file_size": len(request.content),
             "chunk_count": len(chunks),
             "chunks_data": json.dumps(chunks_with_embeddings),  # Store chunks with embeddings
+            "category": request.category or "knowledge",
             "created_at": now_iso()
         }
         
@@ -6810,7 +6800,8 @@ async def get_disabled_global_docs(tenant_id: str) -> set:
 async def list_global_documents(current_user: Dict = Depends(get_current_user)):
     """List all global documents (available to all agents)"""
     try:
-        result = supabase.table('documents').select('*').eq('is_global', True).order('global_order').execute()
+        tenant_id = current_user.get("tenant_id")
+        result = supabase.table('documents').select('*').eq('is_global', True).eq('tenant_id', tenant_id).order('global_order').execute()
 
         return [
             {
@@ -6857,15 +6848,15 @@ async def create_global_document(request: DocumentCreate, current_user: Dict = D
                 "embedding": embedding
             })
 
-        # Get max global_order for ordering
-        order_result = supabase.table('documents').select('global_order').eq('is_global', True).order('global_order', desc=True).limit(1).execute()
+        # Get max global_order for ordering (scoped to tenant)
+        order_result = supabase.table('documents').select('global_order').eq('is_global', True).eq('tenant_id', billing_tenant_id).order('global_order', desc=True).limit(1).execute()
         next_order = (order_result.data[0]['global_order'] + 1) if order_result.data else 0
 
         doc_id = str(uuid.uuid4())
 
         doc = {
             "id": doc_id,
-            "tenant_id": None,  # Global docs have no tenant
+            "tenant_id": billing_tenant_id,
             "title": request.title,
             "content": request.content,
             "file_type": "text",
@@ -6913,6 +6904,8 @@ async def upload_global_document(
 ):
     """Upload a global document (PDF, DOCX, Excel, CSV, Image, TXT)"""
     try:
+        tenant_id = current_user.get("tenant_id")
+
         # Validate file size
         file_content = await file.read()
         file_size = len(file_content)
@@ -6962,8 +6955,8 @@ async def upload_global_document(
         else:
             file_type = "text"
 
-        # Get max global_order
-        order_result = supabase.table('documents').select('global_order').eq('is_global', True).order('global_order', desc=True).limit(1).execute()
+        # Get max global_order (scoped to tenant)
+        order_result = supabase.table('documents').select('global_order').eq('is_global', True).eq('tenant_id', tenant_id).order('global_order', desc=True).limit(1).execute()
         next_order = (order_result.data[0]['global_order'] + 1) if order_result.data else 0
 
         doc_id = str(uuid.uuid4())
@@ -6971,7 +6964,7 @@ async def upload_global_document(
 
         doc = {
             "id": doc_id,
-            "tenant_id": None,
+            "tenant_id": tenant_id,
             "title": doc_title,
             "content": full_content[:50000] if full_content else f"[File: {filename}]",
             "file_type": file_type,
@@ -7019,8 +7012,9 @@ async def upload_global_document(
 async def delete_global_document(doc_id: str, current_user: Dict = Depends(get_current_user)):
     """Delete a global document"""
     try:
-        # Verify it's a global document
-        result = supabase.table('documents').select('*').eq('id', doc_id).eq('is_global', True).execute()
+        tenant_id = current_user.get("tenant_id")
+        # Verify it's a global document owned by this tenant
+        result = supabase.table('documents').select('*').eq('id', doc_id).eq('is_global', True).eq('tenant_id', tenant_id).execute()
         if not result.data:
             raise HTTPException(status_code=404, detail="Global document not found")
 
@@ -7050,8 +7044,8 @@ async def get_global_doc_settings(current_user: Dict = Depends(get_current_user)
     try:
         tenant_id = current_user["tenant_id"]
 
-        # Get all global documents
-        global_docs = supabase.table('documents').select('*').eq('is_global', True).order('global_order').execute()
+        # Get all global documents for this tenant
+        global_docs = supabase.table('documents').select('*').eq('is_global', True).eq('tenant_id', tenant_id).order('global_order').execute()
 
         # Get overrides for this tenant
         overrides = supabase.table('agent_document_overrides').select('document_id, is_enabled').eq('tenant_id', tenant_id).execute()
@@ -7084,8 +7078,8 @@ async def toggle_global_document(doc_id: str, enabled: bool, current_user: Dict 
     try:
         tenant_id = current_user["tenant_id"]
 
-        # Verify document exists and is global
-        doc_result = supabase.table('documents').select('id').eq('id', doc_id).eq('is_global', True).execute()
+        # Verify document exists, is global, and belongs to this tenant
+        doc_result = supabase.table('documents').select('id').eq('id', doc_id).eq('is_global', True).eq('tenant_id', tenant_id).execute()
         if not doc_result.data:
             raise HTTPException(status_code=404, detail="Global document not found")
 
@@ -7175,7 +7169,7 @@ async def get_agents(current_user: Dict = Depends(get_current_user)):
                 bx_result = supabase.table('tenant_configs').select('bitrix_webhook_url').eq('tenant_id', tenant_id).execute()
                 if bx_result.data and bx_result.data[0].get('bitrix_webhook_url'):
                     bitrix_connected = True
-            except:
+            except Exception:
                 pass
 
         agent_config = config.data[0]
@@ -7212,7 +7206,7 @@ async def get_agents(current_user: Dict = Depends(get_current_user)):
                                         diff = (t2 - t1).total_seconds()
                                         if diff > 0 and diff < 3600:  # Only count if less than 1 hour
                                             response_times.append(diff)
-                                    except:
+                                    except Exception:
                                         pass
 
                         if response_times:
@@ -7710,10 +7704,15 @@ async def refresh_instagram_tokens_loop():
 async def load_token_blacklist():
     """Load persisted token blacklist from DB on startup."""
     try:
-        result = supabase.table('token_blacklist').select('jti').gte('expires_at', now_iso()).execute()
+        result = supabase.table('token_blacklist').select('jti, expires_at').gte('expires_at', now_iso()).execute()
         if result.data:
             for row in result.data:
-                _token_blacklist.add(row['jti'])
+                # Store with expiry for cleanup; parse ISO timestamp to epoch
+                try:
+                    exp = datetime.fromisoformat(row['expires_at'].replace('Z', '+00:00')).timestamp()
+                except Exception:
+                    exp = time.time() + 86400  # fallback: 24h from now
+                _token_blacklist[row['jti']] = exp
             logger.info(f"Loaded {len(result.data)} blacklisted tokens from DB")
     except Exception as e:
         logger.warning(f"Could not load token blacklist (table may not exist yet): {e}")
@@ -7724,6 +7723,46 @@ async def start_instagram_token_refresh():
     if META_APP_ID and META_APP_SECRET:
         asyncio.create_task(refresh_instagram_tokens_loop())
         logger.info("Instagram token refresh loop started")
+
+
+async def periodic_cleanup():
+    """Periodic cleanup of in-memory caches to prevent memory leaks."""
+    while True:
+        try:
+            await asyncio.sleep(600)  # Every 10 minutes
+
+            # Clean rate limiter
+            message_rate_limiter.cleanup()
+
+            # Clean expired token blacklist entries
+            now = time.time()
+            expired_jtis = [jti for jti, exp in _token_blacklist.items() if now > exp]
+            for jti in expired_jtis:
+                del _token_blacklist[jti]
+            if expired_jtis:
+                logger.debug(f"Cleaned {len(expired_jtis)} expired blacklist entries")
+
+            # Clean Instagram dedup cache
+            expired_dedup = [mid for mid, ts in _instagram_dedup_cache.items()
+                            if now - ts > INSTAGRAM_DEDUP_TTL]
+            for mid in expired_dedup:
+                del _instagram_dedup_cache[mid]
+
+            # Clean auth rate limiter
+            expired_auth = [ip for ip, entry in auth_rate_limiter.items()
+                          if now - entry.get("window_start", 0) > AUTH_RATE_WINDOW]
+            for ip in expired_auth:
+                del auth_rate_limiter[ip]
+
+        except Exception as e:
+            logger.warning(f"Periodic cleanup error: {e}")
+
+
+@app.on_event("startup")
+async def start_periodic_cleanup():
+    """Launch periodic memory cleanup task."""
+    asyncio.create_task(periodic_cleanup())
+    logger.info("Periodic memory cleanup task started (every 10 minutes)")
 
 
 # ============ Media Library Functions ============

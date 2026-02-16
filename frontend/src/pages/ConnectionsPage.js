@@ -105,12 +105,14 @@ const ConnectionsPage = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    fetchIntegrations();
-    fetchBitrixStatus();
-    fetchGSheetsStatus();
-    fetchHubspotStatus();
-    fetchZohoStatus();
-    fetchFreshsalesStatus();
+    Promise.allSettled([
+      fetchIntegrations(),
+      fetchBitrixStatus(),
+      fetchGSheetsStatus(),
+      fetchHubspotStatus(),
+      fetchZohoStatus(),
+      fetchFreshsalesStatus(),
+    ]);
   }, []);
 
   const fetchIntegrations = async () => {

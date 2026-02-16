@@ -189,12 +189,13 @@ const AgentsPage = () => {
   const [expandedCards, setExpandedCards] = useState({});
   const [hiredPrebuilt, setHiredPrebuilt] = useState([]);
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const hiredPrebuiltKey = `hired_prebuilt_employees_${user?.tenant_id || 'default'}`;
 
   useEffect(() => {
     fetchAgents();
     // Load hired prebuilt employees from localStorage
-    const savedHired = localStorage.getItem(HIRED_PREBUILT_KEY);
+    const savedHired = localStorage.getItem(hiredPrebuiltKey);
     if (savedHired) {
       try {
         setHiredPrebuilt(JSON.parse(savedHired));
@@ -216,7 +217,7 @@ const AgentsPage = () => {
         const updatedHired = hiredPrebuilt.filter(id => !prebuiltIdsToRemove.includes(id));
         if (updatedHired.length !== hiredPrebuilt.length) {
           setHiredPrebuilt(updatedHired);
-          localStorage.setItem(HIRED_PREBUILT_KEY, JSON.stringify(updatedHired));
+          localStorage.setItem(hiredPrebuiltKey, JSON.stringify(updatedHired));
         }
       }
     }
@@ -262,7 +263,7 @@ const AgentsPage = () => {
     if (!hiredPrebuilt.includes(prebuilt.id)) {
       const newHired = [...hiredPrebuilt, prebuilt.id];
       setHiredPrebuilt(newHired);
-      localStorage.setItem(HIRED_PREBUILT_KEY, JSON.stringify(newHired));
+      localStorage.setItem(hiredPrebuiltKey, JSON.stringify(newHired));
       toast.success(`${prebuilt.name} has joined your team!`);
     }
 
@@ -298,12 +299,12 @@ const AgentsPage = () => {
   const handleFirePrebuilt = async (prebuilt) => {
     const newHired = hiredPrebuilt.filter(id => id !== prebuilt.id);
     setHiredPrebuilt(newHired);
-    localStorage.setItem(HIRED_PREBUILT_KEY, JSON.stringify(newHired));
+    localStorage.setItem(hiredPrebuiltKey, JSON.stringify(newHired));
 
     // Clear analytics chat history and stop background refresh when Analytics agent is removed
     if (prebuilt.type === 'analytics') {
-      localStorage.removeItem('analytics_chat_history');
-      localStorage.removeItem('analytics_pending_question');
+      localStorage.removeItem(`analytics_chat_history_${user?.tenant_id || 'default'}`);
+      localStorage.removeItem(`analytics_pending_question_${user?.tenant_id || 'default'}`);
 
       // Stop analytics context background refresh
       try {
@@ -353,7 +354,7 @@ const AgentsPage = () => {
   const filteredPrebuilt = availablePrebuiltEmployees.filter(emp =>
     emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     emp.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.integrationName.toLowerCase().includes(searchQuery.toLowerCase())
+    (emp.integrations || []).join(' ').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Dropdown menu component to avoid duplication
@@ -499,7 +500,7 @@ const AgentsPage = () => {
                     </h3>
                     <p className="text-[12px] text-slate-500 mb-2">{employee.role}</p>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {employee.integration === 'telegram' ? (
+                      {(employee.integrations || []).includes('telegram') ? (
                         <Badge className="bg-[#0088cc]/10 text-[#0088cc] hover:bg-[#0088cc]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
                           <TelegramIcon className="w-3 h-3" />
                           Telegram

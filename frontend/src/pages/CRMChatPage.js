@@ -92,7 +92,9 @@ const chartHasValidData = (chart) => {
 export default function CRMChatPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const chatStorageKey = `analytics_chat_history_${user?.tenant_id || 'default'}`;
+  const pendingQuestionKey = `analytics_pending_question_${user?.tenant_id || 'default'}`;
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -137,7 +139,7 @@ export default function CRMChatPage() {
       setCrmConnected(isConnected);
 
       // Load saved messages
-      const savedMessages = localStorage.getItem(CHAT_STORAGE_KEY);
+      const savedMessages = localStorage.getItem(chatStorageKey);
       let loadedMessages = [];
 
       if (savedMessages) {
@@ -161,10 +163,10 @@ export default function CRMChatPage() {
         loadedMessages = loadedMessages.filter(m => !m.isConnectionPrompt);
 
         // Check if there's a pending question to continue with
-        const pendingQuestion = localStorage.getItem(PENDING_QUESTION_KEY);
+        const pendingQuestion = localStorage.getItem(pendingQuestionKey);
         if (pendingQuestion) {
           // Clear the pending question
-          localStorage.removeItem(PENDING_QUESTION_KEY);
+          localStorage.removeItem(pendingQuestionKey);
           // Set messages without welcome back - we'll answer the question instead
           setMessages(loadedMessages);
           setInitialLoading(false);
@@ -208,7 +210,7 @@ export default function CRMChatPage() {
   // Save chat history to localStorage whenever messages change
   useEffect(() => {
     if (messages.length > 0) {
-      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+      localStorage.setItem(chatStorageKey, JSON.stringify(messages));
     }
   }, [messages]);
 
@@ -256,7 +258,7 @@ export default function CRMChatPage() {
     // If CRM not connected, save the question and show connection prompt
     if (!isConnected) {
       // Save the pending question so we can continue after connecting
-      localStorage.setItem(PENDING_QUESTION_KEY, messageText);
+      localStorage.setItem(pendingQuestionKey, messageText);
       setMessages(prev => [...prev, { role: 'assistant', text: '', isConnectionPrompt: true }]);
       setLoading(false);
       return;
@@ -369,7 +371,7 @@ export default function CRMChatPage() {
   const resetChat = () => {
     // Always reset to intro message
     setMessages([{ role: 'assistant', text: INTRO_MESSAGE, isIntro: true }]);
-    localStorage.removeItem(CHAT_STORAGE_KEY);
+    localStorage.removeItem(chatStorageKey);
   };
 
   if (initialLoading) {

@@ -20,6 +20,7 @@ import {
   ImageOff
 } from 'lucide-react';
 import AiOrb from '../components/Orb/AiOrb';
+import { toast } from 'sonner';
 
 // Telegram icon (paper plane only)
 const TelegramIcon = ({ className }) => (
@@ -686,6 +687,7 @@ const AgentDialoguePage = () => {
                   <Button
                     className="w-full bg-slate-900 hover:bg-slate-800 text-white h-10 text-sm font-medium rounded-lg"
                     data-testid="human-takeover-btn"
+                    onClick={() => toast.info('Human takeover mode coming soon')}
                   >
                     Human Agent Takeover
                   </Button>

@@ -84,6 +84,13 @@ const KnowledgeBasePage = () => {
     fetchAllDocuments();
   }, []);
 
+  // Cleanup object URLs on unmount or when previewUrl changes
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   // Toggle image responses setting
   const toggleImageResponses = async () => {
     setTogglingImageResponses(true);
@@ -257,6 +264,7 @@ const KnowledgeBasePage = () => {
     }
 
     setSelectedFile(file);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(URL.createObjectURL(file));
 
     // Auto-generate name from filename
