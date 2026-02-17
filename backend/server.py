@@ -3331,7 +3331,7 @@ async def dashboard_onboarding_start(current_user: Dict = Depends(get_current_us
         )
         synced_entities = [
             s for s in (sync_status.data or [])
-            if s.get("status") == "completed" and (s.get("synced_records") or 0) > 0
+            if s.get("status") in ("completed", "complete") and (s.get("synced_records") or 0) > 0
         ]
         if not synced_entities:
             raise HTTPException(
