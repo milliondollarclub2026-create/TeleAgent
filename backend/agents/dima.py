@@ -149,87 +149,18 @@ async def generate_dashboard_widgets(
     refinement_answers: dict = None,
 ) -> list[dict]:
     """
-    Onboarding: generate full dashboard widget set for selected categories.
+    Onboarding: generate dashboard widget set for selected categories.
+
+    Always returns comprehensive standard widgets (no LLM dependency).
+    The standard set covers KPIs, charts, funnels, and trends for each category.
 
     Returns:
         List of widget dicts ready for insertion into dashboard_widgets table.
     """
-    async with AgentTrace(supabase, tenant_id, "dima", model="gpt-4o") as trace:
-        prompt_data = {
-            "selected_categories": categories,
-            "crm_source": crm_source,
-            "crm_profile": {
-                "entities": {
-                    entity: {
-                        "count": info.get("count", 0),
-                        "fields": {
-                            f: {"null_rate": fd.get("null_rate", 0)}
-                            for f, fd in info.get("fields", {}).items()
-                        } if info.get("fields") else {},
-                    }
-                    for entity, info in crm_profile.entities.items()
-                },
-            },
-            "available_fields": ALLOWED_FIELDS,
-            "refinement": refinement_answers or {},
-        }
-
-        response = await openai_client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": ONBOARDING_PROMPT},
-                {"role": "user", "content": json.dumps(prompt_data)},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.4,
-            max_tokens=4000,
-        )
-        trace.record_tokens(response)
-
-        log_token_usage_fire_and_forget(
-            tenant_id=tenant_id,
-            model="gpt-4o",
-            request_type="dashboard_onboarding_widgets",
-            input_tokens=response.usage.prompt_tokens,
-            output_tokens=response.usage.completion_tokens,
-        )
-
-        content = response.choices[0].message.content
-        try:
-            result = json.loads(content)
-        except json.JSONDecodeError:
-            logger.error(f"Dima onboarding returned invalid JSON: {content[:200]}")
-            return _fallback_widgets(categories, crm_source)
-
-        widgets_raw = result.get("widgets", [])
-        widgets = []
-        for idx, w in enumerate(widgets_raw):
-            config = _validate_and_build_config(w)
-            if config:
-                widget = {
-                    "tenant_id": tenant_id,
-                    "crm_source": crm_source,
-                    "chart_type": config.chart_type,
-                    "title": config.title,
-                    "description": w.get("description", ""),
-                    "data_source": config.data_source,
-                    "x_field": config.x_field,
-                    "y_field": config.y_field,
-                    "aggregation": config.aggregation,
-                    "group_by": config.group_by,
-                    "filter_field": config.filter_field,
-                    "filter_value": config.filter_value,
-                    "time_range_days": config.time_range_days,
-                    "sort_order": config.sort_order,
-                    "item_limit": config.item_limit,
-                    "position": idx,
-                    "size": w.get("size", "medium"),
-                    "is_standard": True,
-                    "source": "onboarding",
-                }
-                widgets.append(widget)
-
-        return widgets
+    # Standard widgets are always generated — no LLM dependency
+    widgets = _standard_widgets(categories, crm_source)
+    logger.info(f"Generated {len(widgets)} standard widgets for categories: {categories}")
+    return widgets
 
 
 def _validate_and_build_config(chart_raw: dict) -> Optional[ChartConfig]:
@@ -274,47 +205,75 @@ def _validate_and_build_config(chart_raw: dict) -> Optional[ChartConfig]:
         return None
 
 
-def _fallback_widgets(categories: list[str], crm_source: str) -> list[dict]:
-    """Generate basic widgets when GPT-4o fails. No LLM cost."""
-    FALLBACKS = {
+def _standard_widgets(categories: list[str], crm_source: str) -> list[dict]:
+    """Generate comprehensive standard widgets for selected categories. No LLM cost.
+
+    These are guaranteed to work with the ALLOWED_FIELDS whitelist and cover the
+    essential KPIs and charts every CRM dashboard needs.
+    """
+    STANDARDS = {
         "lead_pipeline": [
-            {"chart_type": "bar", "title": "Leads by Status", "data_source": "crm_leads", "x_field": "status", "size": "medium"},
-            {"chart_type": "pie", "title": "Leads by Source", "data_source": "crm_leads", "x_field": "source", "size": "medium"},
+            # KPIs first
+            {"chart_type": "kpi", "title": "Total Leads", "description": "All-time lead count", "data_source": "crm_leads", "x_field": "status", "aggregation": "count", "size": "small"},
+            {"chart_type": "kpi", "title": "New Leads (30d)", "description": "Leads created in the last 30 days", "data_source": "crm_leads", "x_field": "status", "aggregation": "count", "time_range_days": 30, "size": "small"},
+            {"chart_type": "kpi", "title": "Leads This Week", "description": "Leads created in the last 7 days", "data_source": "crm_leads", "x_field": "status", "aggregation": "count", "time_range_days": 7, "size": "small"},
+            # Charts
+            {"chart_type": "funnel", "title": "Lead Pipeline", "description": "Lead distribution across pipeline stages", "data_source": "crm_leads", "x_field": "status", "size": "large"},
+            {"chart_type": "bar", "title": "Leads by Status", "description": "Number of leads in each status", "data_source": "crm_leads", "x_field": "status", "size": "medium"},
+            {"chart_type": "pie", "title": "Leads by Source", "description": "Where your leads are coming from", "data_source": "crm_leads", "x_field": "source", "size": "medium", "item_limit": 8},
+            {"chart_type": "line", "title": "Lead Trend", "description": "New leads over time", "data_source": "crm_leads", "x_field": "created_at", "size": "large", "time_range_days": 90, "sort_order": "asc"},
+            {"chart_type": "bar", "title": "Leads by Assignee", "description": "Lead distribution per team member", "data_source": "crm_leads", "x_field": "assigned_to", "size": "medium"},
         ],
         "deal_analytics": [
-            {"chart_type": "funnel", "title": "Deal Stages", "data_source": "crm_deals", "x_field": "stage", "size": "large"},
-            {"chart_type": "bar", "title": "Deal Values", "data_source": "crm_deals", "x_field": "stage", "y_field": "value", "aggregation": "sum", "size": "medium"},
+            {"chart_type": "kpi", "title": "Total Deals", "description": "All-time deal count", "data_source": "crm_deals", "x_field": "stage", "aggregation": "count", "size": "small"},
+            {"chart_type": "kpi", "title": "Pipeline Value", "description": "Total value of all deals", "data_source": "crm_deals", "x_field": "stage", "y_field": "value", "aggregation": "sum", "size": "small"},
+            {"chart_type": "funnel", "title": "Deal Stages", "description": "Deal distribution across sales stages", "data_source": "crm_deals", "x_field": "stage", "size": "large"},
+            {"chart_type": "bar", "title": "Deal Value by Stage", "description": "Revenue potential at each stage", "data_source": "crm_deals", "x_field": "stage", "y_field": "value", "aggregation": "sum", "size": "medium"},
+            {"chart_type": "line", "title": "Deals Over Time", "description": "New deals created over time", "data_source": "crm_deals", "x_field": "created_at", "size": "large", "time_range_days": 90, "sort_order": "asc"},
+            {"chart_type": "pie", "title": "Deals by Assignee", "description": "Deal distribution per team member", "data_source": "crm_deals", "x_field": "assigned_to", "size": "medium", "item_limit": 8},
         ],
         "activity_tracking": [
-            {"chart_type": "pie", "title": "Activities by Type", "data_source": "crm_activities", "x_field": "type", "size": "medium"},
+            {"chart_type": "kpi", "title": "Total Activities", "description": "All recorded activities", "data_source": "crm_activities", "x_field": "type", "aggregation": "count", "size": "small"},
+            {"chart_type": "pie", "title": "Activities by Type", "description": "Breakdown of activity types", "data_source": "crm_activities", "x_field": "type", "size": "medium", "item_limit": 6},
+            {"chart_type": "bar", "title": "Activities by Rep", "description": "Activity count per team member", "data_source": "crm_activities", "x_field": "employee_name", "size": "medium"},
+            {"chart_type": "line", "title": "Activity Trend", "description": "Activities over time", "data_source": "crm_activities", "x_field": "started_at", "size": "large", "time_range_days": 90, "sort_order": "asc"},
         ],
         "revenue_metrics": [
-            {"chart_type": "line", "title": "Revenue Over Time", "data_source": "crm_deals", "x_field": "closed_at", "y_field": "value", "aggregation": "sum", "size": "large"},
+            {"chart_type": "kpi", "title": "Total Revenue", "description": "Sum of all deal values", "data_source": "crm_deals", "x_field": "stage", "y_field": "value", "aggregation": "sum", "size": "small"},
+            {"chart_type": "kpi", "title": "Avg Deal Size", "description": "Average value per deal", "data_source": "crm_deals", "x_field": "stage", "y_field": "value", "aggregation": "avg", "size": "small"},
+            {"chart_type": "line", "title": "Revenue Over Time", "description": "Revenue trend by close date", "data_source": "crm_deals", "x_field": "closed_at", "y_field": "value", "aggregation": "sum", "size": "large", "sort_order": "asc"},
+            {"chart_type": "bar", "title": "Revenue by Stage", "description": "Pipeline value at each stage", "data_source": "crm_deals", "x_field": "stage", "y_field": "value", "aggregation": "sum", "size": "medium"},
         ],
         "team_performance": [
-            {"chart_type": "bar", "title": "Deals per Rep", "data_source": "crm_deals", "x_field": "assigned_to", "size": "medium"},
+            {"chart_type": "bar", "title": "Deals per Rep", "description": "Deal count by team member", "data_source": "crm_deals", "x_field": "assigned_to", "size": "medium"},
+            {"chart_type": "bar", "title": "Revenue per Rep", "description": "Total deal value by team member", "data_source": "crm_deals", "x_field": "assigned_to", "y_field": "value", "aggregation": "sum", "size": "medium"},
+            {"chart_type": "bar", "title": "Leads per Rep", "description": "Lead count by assignee", "data_source": "crm_leads", "x_field": "assigned_to", "size": "medium"},
         ],
         "contact_management": [
-            {"chart_type": "bar", "title": "Contacts by Company", "data_source": "crm_contacts", "x_field": "company", "size": "medium"},
+            {"chart_type": "kpi", "title": "Total Contacts", "description": "All contacts in your CRM", "data_source": "crm_contacts", "x_field": "company", "aggregation": "count", "size": "small"},
+            {"chart_type": "bar", "title": "Contacts by Company", "description": "Contact distribution across companies", "data_source": "crm_contacts", "x_field": "company", "size": "medium"},
+            {"chart_type": "line", "title": "Contact Growth", "description": "New contacts over time", "data_source": "crm_contacts", "x_field": "created_at", "size": "large", "time_range_days": 90, "sort_order": "asc"},
         ],
     }
 
     widgets = []
     position = 0
     for cat in categories:
-        for fb in FALLBACKS.get(cat, []):
+        for w in STANDARDS.get(cat, []):
             widgets.append({
                 "crm_source": crm_source,
-                "chart_type": fb["chart_type"],
-                "title": fb["title"],
-                "data_source": fb["data_source"],
-                "x_field": fb["x_field"],
-                "y_field": fb.get("y_field", "count"),
-                "aggregation": fb.get("aggregation", "count"),
-                "sort_order": "desc",
-                "item_limit": 10,
+                "chart_type": w["chart_type"],
+                "title": w["title"],
+                "description": w.get("description", ""),
+                "data_source": w["data_source"],
+                "x_field": w["x_field"],
+                "y_field": w.get("y_field", "count"),
+                "aggregation": w.get("aggregation", "count"),
+                "sort_order": w.get("sort_order", "desc"),
+                "item_limit": w.get("item_limit", 10),
+                "time_range_days": w.get("time_range_days"),
                 "position": position,
-                "size": fb.get("size", "medium"),
+                "size": w.get("size", "medium"),
                 "is_standard": True,
                 "source": "onboarding",
             })
