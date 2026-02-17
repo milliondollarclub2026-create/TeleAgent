@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowUp, Loader2, Plus, User } from 'lucide-react';
+import { ArrowUp, Loader2, Plus, User, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -223,16 +223,34 @@ export default function DashboardChat({ api, onAddWidget }) {
     }
   };
 
+  // Clear chat history
+  const handleClearChat = async () => {
+    const { error } = await api.clearChatHistory();
+    if (!error) {
+      setMessages([{ id: 'intro', role: 'assistant', text: INTRO_MESSAGE, isIntro: true }]);
+      setHasMore(false);
+      toast.success('Chat cleared');
+    }
+  };
+
   // Add chart to dashboard
   const handleAddToDashboard = async (chart) => {
     if (onAddWidget) {
+      const chartType = chart.type || chart.chart_type || 'bar';
       const { error } = await onAddWidget({
         title: chart.title || 'Chart',
-        chart_type: chart.type || chart.chart_type,
-        data_source: chart.data_source || 'crm_query',
+        chart_type: chartType,
+        data_source: chart.data_source || 'crm_leads',
         crm_source: chart.crm_source || 'bitrix24',
         x_field: chart.x_field || null,
-        y_field: chart.y_field || null,
+        y_field: chart.y_field || 'count',
+        aggregation: chart.aggregation || 'count',
+        filter_field: chart.filter_field || null,
+        filter_value: chart.filter_value || null,
+        time_range_days: chart.time_range_days || null,
+        sort_order: chart.sort_order || 'desc',
+        item_limit: chart.item_limit || 10,
+        size: ['line', 'funnel'].includes(chartType) ? 'large' : 'medium',
       });
       if (!error) {
         toast.success('Added to dashboard');
@@ -408,6 +426,19 @@ export default function DashboardChat({ api, onAddWidget }) {
       {/* Input area */}
       <div className="flex-shrink-0 px-4 pb-3 pt-4">
         <div className="max-w-4xl mx-auto">
+          {/* Clear chat — only show when there are real messages */}
+          {messages.some(m => !m.isIntro) && (
+            <div className="flex justify-end mb-1.5">
+              <button
+                onClick={handleClearChat}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-slate-400 hover:text-red-500 transition-colors rounded-md hover:bg-red-50 disabled:opacity-40"
+              >
+                <Trash2 className="w-3 h-3" strokeWidth={1.75} />
+                Clear chat
+              </button>
+            </div>
+          )}
           <div className="relative bg-white border border-slate-200 rounded-2xl shadow-sm focus-within:border-slate-300 focus-within:shadow-md transition-all duration-200">
             <textarea
               ref={inputRef}

@@ -103,6 +103,10 @@ export default function useDashboardApi() {
     apiCall('get', '/api/dashboard/chat/history', { limit, offset }),
   [apiCall]);
 
+  const clearChatHistory = useCallback(() =>
+    apiCallWithToast('delete', '/api/dashboard/chat/history', null, 'Failed to clear chat'),
+  [apiCallWithToast]);
+
   // --- Data ---
   const getDataUsage = useCallback(() =>
     apiCall('get', '/api/data/usage'),
@@ -131,9 +135,10 @@ export default function useDashboardApi() {
     // Chat
     sendChatMessage,
     getChatHistory,
+    clearChatHistory,
     // Data
     getDataUsage,
     getSyncStatus,
     getIntegrationsStatus,
-  }), [startOnboarding, selectCategories, submitRefinement, reconfigure, getConfig, getWidgets, addWidget, deleteWidget, getInsights, sendChatMessage, getChatHistory, getDataUsage, getSyncStatus, getIntegrationsStatus]);
+  }), [startOnboarding, selectCategories, submitRefinement, reconfigure, getConfig, getWidgets, addWidget, deleteWidget, getInsights, sendChatMessage, getChatHistory, clearChatHistory, getDataUsage, getSyncStatus, getIntegrationsStatus]);
 }

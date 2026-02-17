@@ -3908,6 +3908,20 @@ async def dashboard_chat_history(
     }
 
 
+@api_router.delete("/dashboard/chat/history")
+async def dashboard_chat_clear(current_user: Dict = Depends(get_current_user)):
+    """
+    Delete all chat messages for the current tenant.
+    """
+    tenant_id = current_user["tenant_id"]
+
+    supabase.table("dashboard_chat_messages").delete().eq(
+        "tenant_id", tenant_id
+    ).execute()
+
+    return {"success": True}
+
+
 # ── Dashboard Config ──
 
 @api_router.get("/dashboard/config")

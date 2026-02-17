@@ -139,6 +139,21 @@ async def resolve_kpi(
         days = time_range_days or config.get("time_range_days")
         time_field = config.get("time_field", "created_at")
 
+        # Adjust title when caller provides a custom time range
+        if time_range_days and not config.get("time_range_days"):
+            if time_range_days == 1:
+                title = f"{title} (Today)"
+            elif time_range_days == 7:
+                title = f"{title} (7d)"
+            elif time_range_days == 30:
+                title = f"{title} (30d)"
+            elif time_range_days == 90:
+                title = f"{title} (90d)"
+            elif time_range_days == 365:
+                title = f"{title} (1y)"
+            else:
+                title = f"{title} ({time_range_days}d)"
+
         # Special aggregations
         if agg == "conversion_rate":
             return await _resolve_conversion_rate(supabase, tenant_id, crm_source, title)
