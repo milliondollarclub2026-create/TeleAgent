@@ -7972,7 +7972,7 @@ ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'docx', 'xlsx', 'xls', 'csv', 'txt'}
 
 # Allowed REST API table names (prevents injection via db_rest_select)
 ALLOWED_REST_TABLES = {
-    'users', 'tenant_configs', 'telegram_bots', 'leads', 'customers',
+    'tenants', 'users', 'tenant_configs', 'telegram_bots', 'leads', 'customers',
     'conversations', 'messages', 'documents', 'event_logs', 'token_usage_logs',
     'token_blacklist', 'instagram_accounts', 'dashboard_configs',
     'dashboard_widgets', 'dashboard_chat_messages', 'crm_data_cache',
