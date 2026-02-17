@@ -18,6 +18,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
+  const [hiredPrebuilt, setHiredPrebuilt] = useState(null); // null = loading, [] = loaded but empty
 
   useEffect(() => {
     if (token) {
@@ -32,12 +33,24 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.get(`${API}/auth/me`);
       setUser(response.data);
+      // Fetch hired prebuilt state for sidebar gating
+      try {
+        const configRes = await axios.get(`${API}/config`);
+        const hired = configRes.data?.hired_prebuilt || [];
+        setHiredPrebuilt(hired);
+      } catch (e) {
+        // Config fetch is non-critical
+      }
     } catch (error) {
       console.error('Failed to fetch user:', error);
       logout();
     } finally {
       setLoading(false);
     }
+  };
+
+  const updateHiredPrebuilt = (newHired) => {
+    setHiredPrebuilt(newHired);
   };
 
   const login = async (email, password) => {
@@ -84,7 +97,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, isAuthenticated: !!user, hiredPrebuilt, updateHiredPrebuilt }}>
       {children}
     </AuthContext.Provider>
   );

@@ -364,8 +364,10 @@ const AgentsPage = () => {
   const [expandedCards, setExpandedCards] = useState({});
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [hiredPrebuilt, setHiredPrebuilt] = useState([]);
+  const [hireDialogOpen, setHireDialogOpen] = useState(false);
+  const [prebuiltToHire, setPrebuiltToHire] = useState(null);
   const navigate = useNavigate();
-  const { token, user } = useAuth();
+  const { token, user, updateHiredPrebuilt } = useAuth();
 
   // Close team modal on Escape key
   useEffect(() => {
@@ -392,6 +394,7 @@ const AgentsPage = () => {
       const config = response.data || {};
       const hired = config.hired_prebuilt || [];
       setHiredPrebuilt(hired);
+      updateHiredPrebuilt(hired);
 
       // Migrate from localStorage if backend has no data
       const legacyKey = `hired_prebuilt_employees_${user?.tenant_id || 'default'}`;
@@ -401,6 +404,7 @@ const AgentsPage = () => {
           const parsed = JSON.parse(savedHired);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setHiredPrebuilt(parsed);
+            updateHiredPrebuilt(parsed);
             await axios.put(`${API}/config`, { hired_prebuilt: parsed });
             localStorage.removeItem(legacyKey);
           }
@@ -416,9 +420,10 @@ const AgentsPage = () => {
     }
   };
 
-  // Persist hired prebuilt state to backend
+  // Persist hired prebuilt state to backend + sync AuthContext for sidebar
   const persistHiredPrebuilt = async (newHired) => {
     setHiredPrebuilt(newHired);
+    updateHiredPrebuilt(newHired);
     try {
       await axios.put(`${API}/config`, { hired_prebuilt: newHired });
     } catch (e) {
@@ -486,7 +491,7 @@ const AgentsPage = () => {
       toast.success(`${prebuilt.name} has joined your team!`);
     }
 
-    // Analytics agent: Initialize analytics context and go to Analytics Chat page
+    // Analytics agent: Initialize analytics context and go to CRM Dashboard page
     if (prebuilt.type === 'analytics') {
       // Initialize analytics context in background (don't block navigation)
       try {
@@ -508,7 +513,7 @@ const AgentsPage = () => {
         // Silently fail - analytics will work when CRM is connected
       }
 
-      navigate('/app/analytics');
+      navigate('/app/crm-dashboard');
       return;
     }
     // Other prebuilt types navigate to create new agent
@@ -546,6 +551,16 @@ const AgentsPage = () => {
     }
 
     toast.success(`${prebuilt.name} has been removed from your team`);
+  };
+
+  // Confirmation flow for hiring Bobur (analytics) — opens dialog
+  const confirmHirePrebuilt = (employee) => {
+    if (employee.type === 'analytics') {
+      setPrebuiltToHire(employee);
+      setHireDialogOpen(true);
+    } else {
+      handleHirePrebuilt(employee);
+    }
   };
 
   // Get prebuilt types that are already associated with real agents
@@ -650,7 +665,7 @@ const AgentsPage = () => {
               <Card
                 key={employee.id}
                 className="bg-white border-slate-200/80 shadow-sm hover:shadow-[0_8px_30px_-8px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.06)] hover:border-slate-300/80 hover:-translate-y-[2px] transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] cursor-pointer group relative overflow-hidden"
-                onClick={() => employee.type === 'analytics' ? navigate('/app/analytics') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } })}
+                onClick={() => employee.type === 'analytics' ? navigate('/app/crm-dashboard') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } })}
                 data-testid={`hired-${employee.id}`}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
@@ -679,7 +694,7 @@ const AgentsPage = () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
                       <DropdownMenuItem
-                        onClick={(e) => { e.stopPropagation(); employee.type === 'analytics' ? navigate('/app/analytics') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } }); }}
+                        onClick={(e) => { e.stopPropagation(); employee.type === 'analytics' ? navigate('/app/crm-dashboard') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } }); }}
                         className="gap-2.5 text-[13px]"
                       >
                         <LayoutDashboard className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
@@ -998,7 +1013,7 @@ const AgentsPage = () => {
                       </div>
                     )}
                     <Button
-                      onClick={(e) => { e.stopPropagation(); handleHirePrebuilt(employee); }}
+                      onClick={(e) => { e.stopPropagation(); confirmHirePrebuilt(employee); }}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-medium h-8 px-4 rounded-lg shadow-sm"
                     >
                       Hire
@@ -1046,6 +1061,33 @@ const AgentsPage = () => {
               onClick={deleteAgent}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Hire Bobur Confirmation Dialog */}
+      <AlertDialog open={hireDialogOpen} onOpenChange={setHireDialogOpen}>
+        <AlertDialogContent className="sm:max-w-[420px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-900">Hire {prebuiltToHire?.name}?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-500 text-[13px]">
+              {prebuiltToHire?.name} will connect to your CRM to analyze leads, visualize conversion rates, and generate insightful charts. A new CRM Dashboard will appear in your sidebar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-200 text-[13px]">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-[13px]"
+              onClick={() => {
+                if (prebuiltToHire) {
+                  handleHirePrebuilt(prebuiltToHire);
+                }
+                setHireDialogOpen(false);
+                setPrebuiltToHire(null);
+              }}
+            >
+              Hire
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

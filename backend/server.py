@@ -3382,7 +3382,7 @@ async def dashboard_onboarding_select(
     # Validate that onboarding has been started (dashboard_configs record with onboarding_state must exist)
     config_check = (
         supabase.table("dashboard_configs")
-        .select("id, onboarding_state")
+        .select("tenant_id, onboarding_state")
         .eq("tenant_id", tenant_id)
         .execute()
     )

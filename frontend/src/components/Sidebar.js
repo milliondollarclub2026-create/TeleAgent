@@ -36,11 +36,10 @@ import {
 export const SidebarContext = createContext();
 export const useSidebar = () => useContext(SidebarContext);
 
-const mainNavItems = [
+const baseNavItems = [
   { path: '/app/agents', icon: Bot, label: 'AI Employees' },
   { path: '/app/leads', icon: Users, label: 'All Leads' },
   { path: '/app/dialogue', icon: MessagesSquare, label: 'Dialogue' },
-  { path: '/app/crm-dashboard', icon: BarChart3, label: 'CRM Dashboard' },
   { path: '/app/global-knowledge', icon: Globe, label: 'Shared Knowledge' },
   { path: '/app/connections', icon: Plug, label: 'Connections' },
 ];
@@ -69,11 +68,20 @@ export const SidebarProvider = ({ children }) => {
 };
 
 const Sidebar = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, hiredPrebuilt } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { collapsed, toggleSidebar } = useSidebar();
+
+  // Build nav items dynamically — CRM Dashboard only visible when Bobur is hired
+  const mainNavItems = [
+    ...baseNavItems.slice(0, 3), // AI Employees, All Leads, Dialogue
+    ...(hiredPrebuilt?.includes('prebuilt-analytics')
+      ? [{ path: '/app/crm-dashboard', icon: BarChart3, label: 'CRM Dashboard' }]
+      : []),
+    ...baseNavItems.slice(3), // Shared Knowledge, Connections
+  ];
 
   // Check if we're viewing a specific agent
   const agentMatch = location.pathname.match(/\/app\/agents\/([^/]+)/);

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
 import AiOrb from '../components/Orb/AiOrb';
 import useDashboardApi from '../hooks/useDashboardApi';
 import DashboardOnboarding from '../components/dashboard/DashboardOnboarding';
@@ -52,7 +54,16 @@ class DashboardErrorBoundary extends React.Component {
 const BOBUR_ORB_COLORS = ['#f97316', '#ea580c', '#f59e0b'];
 
 function CRMDashboardPageInner() {
+  const { hiredPrebuilt } = useAuth();
+  const navigate = useNavigate();
   const api = useDashboardApi();
+
+  // Guard: redirect to agents if Bobur not hired (null = still loading, skip check)
+  useEffect(() => {
+    if (hiredPrebuilt !== null && !hiredPrebuilt?.includes('prebuilt-analytics')) {
+      navigate('/app/agents', { replace: true });
+    }
+  }, [hiredPrebuilt, navigate]);
   const [config, setConfig] = useState(undefined); // undefined = loading, null = no config
   const [configLoading, setConfigLoading] = useState(true);
   const [hasCRM, setHasCRM] = useState(null); // null = checking
