@@ -19,7 +19,8 @@ import {
   Clock,
   Calendar,
   Radio,
-  UserCircle2
+  UserCircle2,
+  X
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -149,21 +150,12 @@ const prebuiltEmployees = [
     id: 'prebuilt-sales',
     name: 'Jasur',
     role: 'the Sales Team Lead',
-    description: 'Jasur leads your sales team across Telegram and Instagram. Qualifies leads, collects contact information, and never lets a sales opportunity slip. Fluent in 20+ languages.',
+    description: 'A team of 6 AI specialists. Routes inquiries, answers FAQs, closes sales, extracts lead data, and records everything to your CRM. Works 24/7 in 20+ languages.',
+    teamSize: 6,
     integrations: ['telegram', 'instagram', 'bitrix', 'sheets'], // Multiple integrations
     type: 'sales',
     // Emerald/teal gradient - sales = growth = green
     orbColors: ['#10b981', '#059669', '#14b8a6']
-  },
-  {
-    id: 'prebuilt-onboarding',
-    name: 'Nilufar',
-    role: 'the Onboarding Team Lead',
-    description: 'Nilufar streamlines your hiring process by creating detailed application forms with personality assessments and screening tests. She finds the best candidates for your sales department automatically.',
-    integrations: [], // No integrations shown
-    type: 'onboarding',
-    // Blue/violet gradient - HR = professional = blue
-    orbColors: ['#6366f1', '#8b5cf6', '#3b82f6']
   },
   {
     id: 'prebuilt-analytics',
@@ -177,6 +169,194 @@ const prebuiltEmployees = [
   }
 ];
 
+// Jasur's 6-agent sales team
+const jasurTeamMembers = [
+  {
+    name: 'Aziza',
+    role: 'The Qualifier',
+    description: 'Routes every message to the right specialist instantly',
+    orbColors: ['#06b6d4', '#0891b2', '#22d3ee'],
+  },
+  {
+    name: 'Madina',
+    role: 'The Receptionist',
+    description: 'Answers FAQs and common questions with your knowledge base',
+    orbColors: ['#2dd4bf', '#14b8a6', '#5eead4'],
+  },
+  {
+    name: 'Jasur',
+    role: 'The Closer',
+    description: 'Handles objections, negotiations, and closing deals',
+    orbColors: ['#10b981', '#059669', '#14b8a6'],
+  },
+  {
+    name: 'Sardor',
+    role: 'The Analyst',
+    description: 'Extracts and saves lead data to your CRM automatically',
+    orbColors: ['#f59e0b', '#d97706', '#fbbf24'],
+  },
+  {
+    name: 'Dilnoza',
+    role: 'The Scribe',
+    description: 'Records conversation summaries for future context',
+    orbColors: ['#6366f1', '#4f46e5', '#818cf8'],
+  },
+  {
+    name: 'Farrukh',
+    role: 'The Librarian',
+    description: 'Makes your documents and catalogs searchable by AI',
+    orbColors: ['#94a3b8', '#64748b', '#cbd5e1'],
+  },
+];
+
+// Team modal CSS keyframes (injected once)
+const teamModalStyles = `
+@keyframes teamModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes teamModalSlideUp {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes teamMemberFadeIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+`;
+
+// Inject styles once
+if (typeof document !== 'undefined' && !document.getElementById('team-modal-styles')) {
+  const style = document.createElement('style');
+  style.id = 'team-modal-styles';
+  style.textContent = teamModalStyles;
+  document.head.appendChild(style);
+}
+
+// Team Modal Component — Clean white panel with team roster
+const TeamModal = ({ open, onClose, onHire }) => {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Jasur's Sales Team"
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/30 backdrop-blur-[6px]"
+        style={{ animation: 'teamModalFadeIn 0.25s ease-out' }}
+      />
+
+      {/* Panel */}
+      <div
+        className="relative w-full max-w-[460px] bg-white rounded-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          animation: 'teamModalSlideUp 0.35s cubic-bezier(0.23, 1, 0.32, 1)',
+          boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+        }}
+      >
+        {/* Close */}
+        <button
+          onClick={onClose}
+          className="absolute top-3.5 right-3.5 w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all duration-200 z-20"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" strokeWidth={2.5} />
+        </button>
+
+        {/* Team Lead Header */}
+        <div className="px-6 pt-6 pb-5 border-b border-slate-100">
+          <div className="flex items-center gap-4">
+            <AiOrb size={54} colors={['#10b981', '#059669', '#14b8a6']} state="idle" />
+            <div>
+              <h2 className="text-[16px] font-bold text-slate-900 tracking-tight">
+                Jasur's Sales Team
+              </h2>
+              <p className="text-[12.5px] text-slate-500 mt-1 flex items-center gap-2">
+                <span className="flex items-center gap-1.5">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                  </span>
+                  6 specialists
+                </span>
+                <span className="text-slate-300">·</span>
+                <span>Always online</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Agent List */}
+        <div className="px-3 pt-3 pb-1">
+          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.08em] px-3 pb-2">
+            Team Members
+          </p>
+          <div className="space-y-0.5">
+            {jasurTeamMembers.map((member, i) => (
+              <div
+                key={member.name}
+                className="flex items-center gap-3.5 px-3 py-3 rounded-xl hover:bg-slate-50/80 transition-all duration-200 cursor-default"
+                style={{
+                  animation: `teamMemberFadeIn 0.4s cubic-bezier(0.23, 1, 0.32, 1) ${0.1 + i * 0.055}s both`,
+                }}
+              >
+                <div className="flex-shrink-0">
+                  <AiOrb size={38} colors={member.orbColors} state="idle" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-semibold text-slate-900">{member.name}</span>
+                    <span
+                      className="text-[10px] font-medium px-2 py-0.5 rounded-md"
+                      style={{
+                        backgroundColor: member.orbColors[0] + '14',
+                        color: member.orbColors[1],
+                      }}
+                    >
+                      {member.role}
+                    </span>
+                  </div>
+                  <p className="text-[12px] text-slate-500 leading-relaxed mt-0.5">
+                    {member.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-slate-100">
+          {onHire ? (
+            <Button
+              onClick={() => { onHire(); onClose(); }}
+              className="w-full h-11 rounded-xl text-[13px] font-semibold bg-slate-900 hover:bg-slate-800 text-white transition-all duration-200 shadow-sm"
+            >
+              Hire Jasur's Team
+            </Button>
+          ) : (
+            <div className="flex items-center justify-center gap-2 py-1">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="text-[12px] font-medium text-slate-500">
+                Team Active · All agents collaborating
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Storage key for hired prebuilt employees
 const HIRED_PREBUILT_KEY = 'hired_prebuilt_employees';
 
@@ -187,10 +367,24 @@ const AgentsPage = () => {
   const [agentToDelete, setAgentToDelete] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCards, setExpandedCards] = useState({});
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [hiredPrebuilt, setHiredPrebuilt] = useState([]);
   const navigate = useNavigate();
   const { token, user } = useAuth();
   const hiredPrebuiltKey = `hired_prebuilt_employees_${user?.tenant_id || 'default'}`;
+
+  // Close team modal on Escape key
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === 'Escape') setTeamModalOpen(false); };
+    if (teamModalOpen) {
+      document.addEventListener('keydown', handleEsc);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.removeEventListener('keydown', handleEsc);
+      document.body.style.overflow = '';
+    };
+  }, [teamModalOpen]);
 
   useEffect(() => {
     fetchAgents();
@@ -425,32 +619,29 @@ const AgentsPage = () => {
         </div>
       ) : (
         /* Agents Grid - includes both user-created and hired prebuilt */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Hired Prebuilt Employees */}
           {hiredPrebuiltEmployees.map((employee, index) => {
             return (
               <Card
                 key={employee.id}
-                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group relative overflow-hidden"
+                className="bg-white border-slate-200/80 shadow-sm hover:shadow-[0_8px_30px_-8px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.06)] hover:border-slate-300/80 hover:-translate-y-[2px] transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] cursor-pointer group relative overflow-hidden"
                 onClick={() => employee.type === 'analytics' ? navigate('/app/analytics') : navigate('/app/agents/new', { state: { prebuiltType: employee.type } })}
                 data-testid={`hired-${employee.id}`}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
-                {/* Subtle gradient overlay on hover */}
-                <div
-                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                  style={{
-                    background: `radial-gradient(circle at 15% 15%, ${employee.orbColors[0]}25 0%, ${employee.orbColors[0]}10 40%, transparent 70%)`
-                  }}
-                />
-
-                {/* Top Right: Hired Badge (default) / Menu (on hover) */}
+                {/* Top Right: Team pill or Hired badge (default) / Menu (on hover) */}
                 <div className="absolute top-4 right-4 z-10">
-                  {/* Hired Badge - visible by default, hidden on hover */}
-                  <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-medium px-2 py-0.5 gap-1 hover:bg-emerald-50 cursor-default opacity-100 group-hover:opacity-0 transition-opacity duration-150">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Hired
-                  </Badge>
+                  {employee.teamSize ? (
+                    <Badge className="bg-slate-900 text-white hover:bg-slate-900 cursor-default border-0 text-[12px] font-medium px-3.5 py-1.5 rounded-full shadow-sm opacity-100 group-hover:opacity-0 transition-opacity duration-150 tracking-wide">
+                      {employee.teamSize} Agents
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-medium px-2 py-0.5 gap-1 hover:bg-emerald-50 cursor-default opacity-100 group-hover:opacity-0 transition-opacity duration-150">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Hired
+                    </Badge>
+                  )}
                   {/* Menu Button - hidden by default, visible on hover */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -531,25 +722,19 @@ const AgentsPage = () => {
             return (
               <Card
                 key={agent.id}
-                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 cursor-pointer group relative overflow-hidden"
+                className="bg-white border-slate-200/80 shadow-sm hover:shadow-[0_8px_30px_-8px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.06)] hover:border-slate-300/80 hover:-translate-y-[2px] transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] cursor-pointer group relative overflow-hidden"
                 onClick={() => navigate(`/app/agents/${agent.id}`)}
                 data-testid={`agent-card-${agent.id}`}
                 style={{ animationDelay: `${(hiredPrebuiltEmployees.length + index) * 50}ms` }}
               >
-                {/* Subtle gradient overlay for prebuilt agents */}
-                {prebuiltConfig && (
-                  <div
-                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                    style={{
-                      background: `radial-gradient(circle at 15% 15%, ${prebuiltConfig.orbColors[0]}25 0%, ${prebuiltConfig.orbColors[0]}10 40%, transparent 70%)`
-                    }}
-                  />
-                )}
-
-                {/* Top Right: Status Badge (default) / Menu (on hover) */}
+                {/* Top Right: Team pill or Status Badge (default) / Menu (on hover) */}
                 <div className="absolute top-4 right-4 z-10">
-                  {/* Status Badge - visible by default, hidden on hover */}
-                  {agent.status === 'active' ? (
+                  {/* Badge - visible by default, hidden on hover */}
+                  {prebuiltConfig?.teamSize ? (
+                    <Badge className="bg-slate-900 text-white hover:bg-slate-900 cursor-default border-0 text-[12px] font-medium px-3.5 py-1.5 rounded-full shadow-sm opacity-100 group-hover:opacity-0 transition-opacity duration-150 tracking-wide">
+                      {prebuiltConfig.teamSize} Agents
+                    </Badge>
+                  ) : agent.status === 'active' ? (
                     <Badge className="bg-emerald-50 text-emerald-600 border border-emerald-200 text-[10px] font-medium px-2 py-0.5 gap-1 hover:bg-emerald-50 cursor-default opacity-100 group-hover:opacity-0 transition-opacity duration-150">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Active
@@ -620,11 +805,9 @@ const AgentsPage = () => {
 
                   {/* Name & Status */}
                   <div className="mb-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-slate-900 text-[15px] truncate group-hover:text-slate-700 transition-colors">
-                        {prebuiltConfig ? prebuiltConfig.name : agent.name}
-                      </h3>
-                    </div>
+                    <h3 className="font-semibold text-slate-900 text-[15px] truncate group-hover:text-slate-700 transition-colors mb-1">
+                      {prebuiltConfig ? prebuiltConfig.name : agent.name}
+                    </h3>
                     {prebuiltConfig && (
                       <p className="text-[12px] text-slate-500 mb-2">{prebuiltConfig.role}</p>
                     )}
@@ -709,20 +892,22 @@ const AgentsPage = () => {
         </div>
 
 {/* Prebuilt Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {filteredPrebuilt.map((employee) => {
             return (
               <Card
                 key={employee.id}
-                className="bg-white border-slate-200/80 shadow-sm hover:shadow-md hover:border-slate-300/80 transition-all duration-200 group relative overflow-hidden"
+                className={`bg-white border-slate-200/80 shadow-sm hover:shadow-[0_8px_30px_-8px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.06)] hover:border-slate-300/80 hover:-translate-y-[2px] transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group relative overflow-hidden ${employee.teamSize ? 'cursor-pointer' : ''}`}
+                onClick={employee.teamSize ? () => setTeamModalOpen(true) : undefined}
               >
-                {/* Subtle gradient overlay on hover */}
-                <div
-                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                  style={{
-                    background: `radial-gradient(circle at 15% 15%, ${employee.orbColors[0]}25 0%, ${employee.orbColors[0]}10 40%, transparent 70%)`
-                  }}
-                />
+                {/* "6 Agents" pill — top right */}
+                {employee.teamSize && (
+                  <div className="absolute top-4 right-4 z-10">
+                    <Badge className="bg-slate-900 text-white hover:bg-slate-900 cursor-default border-0 text-[12px] font-medium px-3.5 py-1.5 rounded-full shadow-sm tracking-wide">
+                      {employee.teamSize} Agents
+                    </Badge>
+                  </div>
+                )}
 
                 <CardContent className="p-5 relative z-[1]">
                   {/* Header: Animated Orb + Name/Role */}
@@ -789,7 +974,7 @@ const AgentsPage = () => {
                       </div>
                     )}
                     <Button
-                      onClick={() => handleHirePrebuilt(employee)}
+                      onClick={(e) => { e.stopPropagation(); handleHirePrebuilt(employee); }}
                       className="bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium h-8 px-4 rounded-lg shadow-sm"
                     >
                       Hire
@@ -809,6 +994,17 @@ const AgentsPage = () => {
         )}
       </div>
       )}
+
+      {/* Team Modal */}
+      <TeamModal
+        open={teamModalOpen}
+        onClose={() => setTeamModalOpen(false)}
+        onHire={
+          !hiredPrebuilt.includes('prebuilt-sales') && !prebuiltTypesInUse.has('sales')
+            ? () => handleHirePrebuilt(prebuiltEmployees.find(e => e.type === 'sales'))
+            : undefined
+        }
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

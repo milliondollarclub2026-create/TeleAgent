@@ -4319,6 +4319,101 @@ def correct_response_if_needed(response: str, violations: List[str], config: Dic
     return response
 
 
+# ============ Standalone CRM Field Extractor ============
+async def extract_crm_fields(
+    user_message: str,
+    conversation_history: List[Dict],
+    existing_fields: Dict,
+    tenant_id: str,
+    agent_id: str = None,
+    customer_id: str = None,
+    conversation_id: str = None,
+) -> Dict:
+    """
+    Standalone gpt-4o-mini extractor for structured CRM data.
+
+    Extracts ONLY explicitly stated information from the user message.
+    Never infers or guesses - if the user didn't say it, it's not extracted.
+    On any failure, returns empty dict to avoid blocking the response.
+    """
+    try:
+        existing_json = json.dumps(existing_fields or {}, ensure_ascii=False)
+
+        extraction_prompt = (
+            "You are a CRM data extraction assistant. Extract ONLY explicitly stated information "
+            "from the user's latest message. NEVER infer, guess, or assume anything.\n\n"
+            "Fields to extract:\n"
+            "- name: Full name (only if user explicitly states it)\n"
+            "- phone: Phone number (only if user explicitly provides it)\n"
+            "- email: Email address (only if user explicitly provides it)\n"
+            "- product: Product/service they're interested in (only if explicitly mentioned)\n"
+            "- budget: Their budget (only if explicitly stated)\n"
+            "- timeline: When they want to buy/start (only if explicitly stated)\n"
+            "- location: Their city/location (only if explicitly mentioned)\n"
+            "- notes: Any other important detail explicitly stated\n\n"
+            f"Existing collected fields (do NOT overwrite with null):\n{existing_json}\n\n"
+            "Also provide:\n"
+            "- sales_stage_suggestion: Only suggest a stage change if there's a CLEAR signal. "
+            "Options: awareness, interest, consideration, intent, evaluation, purchase. "
+            "Set to null if unclear.\n"
+            "- score_adjustment: +5 if user provides contact info (phone/email/name), "
+            "+10 if user shows clear purchase intent. 0 otherwise.\n"
+            "- hotness_suggestion: 'hot' if ready to buy, 'warm' if interested, "
+            "'cold' if just browsing. null if unclear.\n\n"
+            "Return valid JSON with keys: fields_collected, sales_stage_suggestion, "
+            "score_adjustment, hotness_suggestion.\n"
+            "For fields_collected, ONLY include fields that have new values from this message. "
+            "Omit fields with no new information."
+        )
+
+        # Build messages: system + last few conversation turns + current message
+        messages = [{"role": "system", "content": extraction_prompt}]
+
+        # Include last 4 conversation turns for context
+        recent_history = conversation_history[-4:] if conversation_history else []
+        for msg in recent_history:
+            role = msg.get("role", "user")
+            if role in ("user", "assistant"):
+                messages.append({"role": role, "content": msg.get("content", "")})
+
+        messages.append({"role": "user", "content": user_message})
+
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.3,
+            max_tokens=300,
+            response_format={"type": "json_object"},
+        )
+
+        result_text = response.choices[0].message.content
+        result = json.loads(result_text)
+
+        # Log token usage
+        log_token_usage_fire_and_forget(
+            tenant_id=tenant_id,
+            model="gpt-4o-mini",
+            request_type="crm_extractor",
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+            agent_id=agent_id,
+            customer_id=customer_id,
+            conversation_id=conversation_id,
+        )
+
+        # Ensure expected structure
+        return {
+            "fields_collected": result.get("fields_collected", {}),
+            "sales_stage_suggestion": result.get("sales_stage_suggestion"),
+            "score_adjustment": result.get("score_adjustment", 0),
+            "hotness_suggestion": result.get("hotness_suggestion"),
+        }
+
+    except Exception as e:
+        logger.error(f"CRM field extraction failed: {e}")
+        return {}
+
+
 # ============ Phase 7: Product Context Builder ============
 def build_product_context(crm_products: List[Dict], kb_products: List[str], config: Dict) -> str:
     """
@@ -4425,7 +4520,8 @@ async def call_sales_agent(
     closing_script: Dict = None,
     contact_urgency: str = None,
     product_context: str = None,
-    media_context: str = None
+    media_context: str = None,
+    conversation_id: str = None
 ) -> Dict:
     """Call LLM with enhanced sales pipeline, CRM awareness, and enforcement layers"""
     current_stage = lead_context.get('sales_stage', 'awareness') if lead_context else 'awareness'
@@ -4478,6 +4574,7 @@ async def call_sales_agent(
                 request_type="sales_agent",
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
+                conversation_id=conversation_id,
             )
 
         content = response.choices[0].message.content
@@ -4513,6 +4610,267 @@ async def call_sales_agent(
             "hotness": "warm",
             "score": 50,
             "fields_collected": {}
+        }
+
+
+# ============ Multi-Model Routing Pipeline ============
+
+# Categories eligible for the mini (gpt-4o-mini) model
+MINI_ELIGIBLE_CATEGORIES = {'faq', 'greeting', 'chitchat'}
+
+
+def should_force_full_model(
+    detected_objection: Dict = None,
+    closing_script: Dict = None,
+    contact_urgency: str = None,
+    lead_score: int = 50,
+    sales_stage: str = 'awareness',
+    message_count: int = 0,
+) -> bool:
+    """Check Python-side rules that skip the classifier and force gpt-4o.
+
+    Returns True if ANY condition mandates the full model.
+    """
+    if detected_objection is not None:
+        return True
+    if closing_script is not None:
+        return True
+    if contact_urgency and 'MANDATORY' in contact_urgency:
+        return True
+    if lead_score >= 70:
+        return True
+    if sales_stage in ('intent', 'evaluation', 'purchase'):
+        return True
+    if message_count <= 3:
+        return True
+    return False
+
+
+async def classify_message_intent(
+    user_message: str,
+    tenant_id: str = None,
+    conversation_id: str = None,
+) -> Dict:
+    """Lightweight intent classifier using gpt-4o-mini (~400 token prompt).
+
+    Returns {"category": str, "confidence": float, "route_to": str}
+    """
+    system_prompt = (
+        "You are a message intent classifier for a sales chatbot. "
+        "Classify the user message into exactly ONE category.\n\n"
+        "Categories:\n"
+        "- faq: questions about products, pricing, hours, location, services\n"
+        "- greeting: hello, hi, start, welcome messages\n"
+        "- objection: price complaints, competitor comparisons, hesitation\n"
+        "- buying_signal: ready to buy, asking how to pay, requesting invoice\n"
+        "- negotiation: asking for discounts, bundles, special deals\n"
+        "- complaint: unhappy about service, product issues, refund requests\n"
+        "- chitchat: off-topic, small talk, jokes, unrelated messages\n"
+        "- complex_sales: multi-step questions, custom requirements, consultations\n\n"
+        "Respond with JSON: {\"category\": \"...\", \"confidence\": 0.0-1.0}"
+    )
+
+    try:
+        response = await asyncio.wait_for(
+            openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message[:500]},  # Truncate for cost
+                ],
+                temperature=0.3,
+                max_tokens=50,
+                response_format={"type": "json_object"},
+            ),
+            timeout=10.0,
+        )
+
+        if tenant_id and hasattr(response, 'usage') and response.usage:
+            log_token_usage_fire_and_forget(
+                tenant_id=tenant_id,
+                model="gpt-4o-mini",
+                request_type="intent_classifier",
+                input_tokens=response.usage.prompt_tokens,
+                output_tokens=response.usage.completion_tokens,
+                conversation_id=conversation_id,
+            )
+
+        result = json.loads(response.choices[0].message.content)
+        category = result.get("category", "complex_sales")
+        confidence = float(result.get("confidence", 0.0))
+
+        # Validate category
+        valid_categories = {'faq', 'greeting', 'objection', 'buying_signal',
+                           'negotiation', 'complaint', 'chitchat', 'complex_sales'}
+        if category not in valid_categories:
+            category = "complex_sales"
+            confidence = 0.0
+
+        return {"category": category, "confidence": confidence, "route_to": route_message(category, confidence)}
+
+    except Exception as e:
+        logger.warning(f"Intent classifier failed: {e}, defaulting to full model")
+        return {"category": "unknown", "confidence": 0.0, "route_to": "full"}
+
+
+def route_message(category: str, confidence: float) -> str:
+    """Decide whether to use mini or full model based on classification.
+
+    Returns 'mini' or 'full'.
+    """
+    if confidence < 0.85:
+        return 'full'
+    if category in MINI_ELIGIBLE_CATEGORIES:
+        return 'mini'
+    return 'full'
+
+
+async def call_faq_responder(
+    messages: List[Dict],
+    config: Dict,
+    lead_context: Dict = None,
+    business_context: List[str] = None,
+    tenant_id: str = None,
+    user_query: str = None,
+    crm_query_context: str = None,
+    product_context: str = None,
+    media_context: str = None,
+    conversation_id: str = None,
+) -> Dict:
+    """Lightweight FAQ responder using gpt-4o-mini (~800 token prompt).
+
+    CRITICAL: sales_stage, score, and hotness are FROZEN — this function
+    returns the existing values unchanged to avoid pipeline state drift.
+    """
+    current_stage = lead_context.get('sales_stage', 'awareness') if lead_context else 'awareness'
+    current_score = lead_context.get('score', 50) if lead_context else 50
+    current_hotness = lead_context.get('hotness', 'warm') if lead_context else 'warm'
+
+    try:
+        business_name = config.get('business_name', 'our company')
+        business_description = config.get('business_description', '')
+        agent_name = config.get('agent_name', 'AI Assistant')
+        agent_tone = config.get('agent_tone', 'professional and friendly')
+
+        # Build compact system prompt for FAQ handling
+        prompt_parts = [
+            f"You are {agent_name}, a helpful assistant for {business_name}.",
+            f"Tone: {agent_tone}.",
+        ]
+        if business_description:
+            prompt_parts.append(f"About the business: {business_description[:300]}")
+
+        # Hard constraints (compact version)
+        prompt_parts.append(
+            "\nRULES:\n"
+            "- Only mention products/services from the context below\n"
+            "- Never invent prices, discounts, or products\n"
+            "- If unsure, say you'll check and set needs_human_handoff: true\n"
+            "- Keep responses concise and helpful"
+        )
+
+        # RAG context
+        if business_context:
+            prompt_parts.append("\n## BUSINESS INFORMATION\n" + "\n".join(business_context))
+
+        # Product context
+        if product_context:
+            prompt_parts.append("\n" + product_context)
+
+        # CRM query context
+        if crm_query_context:
+            prompt_parts.append("\n" + crm_query_context)
+
+        # Media context
+        if media_context:
+            prompt_parts.append("\n" + media_context)
+
+        # Hard constraints section
+        hard_constraints = get_hard_constraints_section(config)
+        if hard_constraints:
+            prompt_parts.append("\n" + hard_constraints)
+
+        # JSON output format instruction
+        prompt_parts.append(
+            '\n\nRespond ONLY with JSON:\n'
+            '{"reply_text": "your response", '
+            f'"sales_stage": "{current_stage}", '
+            f'"hotness": "{current_hotness}", '
+            f'"score": {current_score}, '
+            '"fields_collected": {}, '
+            '"needs_human_handoff": false, '
+            '"handoff_reason": null, '
+            '"objection_detected": false, '
+            '"closing_technique_used": null, '
+            '"send_image": null}'
+        )
+
+        system_prompt = "\n".join(prompt_parts)
+
+        api_messages = [{"role": "system", "content": system_prompt}]
+        for msg in messages:
+            role = "assistant" if msg.get("role") == "assistant" else "user"
+            api_messages.append({"role": role, "content": msg.get("text", "")})
+
+        response = await asyncio.wait_for(
+            openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=api_messages,
+                temperature=0.5,
+                max_tokens=800,
+                response_format={"type": "json_object"},
+            ),
+            timeout=30.0,
+        )
+
+        if tenant_id and hasattr(response, 'usage') and response.usage:
+            log_token_usage_fire_and_forget(
+                tenant_id=tenant_id,
+                model="gpt-4o-mini",
+                request_type="sales_agent_faq",
+                input_tokens=response.usage.prompt_tokens,
+                output_tokens=response.usage.completion_tokens,
+                conversation_id=conversation_id,
+            )
+
+        content = response.choices[0].message.content
+        logger.info(f"FAQ Responder Response: {content[:300]}...")
+
+        result = json.loads(content)
+
+        # CRITICAL: Freeze pipeline state — FAQ responder must NOT change these
+        result['sales_stage'] = current_stage
+        result['score'] = current_score
+        result['hotness'] = current_hotness
+
+        return validate_llm_output(result, current_stage)
+
+    except asyncio.TimeoutError:
+        logger.error("FAQ responder timed out after 30 seconds")
+        return {
+            "reply_text": "I apologize, I'm experiencing delays. Please try again in a moment.",
+            "sales_stage": current_stage,
+            "hotness": current_hotness,
+            "score": current_score,
+            "fields_collected": {},
+        }
+    except json.JSONDecodeError as e:
+        logger.error(f"FAQ responder JSON parse error: {e}")
+        return {
+            "reply_text": "I apologize, please try again.",
+            "sales_stage": current_stage,
+            "hotness": current_hotness,
+            "score": current_score,
+            "fields_collected": {},
+        }
+    except Exception as e:
+        logger.exception("FAQ responder call failed")
+        return {
+            "reply_text": "I apologize, a technical error occurred. Please try again.",
+            "sales_stage": current_stage,
+            "hotness": current_hotness,
+            "score": current_score,
+            "fields_collected": {},
         }
 
 
@@ -4753,13 +5111,88 @@ async def process_channel_message(
         # Get media context for image responses
         media_context = await get_media_context_for_ai(tenant_id)
 
-        # Call enhanced LLM with all enforcement layers
-        llm_result = await call_sales_agent(
-            messages_for_llm, config, lead_context, business_context,
-            tenant_id, text, crm_context, crm_query_context,
-            detected_objection, closing_script, contact_urgency, product_context,
-            media_context
+        # ── Multi-Model Routing Pipeline ──────────────────────────────
+        message_count = len(messages_for_llm)
+        conv_id = conversation['id']
+
+        # Enrich lead_context with score/hotness for FAQ responder freeze
+        lead_context['score'] = current_score
+        lead_context['hotness'] = existing_lead.get('hotness', 'warm') if existing_lead else 'warm'
+
+        # Step 1: Check Python-side rules for forced full model
+        force_full = should_force_full_model(
+            detected_objection=detected_objection,
+            closing_script=closing_script,
+            contact_urgency=contact_urgency,
+            lead_score=current_score,
+            sales_stage=current_stage,
+            message_count=message_count,
         )
+
+        route_decision = 'full'
+        classifier_category = None
+        classifier_confidence = None
+        escalated = False
+
+        if force_full:
+            logger.info(f"Routing: FORCED full model (score={current_score}, stage={current_stage}, msgs={message_count}, objection={bool(detected_objection)}, closing={bool(closing_script)})")
+            route_decision = 'full'
+        else:
+            # Step 2: Classify intent with gpt-4o-mini
+            classification = await classify_message_intent(text, tenant_id, conv_id)
+            classifier_category = classification['category']
+            classifier_confidence = classification['confidence']
+            route_decision = classification['route_to']
+            logger.info(f"Routing: classified as {classifier_category} (confidence={classifier_confidence:.2f}) → {route_decision}")
+
+        crm_extraction_task = None  # Background CRM extraction for FAQ-routed messages
+
+        if route_decision == 'mini':
+            # Step 3a: FAQ responder (gpt-4o-mini)
+            llm_result = await call_faq_responder(
+                messages_for_llm, config, lead_context, business_context,
+                tenant_id, text, crm_query_context, product_context,
+                media_context, conv_id,
+            )
+
+            # Validate FAQ response
+            reply_text = llm_result.get("reply_text") or ""
+            is_valid, violations = validate_response_promises(reply_text, config, crm_product_names, kb_products)
+
+            # Auto-escalate if validation fails or response too short
+            if not is_valid or len(reply_text.strip()) < 20:
+                escalation_reason = f"validation_violations={violations}" if not is_valid else f"too_short={len(reply_text)}"
+                logger.warning(f"FAQ response escalation: {escalation_reason}")
+                escalated = True
+                route_decision = 'full'
+
+                llm_result = await call_sales_agent(
+                    messages_for_llm, config, lead_context, business_context,
+                    tenant_id, text, crm_context, crm_query_context,
+                    detected_objection, closing_script, contact_urgency, product_context,
+                    media_context, conv_id,
+                )
+            else:
+                # Start CRM extraction as background task (non-blocking)
+                # Runs in parallel with response delivery instead of blocking it
+                crm_extraction_task = asyncio.create_task(
+                    extract_crm_fields(
+                        user_message=text,
+                        conversation_history=[{"role": m.get("role", "user"), "content": m.get("text", "")} for m in messages_for_llm[-6:]],
+                        existing_fields=fields_collected,
+                        tenant_id=tenant_id,
+                        conversation_id=conv_id,
+                    )
+                )
+
+        if route_decision == 'full' and not escalated:
+            # Step 3b: Full model (gpt-4o)
+            llm_result = await call_sales_agent(
+                messages_for_llm, config, lead_context, business_context,
+                tenant_id, text, crm_context, crm_query_context,
+                detected_objection, closing_script, contact_urgency, product_context,
+                media_context, conv_id,
+            )
 
         # Response Validation
         reply_text = llm_result.get("reply_text") or "I'm here to help! How can I assist you today?"
@@ -4824,12 +5257,44 @@ async def process_channel_message(
                     "contact_urgency_active": bool(contact_urgency),
                     "response_validation_violations": violations if not is_valid else [],
                     "human_handoff_requested": llm_result.get("needs_human_handoff", False),
-                    "handoff_reason": llm_result.get("handoff_reason")
+                    "handoff_reason": llm_result.get("handoff_reason"),
+                    "route_decision": route_decision,
+                    "classifier_category": classifier_category,
+                    "classifier_confidence": classifier_confidence,
+                    "route_escalated": escalated,
+                    "route_forced_full": force_full,
                 },
                 "created_at": now_iso()
             }).execute()
         except Exception as e:
             logger.warning(f"Could not log event: {e}")
+
+        # Finalize background CRM extraction for FAQ-routed messages
+        # This runs AFTER the response is sent, so users don't wait for extraction
+        if crm_extraction_task:
+            try:
+                extraction_result = await asyncio.wait_for(crm_extraction_task, timeout=10.0)
+                if extraction_result and extraction_result.get("fields_collected"):
+                    merged_fields = dict(fields_collected)
+                    for k, v in extraction_result["fields_collected"].items():
+                        if v is not None and v != "":
+                            merged_fields[k] = v
+                    lead_update_data = {"fields_collected": merged_fields}
+                    if extraction_result.get("sales_stage_suggestion"):
+                        lead_update_data["sales_stage"] = extraction_result["sales_stage_suggestion"]
+                    if extraction_result.get("score_adjustment", 0) != 0:
+                        base_score = existing_lead.get("score", 50) if existing_lead else 50
+                        lead_update_data["score"] = min(100, max(0, base_score + extraction_result["score_adjustment"]))
+                    if extraction_result.get("hotness_suggestion"):
+                        lead_update_data["hotness"] = extraction_result["hotness_suggestion"]
+                    # Update lead with extracted CRM fields
+                    if existing_lead:
+                        supabase.table('leads').update(lead_update_data).eq('id', existing_lead['id']).execute()
+                    logger.info(f"CRM extractor updated lead with {len(extraction_result['fields_collected'])} fields")
+            except asyncio.TimeoutError:
+                logger.warning("CRM extractor timed out for FAQ-routed message")
+            except Exception as ext_err:
+                logger.warning(f"CRM extractor failed for FAQ-routed message: {ext_err}")
 
     except Exception as e:
         logger.exception(f"[{channel}] Error processing message")
@@ -5815,6 +6280,140 @@ async def get_usage_chart(
         }
 
 
+@api_router.get("/usage/conversation-stats")
+async def get_conversation_stats(
+    days: int = 30,
+    page: int = 1,
+    limit: int = 20,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Per-conversation cost metrics with customer info."""
+    tenant_id = current_user["tenant_id"]
+    # Validate and bound query parameters
+    days = max(1, min(days, 365))
+    page = max(1, page)
+    limit = max(1, min(limit, 100))
+    start_date = datetime.now(timezone.utc) - timedelta(days=days)
+
+    try:
+        # Query conversations with usage data, joined with customer name
+        result = supabase.table('conversations').select(
+            'id, customer_id, source_channel, started_at, message_count, total_input_tokens, total_output_tokens, total_cost_usd, customers(name, telegram_username)'
+        ).eq('tenant_id', tenant_id).gte(
+            'started_at', start_date.isoformat()
+        ).gt('message_count', 0).order(
+            'started_at', desc=True
+        ).range((page - 1) * limit, page * limit - 1).execute()
+
+        conversations = []
+        for c in (result.data or []):
+            customer = c.get('customers') or {}
+            conversations.append({
+                'conversation_id': c['id'],
+                'customer_name': customer.get('name') or customer.get('telegram_username') or 'Unknown',
+                'source_channel': c.get('source_channel', 'telegram'),
+                'message_count': c.get('message_count', 0),
+                'total_input_tokens': c.get('total_input_tokens', 0),
+                'total_output_tokens': c.get('total_output_tokens', 0),
+                'total_cost_usd': float(c.get('total_cost_usd') or 0),
+                'started_at': c['started_at'],
+            })
+
+        # Get total count
+        count_result = supabase.table('conversations').select(
+            'id', count='exact'
+        ).eq('tenant_id', tenant_id).gte(
+            'started_at', start_date.isoformat()
+        ).gt('message_count', 0).execute()
+        total = count_result.count or len(conversations)
+
+        return {
+            'conversations': conversations,
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'total': total,
+                'total_pages': (total + limit - 1) // limit
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching conversation stats: {e}")
+        return {
+            'conversations': [],
+            'pagination': {'page': page, 'limit': limit, 'total': 0, 'total_pages': 0}
+        }
+
+
+@api_router.get("/usage/model-distribution")
+async def get_model_distribution(
+    days: int = 7,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Model usage breakdown with costs."""
+    tenant_id = current_user["tenant_id"]
+    days = max(1, min(days, 365))  # Bound days to 1-365
+    start_date = datetime.now(timezone.utc) - timedelta(days=days)
+
+    try:
+        # Use server-side aggregation via Supabase RPC to avoid PostgREST row limits
+        result = supabase.rpc('get_model_distribution_agg', {
+            'p_tenant_id': tenant_id,
+            'p_start_date': start_date.isoformat(),
+        }).execute()
+
+        rows = result.data or []
+
+        models = {}
+        routes = {'mini': 0, 'full': 0, 'escalated': 0}
+        for row in rows:
+            model = row.get('model', '')
+            rt = row.get('request_type', '') or ''
+            count = int(row.get('cnt', 0))
+            tokens = int(row.get('total_tokens', 0))
+            cost = float(row.get('total_cost', 0))
+
+            # Skip escalation markers from model counts (they have 0 tokens
+            # and would inflate request counts; actual tokens are in the
+            # 'sales_agent' entry from the escalated call_sales_agent)
+            if rt == 'sales_agent_escalated':
+                routes['escalated'] += count
+                continue
+
+            if model not in models:
+                models[model] = {'requests': 0, 'tokens': 0, 'cost': 0}
+            models[model]['requests'] += count
+            models[model]['tokens'] += tokens
+            models[model]['cost'] += cost
+
+            if rt == 'sales_agent_faq':
+                routes['mini'] += count
+            elif rt == 'sales_agent':
+                routes['full'] += count
+
+        # Round costs
+        for m in models:
+            models[m]['cost'] = round(models[m]['cost'], 4)
+
+        total_requests = sum(m['requests'] for m in models.values())
+
+        return {
+            'models': models,
+            'routes': routes,
+            'total_requests': total_requests,
+            'period_days': days
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching model distribution: {e}")
+        return {
+            'models': {},
+            'routes': {'mini': 0, 'full': 0, 'escalated': 0},
+            'total_requests': 0,
+            'period_days': days
+        }
+
+
 # ============ Leads Endpoints ============
 @api_router.get("/leads")
 async def get_leads(status: Optional[str] = None, hotness: Optional[str] = None, stage: Optional[str] = None, limit: int = 50, current_user: Dict = Depends(get_current_user)):
@@ -6567,6 +7166,37 @@ async def create_document(request: DocumentCreate, current_user: Dict = Depends(
         raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
 
 
+async def check_tenant_kb_quota(tenant_id: str, new_file_size: int) -> Dict:
+    """Check KB quota using Supabase RPC function."""
+    try:
+        result = supabase.rpc('check_kb_quota', {
+            'p_tenant_id': tenant_id,
+            'p_new_file_size': new_file_size
+        }).execute()
+        if result.data and len(result.data) > 0:
+            row = result.data[0]
+            current_bytes = row['current_total_bytes']
+            max_b = row['max_bytes']
+            return {
+                'used_mb': round(current_bytes / (1024 * 1024), 2),
+                'max_mb': max_b // (1024 * 1024),
+                'remaining_mb': round((max_b - current_bytes) / (1024 * 1024), 2),
+                'would_exceed': row['would_exceed']
+            }
+        return {'used_mb': 0, 'max_mb': 50, 'remaining_mb': 50, 'would_exceed': False}
+    except Exception as e:
+        logger.warning(f"KB quota check failed: {e}")
+        return {'used_mb': 0, 'max_mb': 50, 'remaining_mb': 50, 'would_exceed': False}
+
+
+@api_router.get("/documents/quota")
+async def get_document_quota(current_user: Dict = Depends(get_current_user)):
+    """Get current KB storage quota usage for the tenant."""
+    tenant_id = current_user["tenant_id"]
+    quota = await check_tenant_kb_quota(tenant_id, 0)
+    return quota
+
+
 @api_router.post("/documents/upload")
 async def upload_document(
     file: UploadFile = File(...),
@@ -6579,11 +7209,11 @@ async def upload_document(
     """
     try:
         tenant_id = current_user["tenant_id"]
-        
+
         # Validate file size
         file_content = await file.read()
         file_size = len(file_content)
-        
+
         if file_size > MAX_FILE_SIZE:
             raise HTTPException(status_code=400, detail=f"File too large. Maximum size is {MAX_FILE_SIZE // 1024 // 1024}MB")
 
@@ -6595,6 +7225,14 @@ async def upload_document(
         # Validate magic bytes to prevent disguised file uploads
         if not validate_file_magic(file_content, filename):
             raise HTTPException(status_code=400, detail="File content does not match its extension. Upload rejected.")
+
+        # Check KB quota before expensive processing
+        quota = await check_tenant_kb_quota(tenant_id, file_size)
+        if quota['would_exceed']:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Knowledge base quota exceeded. Used {quota['used_mb']:.1f}MB of {quota['max_mb']}MB. File needs {file_size / (1024 * 1024):.1f}MB, only {quota['remaining_mb']:.1f}MB remaining."
+            )
 
         doc_title = title or filename
         content_type = file.content_type or "application/octet-stream"
@@ -6921,6 +7559,14 @@ async def upload_global_document(
         # Validate magic bytes to prevent disguised file uploads
         if not validate_file_magic(file_content, filename):
             raise HTTPException(status_code=400, detail="File content does not match its extension. Upload rejected.")
+
+        # Check KB quota before expensive processing
+        quota = await check_tenant_kb_quota(tenant_id, file_size)
+        if quota['would_exceed']:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Knowledge base quota exceeded. Used {quota['used_mb']:.1f}MB of {quota['max_mb']}MB. File needs {file_size / (1024 * 1024):.1f}MB, only {quota['remaining_mb']:.1f}MB remaining."
+            )
 
         doc_title = title or filename
         content_type = file.content_type or "application/octet-stream"
@@ -7909,6 +8555,14 @@ async def upload_media(
         # Validate magic bytes to prevent disguised file uploads
         if not validate_file_magic(file_content, filename):
             raise HTTPException(status_code=400, detail="File content does not match its extension. Upload rejected.")
+
+        # Check KB quota (media shares quota with documents)
+        quota = await check_tenant_kb_quota(tenant_id, file_size)
+        if quota['would_exceed']:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Storage quota exceeded. Used {quota['used_mb']:.1f}MB of {quota['max_mb']}MB. File needs {file_size / (1024 * 1024):.1f}MB, only {quota['remaining_mb']:.1f}MB remaining."
+            )
 
         content_type = file.content_type or "image/jpeg"
 

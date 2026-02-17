@@ -3,6 +3,9 @@ Token Usage Logger for LLM API calls.
 
 Logs all token usage to the database for billing and transparency.
 Uses fire-and-forget pattern to avoid blocking API responses.
+
+Uses Supabase REST client (not asyncpg) for reliable connection
+through Supabase's transaction pooler.
 """
 
 import asyncio
@@ -12,22 +15,30 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import text
-
 logger = logging.getLogger(__name__)
 
-# Check if database is configured
-DATABASE_URL = os.environ.get('DATABASE_URL')
-DB_AVAILABLE = DATABASE_URL is not None
+# Check if Supabase is configured
+SUPABASE_URL = os.environ.get('SUPABASE_URL')
+SUPABASE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
+DB_AVAILABLE = bool(SUPABASE_URL and SUPABASE_KEY)
 
-# Lazy import of AsyncSessionLocal to avoid crash if DATABASE_URL not set
-AsyncSessionLocal = None
-if DB_AVAILABLE:
-    try:
-        from database import AsyncSessionLocal
-    except Exception as e:
-        logger.warning(f"Token logging disabled: {e}")
-        DB_AVAILABLE = False
+# Lazy-init Supabase client for token logging
+_supabase_client = None
+
+def _get_supabase():
+    """Lazy-initialize a Supabase client for token logging."""
+    global _supabase_client
+    if _supabase_client is None and DB_AVAILABLE:
+        try:
+            from supabase import create_client
+            _supabase_client = create_client(
+                SUPABASE_URL.strip(),
+                SUPABASE_KEY.strip()
+            )
+        except Exception as e:
+            logger.warning(f"Token logging disabled: failed to init Supabase client: {e}")
+    return _supabase_client
+
 
 # OpenAI Pricing (per 1K tokens) - Updated February 2026
 # https://openai.com/pricing
@@ -56,6 +67,10 @@ REQUEST_TYPES = {
     "crm_chat": "CRM Analytics Chat",
     "embedding": "Document Embedding",
     "summarization": "Conversation Summary",
+    "intent_classifier": "Intent Classification",
+    "sales_agent_faq": "FAQ Response (Mini)",
+    "crm_extractor": "CRM Field Extraction",
+    "sales_agent_escalated": "Escalated Sales Agent",
 }
 
 
@@ -75,55 +90,54 @@ async def log_token_usage(
     agent_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
+    route_decision: Optional[str] = None,
+    classifier_category: Optional[str] = None,
 ) -> None:
     """
-    Log token usage to the database.
+    Log token usage to the database via Supabase REST client.
 
     This function is designed to be called with asyncio.create_task()
     for fire-and-forget logging that doesn't block the main response.
-
-    Args:
-        tenant_id: The tenant/workspace ID
-        model: LLM model name (e.g., 'gpt-4o', 'gpt-4o-mini')
-        request_type: Type of request ('sales_agent', 'crm_chat', 'embedding', 'summarization')
-        input_tokens: Number of input/prompt tokens
-        output_tokens: Number of output/completion tokens (0 for embeddings)
-        agent_id: Optional agent ID
-        customer_id: Optional customer ID (for Telegram conversations)
-        conversation_id: Optional conversation ID
     """
-    if not DB_AVAILABLE or AsyncSessionLocal is None:
-        logger.debug("Token logging skipped: database not configured")
+    sb = _get_supabase()
+    if not sb:
+        logger.debug("Token logging skipped: Supabase client not available")
         return
 
     try:
-        # Calculate cost
         cost_usd = calculate_cost(model, input_tokens, output_tokens)
 
-        async with AsyncSessionLocal() as session:
-            await session.execute(
-                text("""
-                    INSERT INTO token_usage_logs
-                    (id, tenant_id, agent_id, customer_id, model, request_type,
-                     input_tokens, output_tokens, cost_usd, conversation_id, created_at)
-                    VALUES (:id, :tenant_id, :agent_id, :customer_id, :model, :request_type,
-                            :input_tokens, :output_tokens, :cost_usd, :conversation_id, :created_at)
-                """),
-                {
-                    "id": str(uuid4()),
-                    "tenant_id": tenant_id,
-                    "agent_id": agent_id,
-                    "customer_id": customer_id,
-                    "model": model,
-                    "request_type": request_type,
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "cost_usd": cost_usd,
-                    "conversation_id": conversation_id,
-                    "created_at": datetime.now(timezone.utc),
-                }
-            )
-            await session.commit()
+        row = {
+            "id": str(uuid4()),
+            "tenant_id": tenant_id,
+            "model": model,
+            "request_type": request_type,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_usd": float(cost_usd),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if agent_id:
+            row["agent_id"] = agent_id
+        if customer_id:
+            row["customer_id"] = customer_id
+        if conversation_id:
+            row["conversation_id"] = conversation_id
+        if route_decision:
+            row["route_decision"] = route_decision
+        if classifier_category:
+            row["classifier_category"] = classifier_category
+
+        sb.table('token_usage_logs').insert(row).execute()
+
+        # Increment conversation-level usage aggregates
+        if conversation_id:
+            sb.rpc('increment_conversation_usage', {
+                'p_conversation_id': conversation_id,
+                'p_input_tokens': input_tokens,
+                'p_output_tokens': output_tokens,
+                'p_cost_usd': float(cost_usd),
+            }).execute()
 
         logger.debug(
             f"Logged token usage: {model} | {request_type} | "
@@ -144,23 +158,14 @@ def log_token_usage_fire_and_forget(
     agent_id: Optional[str] = None,
     customer_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
+    route_decision: Optional[str] = None,
+    classifier_category: Optional[str] = None,
 ) -> None:
     """
     Fire-and-forget wrapper for log_token_usage.
 
     Use this function to log token usage without awaiting the result.
     The logging happens in the background and doesn't block the response.
-
-    Example:
-        response = await openai_client.chat.completions.create(...)
-        log_token_usage_fire_and_forget(
-            tenant_id=tenant_id,
-            model="gpt-4o",
-            request_type="sales_agent",
-            input_tokens=response.usage.prompt_tokens,
-            output_tokens=response.usage.completion_tokens,
-        )
-        return response.choices[0].message.content  # Returns immediately
     """
     if not DB_AVAILABLE:
         return
@@ -176,6 +181,8 @@ def log_token_usage_fire_and_forget(
                 agent_id=agent_id,
                 customer_id=customer_id,
                 conversation_id=conversation_id,
+                route_decision=route_decision,
+                classifier_category=classifier_category,
             )
         )
     except RuntimeError:

@@ -80,8 +80,12 @@ const KnowledgeBasePage = () => {
   const mediaFileInputRef = useRef(null);
   const [togglingImageResponses, setTogglingImageResponses] = useState(false);
 
+  // KB Quota state
+  const [quota, setQuota] = useState(null);
+
   useEffect(() => {
     fetchAllDocuments();
+    fetchQuota();
   }, []);
 
   // Cleanup object URLs on unmount or when previewUrl changes
@@ -90,6 +94,16 @@ const KnowledgeBasePage = () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+
+  // Fetch KB quota
+  const fetchQuota = async () => {
+    try {
+      const res = await axios.get(`${API}/documents/quota`);
+      setQuota(res.data);
+    } catch (error) {
+      console.error('Failed to fetch quota:', error);
+    }
+  };
 
   // Toggle image responses setting
   const toggleImageResponses = async () => {
@@ -204,6 +218,15 @@ const KnowledgeBasePage = () => {
       return;
     }
 
+    // Pre-check quota before uploading
+    if (quota && quota.remaining_mb !== undefined) {
+      const fileSizeMb = file.size / (1024 * 1024);
+      if (fileSizeMb > quota.remaining_mb) {
+        toast.error(`Not enough storage. File is ${fileSizeMb.toFixed(1)}MB but only ${quota.remaining_mb.toFixed(1)}MB remaining.`);
+        return;
+      }
+    }
+
     setUploading(true);
     setUploadComplete(false);
 
@@ -219,6 +242,7 @@ const KnowledgeBasePage = () => {
       setTimeout(() => {
         toast.success('Document uploaded successfully');
         fetchAllDocuments();
+        fetchQuota();
         setDialogOpen(false);
         setIsPolicyDoc(false);
         setUploading(false);
@@ -242,6 +266,7 @@ const KnowledgeBasePage = () => {
       await axios.delete(`${API}/documents/${docId}`);
       toast.success('Document deleted');
       fetchAllDocuments();
+      fetchQuota();
     } catch (error) {
       toast.error('Failed to delete document');
     }
@@ -278,6 +303,15 @@ const KnowledgeBasePage = () => {
       return;
     }
 
+    // Pre-check quota before uploading
+    if (quota && quota.remaining_mb !== undefined) {
+      const fileSizeMb = selectedFile.size / (1024 * 1024);
+      if (fileSizeMb > quota.remaining_mb) {
+        toast.error(`Not enough storage. File is ${fileSizeMb.toFixed(1)}MB but only ${quota.remaining_mb.toFixed(1)}MB remaining.`);
+        return;
+      }
+    }
+
     setUploadingMedia(true);
     const formData = new FormData();
     formData.append('file', selectedFile);
@@ -290,6 +324,7 @@ const KnowledgeBasePage = () => {
       toast.success('Media uploaded successfully');
       resetMediaDialog();
       fetchAllDocuments();
+      fetchQuota();
     } catch (error) {
       const errorMsg = error.response?.data?.detail || 'Failed to upload media';
       toast.error(errorMsg);
@@ -328,6 +363,7 @@ const KnowledgeBasePage = () => {
       await axios.delete(`${API}/media/${mediaId}`);
       toast.success('Media deleted');
       fetchAllDocuments();
+      fetchQuota();
     } catch (error) {
       toast.error('Failed to delete media');
     }
@@ -581,6 +617,36 @@ const KnowledgeBasePage = () => {
           Add Document
         </Button>
       </div>
+
+      {/* Quota Progress Bar */}
+      {quota && (
+        <div className="bg-white border border-slate-200 shadow-sm rounded-lg px-5 py-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <span className="text-sm font-medium text-slate-700">Storage Used</span>
+              <span className="text-xs text-slate-400 ml-2">Documents & Media</span>
+            </div>
+            <span className="text-sm text-slate-500 tabular-nums">
+              {quota.used_mb.toFixed(1)} / {quota.max_mb.toFixed(0)} MB
+            </span>
+          </div>
+          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                (quota.used_mb / quota.max_mb) > 0.9
+                  ? 'bg-red-500'
+                  : (quota.used_mb / quota.max_mb) > 0.7
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500'
+              }`}
+              style={{ width: `${Math.min((quota.used_mb / quota.max_mb) * 100, 100)}%` }}
+            />
+          </div>
+          {(quota.used_mb / quota.max_mb) > 0.9 && (
+            <p className="text-xs text-red-600 mt-1.5">Storage almost full. Consider removing unused documents or media.</p>
+          )}
+        </div>
+      )}
 
       {/* Upload Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => {
