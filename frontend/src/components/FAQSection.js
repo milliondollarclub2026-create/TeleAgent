@@ -25,7 +25,19 @@ const faqData = [
     id: 'faq-3',
     question: 'How does the CRM integration work?',
     answer:
-      'LeadRelay syncs in real time with your CRM — supporting HubSpot, Bitrix24, Zoho, and Freshsales. All leads, conversations, and customer data are automatically logged and updated, keeping your sales pipeline organized without any manual work.',
+      'LeadRelay syncs your CRM data incrementally using an ETL engine. It supports Bitrix24, HubSpot, Zoho, and Freshsales. Your data is copied to a local database so queries return in under a second instead of minutes. All leads, conversations, and customer data are automatically logged and updated.',
+  },
+  {
+    id: 'faq-3b',
+    question: 'Which CRMs does LeadRelay support?',
+    answer:
+      'LeadRelay currently supports Bitrix24, HubSpot, Zoho CRM, and Freshsales. You can connect multiple CRMs simultaneously and get unified analytics across all of them. More integrations are on the roadmap.',
+  },
+  {
+    id: 'faq-3c',
+    question: 'How does the CRM Dashboard work?',
+    answer:
+      'When you connect a CRM, Bobur and his analytics team analyze your data schema, build a personalized dashboard with KPI widgets and charts, and surface AI-powered insights. You can also ask questions in plain language, like "show me deals by stage", and get instant visualizations. No SQL or spreadsheets required.',
   },
   {
     id: 'faq-4',

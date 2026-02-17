@@ -15,6 +15,10 @@ import {
   Lock,
   Users,
   Fingerprint,
+  Database,
+  Zap,
+  Activity,
+  Clock,
 } from 'lucide-react';
 import GyldStyleHero from '../components/GyldStyleHero';
 import FAQSection from '../components/FAQSection';
@@ -22,349 +26,201 @@ import PricingSection from '../components/PricingSection';
 import AiOrb from '../components/Orb/AiOrb';
 
 // ============================================================================
-// CRM CHAT SECTION - Interactive demo with typing effects
+// CRM ANALYTICS SECTION - Dashboard mockup with animated data
 // ============================================================================
 
-function CRMChatSection() {
+function CRMAnalyticsSection() {
   const sectionRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
-  const [animationPhase, setAnimationPhase] = useState(0);
-  const [typedText, setTypedText] = useState('');
-  const [showCursor, setShowCursor] = useState(true);
-  const [countedValue, setCountedValue] = useState(0);
-  const [inputFocused, setInputFocused] = useState(false);
-  const [hoveredItem, setHoveredItem] = useState(null);
-
-  const aiResponseText = "Here are your top products:";
-  const revenueResponseText = "This week's total:";
-
-  const productData = [
-    { rank: 1, name: 'Wireless Earbuds Pro', orders: 45, growth: '+12%' },
-    { rank: 2, name: 'Smart Watch Ultra', orders: 32, growth: '+8%' },
-    { rank: 3, name: 'Leather Crossbody Bag', orders: 28, growth: '+15%' }
-  ];
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !isVisible) {
-          setIsVisible(true);
-        }
+        if (entry.isIntersecting && !isVisible) setIsVisible(true);
       },
-      { threshold: 0.3 }
+      { threshold: 0.2 }
     );
-
-    if (sectionRef.current) {
-      observer.observe(sectionRef.current);
-    }
-
+    if (sectionRef.current) observer.observe(sectionRef.current);
     return () => observer.disconnect();
   }, [isVisible]);
 
-  useEffect(() => {
-    if (!isVisible) return;
+  const kpis = [
+    { label: 'Total Leads', value: '2,847', change: '+12%' },
+    { label: 'Pipeline', value: '$184K', change: '+8%' },
+    { label: 'Win Rate', value: '34%', change: '+3%' },
+    { label: 'Active Deals', value: '156', change: '+21%' },
+  ];
 
-    const timings = [
-      { phase: 1, delay: 500 },
-      { phase: 2, delay: 1200 },
-      { phase: 3, delay: 2000 },
-      { phase: 4, delay: 3200 },
-      { phase: 5, delay: 5500 },
-      { phase: 6, delay: 6200 },
-      { phase: 7, delay: 7000 },
-      { phase: 8, delay: 9500 },
-    ];
+  const bars = [
+    { label: 'Qualification', pct: 100, amount: '$82K' },
+    { label: 'Proposal', pct: 66, amount: '$54K' },
+    { label: 'Negotiation', pct: 46, amount: '$38K' },
+    { label: 'Closed Won', pct: 29, amount: '$24K' },
+  ];
 
-    const timeouts = timings.map(({ phase, delay }) =>
-      setTimeout(() => setAnimationPhase(phase), delay)
-    );
-
-    return () => timeouts.forEach(clearTimeout);
-  }, [isVisible]);
-
-  useEffect(() => {
-    if (animationPhase !== 3) return;
-
-    let index = 0;
-    const text = aiResponseText;
-    const interval = setInterval(() => {
-      if (index <= text.length) {
-        setTypedText(text.slice(0, index));
-        index++;
-      } else {
-        clearInterval(interval);
-      }
-    }, 50);
-
-    return () => clearInterval(interval);
-  }, [animationPhase]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setShowCursor(prev => !prev);
-    }, 530);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (animationPhase !== 7) return;
-
-    const targetValue = 24500;
-    const duration = 1500;
-    const steps = 60;
-    const increment = targetValue / steps;
-    let current = 0;
-
-    const interval = setInterval(() => {
-      current += increment;
-      if (current >= targetValue) {
-        setCountedValue(targetValue);
-        clearInterval(interval);
-      } else {
-        setCountedValue(Math.floor(current));
-      }
-    }, duration / steps);
-
-    return () => clearInterval(interval);
-  }, [animationPhase]);
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
-  };
+  const dataTeam = [
+    { name: 'Bobur', role: 'Routes', colors: ['#f97316', '#ea580c', '#f59e0b'] },
+    { name: 'Farid', role: 'Schema', colors: ['#3b82f6', '#2563eb', '#60a5fa'] },
+    { name: 'Dima', role: 'Charts', colors: ['#8b5cf6', '#7c3aed', '#a78bfa'] },
+    { name: 'Anvar', role: 'Data', colors: ['#10b981', '#059669', '#34d399'] },
+    { name: 'Nilufar', role: 'Insights', colors: ['#ec4899', '#db2777', '#f472b6'] },
+  ];
 
   return (
     <section ref={sectionRef} className="py-28 overflow-hidden relative" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 25%, #f8fafc 50%, #ecfdf5 75%, #f0fdfa 100%)' }}>
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-emerald-200/30 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-teal-200/25 rounded-full blur-[100px] pointer-events-none" />
+
       <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
-          {/* Left Side - Content */}
+          {/* Left Content */}
           <div className={`transition-all duration-1000 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'}`}>
+            <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-4 py-1.5 mb-6">
+              <Database className="w-3.5 h-3.5 text-emerald-600" strokeWidth={2} />
+              <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">CRM Analytics</span>
+            </div>
+
             <h2 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight font-['Plus_Jakarta_Sans'] mb-6">
-              Ask your CRM
+              Your CRM data,
               <br />
-              <span className="text-emerald-600">anything</span>
+              <span className="text-emerald-600">decoded instantly</span>
             </h2>
 
             <p className="text-slate-500 text-lg leading-relaxed mb-8">
-              Revenue this week? Top-selling product? Best leads? Type it in plain language and get answers from your CRM data instantly.
+              Connect any CRM and let six AI agents analyze your schema, build visualizations, query data, and surface insights. No SQL. No spreadsheets. Just ask.
             </p>
+
+            {/* Speed comparison */}
+            <div className="flex items-center gap-4 bg-white border border-slate-200 rounded-xl px-5 py-4 mb-8 shadow-sm">
+              <div className="flex items-center gap-2 text-slate-400">
+                <Clock className="w-4 h-4" strokeWidth={2} />
+                <span className="text-sm font-medium line-through decoration-slate-300">33 min</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-emerald-500" strokeWidth={2} />
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-emerald-600" strokeWidth={2} />
+                <span className="text-sm font-bold text-emerald-600">&lt; 0.5 seconds</span>
+              </div>
+              <span className="text-[10px] text-slate-400 ml-auto hidden sm:block font-medium">Sync engine</span>
+            </div>
 
             <ul className="space-y-4">
               {[
-                { text: 'Plain language queries, no SQL needed', icon: MessageSquare },
-                { text: 'Live CRM data, always current', icon: BarChart3 },
-                { text: 'Works in 20+ languages', icon: Globe }
-              ].map((item, i) => (
+                'Bitrix24, HubSpot, Zoho, and Freshsales supported',
+                'AI-powered anomaly detection and trend analysis',
+                'Interactive dashboard with live KPI widgets',
+              ].map((text, i) => (
                 <li
                   key={i}
                   className={`flex items-center gap-3 text-slate-700 transition-all duration-500 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}
-                  style={{ transitionDelay: `${300 + i * 100}ms` }}
+                  style={{ transitionDelay: `${600 + i * 100}ms` }}
                 >
                   <Check className="w-5 h-5 text-emerald-600 flex-shrink-0" strokeWidth={2} />
-                  <span className="font-medium">{item.text}</span>
+                  <span className="font-medium">{text}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* Right Side - Interactive Chat Demo */}
+          {/* Right: Dashboard Mockup */}
           <div className={`relative transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
-            <div className="relative bg-white border border-slate-200 shadow-lg rounded-2xl p-6">
-              {/* Header */}
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <AiOrb size={40} colors={['#f97316', '#ea580c', '#f59e0b']} />
-                  <div>
-                    <span className="font-semibold text-slate-900 text-sm block">Bobur</span>
-                    <span className="text-xs text-slate-400">Analytics Team Lead</span>
-                  </div>
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden">
+              {/* Dashboard Header */}
+              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center gap-2.5">
+                  <AiOrb size={28} colors={['#f97316', '#ea580c', '#f59e0b']} />
+                  <span className="text-sm font-semibold text-slate-900">Bobur</span>
+                  <span className="text-xs text-slate-400">Analytics Team</span>
                 </div>
-
-                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span className="text-xs text-emerald-700 font-semibold tracking-wide">LIVE</span>
+                <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+                  <span className="text-[11px] font-medium text-white bg-slate-900 rounded-md px-3 py-1">Dashboard</span>
+                  <span className="text-[11px] font-medium text-slate-500 px-3 py-1">Chat</span>
                 </div>
               </div>
 
-              {/* Chat Messages */}
-              <div className="space-y-4 py-6 min-h-[420px]">
-                {/* User Message 1 */}
-                <div className={`flex justify-end transition-all duration-500 ${animationPhase >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
-                  <div className="max-w-[260px]">
-                    <div className="bg-slate-900 text-white rounded-2xl rounded-br-md px-4 py-3">
-                      <p className="text-sm font-medium">Show me top selling products</p>
+              <div className="p-4 space-y-3">
+                {/* KPI Grid */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {kpis.map((kpi, i) => (
+                    <div
+                      key={kpi.label}
+                      className={`bg-slate-50 rounded-xl px-3.5 py-3 transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+                      style={{ transitionDelay: `${400 + i * 100}ms` }}
+                    >
+                      <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-0.5">{kpi.label}</p>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-lg font-bold text-slate-900 font-['Plus_Jakarta_Sans']">{kpi.value}</span>
+                        <span className="text-[10px] font-semibold text-emerald-600 flex items-center">
+                          <TrendingUp className="w-2.5 h-2.5 mr-0.5" strokeWidth={2.5} />
+                          {kpi.change}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-[10px] text-slate-400 text-right mt-1 mr-1">Just now</div>
-                  </div>
+                  ))}
                 </div>
 
-                {/* AI Typing */}
-                {animationPhase === 2 && (
-                  <div className="flex justify-start animate-fade-in">
-                    <div className="bg-white border border-slate-100 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                    </div>
+                {/* Bar Chart */}
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold text-slate-700">Revenue by Stage</span>
+                    <span className="text-[10px] text-slate-400">Last 30 days</span>
                   </div>
-                )}
-
-                {/* AI Response */}
-                {animationPhase >= 3 && animationPhase !== 2 && (
-                  <div className="flex justify-start transition-all duration-500">
-                    <div className="bg-white border border-slate-100 rounded-2xl rounded-bl-md px-4 py-4 max-w-[320px] shadow-sm">
-                      <p className="text-slate-700 text-sm mb-3 font-medium">
-                        {typedText}
-                        {animationPhase === 3 && showCursor && <span className="inline-block w-0.5 h-4 bg-emerald-500 ml-0.5 animate-pulse" />}
-                      </p>
-
-                      {animationPhase >= 4 && (
-                        <div className="space-y-2">
-                          {productData.map((item, i) => (
-                            <div
-                              key={item.rank}
-                              className={`flex items-center justify-between gap-3 p-2 rounded-lg transition-all duration-300 cursor-default
-                                ${hoveredItem === i ? 'bg-emerald-50 scale-[1.02]' : 'bg-slate-50/50 hover:bg-slate-50'}
-                                ${animationPhase >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
-                              style={{ transitionDelay: `${i * 150}ms` }}
-                              onMouseEnter={() => setHoveredItem(i)}
-                              onMouseLeave={() => setHoveredItem(null)}
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
-                                  item.rank === 1 ? 'bg-amber-100 text-amber-700' :
-                                  item.rank === 2 ? 'bg-slate-200 text-slate-600' :
-                                  'bg-orange-100 text-orange-700'
-                                }`}>
-                                  {item.rank}
-                                </span>
-                                <span className="text-slate-700 text-sm font-medium">{item.name}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className={`text-xs font-semibold px-2 py-1 rounded-full transition-colors duration-200 ${
-                                  hoveredItem === i ? 'text-emerald-600 bg-emerald-50' : 'text-slate-700 bg-slate-100'
-                                }`}>
-                                  {item.orders} orders
-                                </span>
-                                {hoveredItem === i && (
-                                  <span className="text-[10px] font-semibold text-emerald-500 animate-fade-in">
-                                    {item.growth}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Second User Message */}
-                {animationPhase >= 5 && (
-                  <div className={`flex justify-end transition-all duration-500 ${animationPhase >= 5 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
-                    <div>
-                      <div className="bg-slate-900 text-white rounded-2xl rounded-br-md px-4 py-3">
-                        <p className="text-sm font-medium">This week's revenue?</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Second AI Typing */}
-                {animationPhase === 6 && (
-                  <div className="flex justify-start animate-fade-in">
-                    <div className="bg-white border border-slate-100 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Revenue Response */}
-                {animationPhase >= 7 && (
-                  <div className="flex justify-start transition-all duration-500">
-                    <div className="bg-white border border-slate-100 rounded-2xl rounded-bl-md px-4 py-4 max-w-[320px] shadow-sm">
-                      <p className="text-slate-600 text-sm mb-2">{revenueResponseText}</p>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] tabular-nums">
-                          {formatCurrency(countedValue)}
-                        </span>
-                        <span className="text-sm font-semibold text-emerald-600 flex items-center gap-1">
-                          <TrendingUp className="w-4 h-4" strokeWidth={2} />
-                          +18%
-                        </span>
-                      </div>
-
-                      <div className="flex items-end gap-1 mt-3 h-8">
-                        {[35, 42, 38, 55, 48, 62, 58].map((height, i) => (
+                  <div className="space-y-2">
+                    {bars.map((bar, i) => (
+                      <div key={bar.label} className="flex items-center gap-2.5">
+                        <span className="text-[10px] text-slate-500 w-[72px] text-right shrink-0">{bar.label}</span>
+                        <div className="flex-1 h-4 bg-slate-200/60 rounded-full overflow-hidden">
                           <div
-                            key={i}
-                            className="flex-1 bg-emerald-500 rounded-t transition-all duration-500"
-                            style={{
-                              height: animationPhase >= 7 ? `${height}%` : '0%',
-                              transitionDelay: `${i * 80}ms`
-                            }}
+                            className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out"
+                            style={{ width: isVisible ? `${bar.pct}%` : '0%', transitionDelay: `${800 + i * 150}ms` }}
                           />
-                        ))}
+                        </div>
+                        <span className="text-[10px] font-semibold text-slate-600 w-8">{bar.amount}</span>
                       </div>
-                      <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                        <span>Mon</span>
-                        <span>Sun</span>
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                )}
-              </div>
+                </div>
 
-              {/* Input Area */}
-              <div className="pt-4 border-t border-slate-100">
-                <div className={`flex items-center gap-3 bg-slate-50 rounded-xl px-4 py-3 border-2 transition-all duration-300 ${
-                  inputFocused
-                    ? 'border-emerald-300 bg-white'
-                    : 'border-transparent hover:border-slate-200'
-                }`}>
-                  <input
-                    type="text"
-                    placeholder="Ask anything about your CRM..."
-                    className="flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none"
-                    onFocus={() => setInputFocused(true)}
-                    onBlur={() => setInputFocused(false)}
-                  />
-                  <button className="w-9 h-9 rounded-full bg-slate-900 hover:bg-slate-800 flex items-center justify-center transition-all duration-300">
-                    <ArrowUp className="w-4 h-4 text-white" strokeWidth={2.5} />
-                  </button>
+                {/* AI Insight */}
+                <div
+                  className={`flex items-start gap-2.5 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+                  style={{ transitionDelay: '1200ms' }}
+                >
+                  <Activity className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" strokeWidth={2} />
+                  <div>
+                    <p className="text-[11px] font-semibold text-amber-800">Nilufar's Insight</p>
+                    <p className="text-[11px] text-amber-700 leading-relaxed">Win rate up 12% this month. Deals from HubSpot close 2x faster than Bitrix24.</p>
+                  </div>
                 </div>
               </div>
+            </div>
+
+            {/* Agent Pipeline Strip */}
+            <div
+              className={`mt-5 flex items-center justify-center gap-1.5 sm:gap-2.5 flex-wrap transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+              style={{ transitionDelay: '1400ms' }}
+            >
+              {dataTeam.map((agent, i) => (
+                <React.Fragment key={agent.name}>
+                  <div className="flex items-center gap-1.5">
+                    <AiOrb size={22} colors={agent.colors} />
+                    <div>
+                      <span className="text-[11px] font-semibold text-slate-700 block leading-tight">{agent.name}</span>
+                      <span className="text-[9px] text-slate-400">{agent.role}</span>
+                    </div>
+                  </div>
+                  {i < dataTeam.length - 1 && (
+                    <ArrowRight className="w-3 h-3 text-slate-300 flex-shrink-0" strokeWidth={2} />
+                  )}
+                </React.Fragment>
+              ))}
             </div>
           </div>
         </div>
       </div>
-
-      <style>{`
-        .animate-fade-in {
-          animation: fade-in 0.3s ease-out forwards;
-        }
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </section>
   );
 }
-
 // ============================================================================
 // MAIN LANDING PAGE
 // ============================================================================
@@ -568,7 +424,7 @@ export default function LandingPage() {
               <span className="text-emerald-600">AI sales team</span>
             </h2>
             <p className="text-slate-500 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-              Three specialists. Each trained on your business. Working every channel, every hour.
+              Three team leads, each backed by specialist agents. Trained on your business. Always on.
             </p>
           </div>
 
@@ -596,8 +452,8 @@ export default function LandingPage() {
                 role: 'Analytics Team Lead',
                 roleColor: 'text-orange-600',
                 orbColors: ['#f97316', '#ea580c', '#f59e0b'],
-                desc: 'Connects to your CRM to analyze leads, visualize conversion rates, and generate insightful charts. Turns your raw sales data into actionable intelligence.',
-                tags: ['CRM', 'Reports', 'Analytics'],
+                desc: 'Leads a 6-agent analytics team that syncs your CRM data, builds live dashboards, and surfaces AI-powered insights. Supports Bitrix24, HubSpot, Zoho, and Freshsales.',
+                tags: ['Multi-CRM', 'Dashboard', 'AI Insights', 'ETL Sync'],
               },
             ].map((agent) => (
               <div
@@ -655,7 +511,7 @@ export default function LandingPage() {
                 See what's working
               </h3>
               <p className="text-slate-500 leading-relaxed">
-                Track agent performance, product interest, and conversion rates in real time. Know exactly where leads drop off and which conversations close.
+                Your CRM Dashboard shows live KPIs, conversion funnels, and revenue trends across all connected CRMs. AI-powered insights detect anomalies and surface opportunities automatically.
               </p>
             </div>
           </div>
@@ -743,8 +599,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CRM Chat Demo */}
-      <CRMChatSection />
+      {/* CRM Analytics Section */}
+      <CRMAnalyticsSection />
 
       {/* Pricing */}
       <PricingSection onGetStarted={handleCTA} />
@@ -859,7 +715,7 @@ export default function LandingPage() {
                   </span>
                 </Link>
                 <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-8">
-                  AI sales agents that qualify leads, close deals, and keep your CRM accurate — 24 hours a day, 7 days a week. Built for businesses worldwide.
+                  AI sales agents that qualify leads, close deals, and keep your CRM accurate. 24 hours a day, 7 days a week. Built for businesses worldwide.
                 </p>
 
                 {/* Social */}

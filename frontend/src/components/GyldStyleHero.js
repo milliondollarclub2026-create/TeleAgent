@@ -51,7 +51,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
         <p
           className="animate-fadeUp opacity-0 delay-200 text-xl text-slate-500 max-w-2xl mx-auto mb-10 leading-relaxed"
         >
-          Your AI sales team qualifies leads, answers product questions, and closes deals across Telegram and Instagram — in any language. It works nights, weekends, and holidays.
+          Your AI sales team qualifies leads, answers product questions, and closes deals across Telegram and Instagram, in any language. It works nights, weekends, and holidays.
         </p>
 
         {/* CTAs */}
