@@ -21,7 +21,8 @@ import {
   ChevronDown,
   User,
   Globe,
-  Activity
+  Activity,
+  BarChart3
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -39,6 +40,7 @@ const mainNavItems = [
   { path: '/app/agents', icon: Bot, label: 'AI Employees' },
   { path: '/app/leads', icon: Users, label: 'All Leads' },
   { path: '/app/dialogue', icon: MessagesSquare, label: 'Dialogue' },
+  { path: '/app/crm-dashboard', icon: BarChart3, label: 'CRM Dashboard' },
   { path: '/app/global-knowledge', icon: Globe, label: 'Shared Knowledge' },
   { path: '/app/connections', icon: Plug, label: 'Connections' },
 ];

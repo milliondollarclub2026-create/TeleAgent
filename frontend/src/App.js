@@ -20,7 +20,7 @@ import AgentOnboarding from "./pages/AgentOnboarding";
 import AgentDashboard from "./pages/AgentDashboard";
 import AgentSettingsPage from "./pages/AgentSettingsPage";
 import AgentTestChatPage from "./pages/AgentTestChatPage";
-import CRMChatPage from "./pages/CRMChatPage";
+import CRMDashboardPage from "./pages/CRMDashboardPage";
 import LeadsPage from "./pages/LeadsPage";
 import AgentLeadsPage from "./pages/AgentLeadsPage";
 import AgentDialoguePage from "./pages/AgentDialoguePage";
@@ -110,7 +110,8 @@ function AppRoutes() {
         <Route path="agents/:agentId/dialogue" element={<AgentDialoguePage />} />
         <Route path="agents/:agentId/dialogue/:customerId" element={<AgentDialoguePage />} />
         <Route path="leads" element={<LeadsPage />} />
-        <Route path="analytics" element={<CRMChatPage />} />
+        <Route path="crm-dashboard" element={<CRMDashboardPage />} />
+        <Route path="analytics" element={<Navigate to="/app/crm-dashboard" replace />} />
         <Route path="dialogue" element={<AgentDialoguePage />} />
         <Route path="dialogue/:customerId" element={<AgentDialoguePage />} />
         <Route path="settings" element={<SettingsPage />} />

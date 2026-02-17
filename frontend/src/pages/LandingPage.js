@@ -157,7 +157,7 @@ function CRMChatSection() {
 
             <ul className="space-y-4">
               {[
-                { text: 'Plain language queries in any language', icon: MessageSquare },
+                { text: 'Plain language queries, no SQL needed', icon: MessageSquare },
                 { text: 'Live CRM data, always current', icon: BarChart3 },
                 { text: 'Works in 20+ languages', icon: Globe }
               ].map((item, i) => (
@@ -726,7 +726,7 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-8 scroll-reveal">
             <div>
               <h3 className="text-2xl md:text-3xl font-bold text-white font-['Plus_Jakarta_Sans'] mb-2">
-                Your next sales hire costs $30/month
+                Your next sales hire costs $15/month
               </h3>
               <p className="text-emerald-100/80 text-lg">
                 Live in 10 minutes. Cancel anytime.
@@ -812,7 +812,7 @@ export default function LandingPage() {
             {[
               { icon: Lock, title: 'Encrypted at Rest', desc: 'AES encryption for all stored credentials and data' },
               { icon: Shield, title: 'GDPR Ready', desc: 'Data erasure and portability endpoints built in' },
-              { icon: Users, title: 'Multi-Tenant Isolation', desc: 'Row-Level Security ensures zero data leakage' },
+              { icon: Users, title: 'Multi-Tenant Isolation', desc: 'Row-Level Security ensures enterprise-grade data isolation' },
               { icon: Fingerprint, title: 'Webhook Verified', desc: 'Cryptographic signature checks on all inbound hooks' },
             ].map((badge) => (
               <div key={badge.title} className="group bg-[#F5F7F6] border border-slate-200 rounded-xl p-5 text-center hover:border-slate-300 hover:shadow-sm transition-all duration-300">
@@ -952,9 +952,8 @@ export default function LandingPage() {
             <p className="text-sm text-slate-500 font-light">
               &copy; {new Date().getFullYear()} LeadRelay. All rights reserved.
             </p>
-            <span className="text-xs text-slate-500 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              All systems operational
+            <span className="text-xs text-slate-500">
+              Enterprise-grade reliability
             </span>
           </div>
         </div>

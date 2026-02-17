@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Card, CardContent } from '../components/ui/card';
@@ -66,6 +66,7 @@ const LeadsPage = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [hotnessFilter, setHotnessFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -74,6 +75,24 @@ const LeadsPage = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const LEADS_PER_PAGE = 50;
+  const searchTimerRef = useRef(null);
+
+  // Debounce search input (400ms)
+  const handleSearchChange = useCallback((value) => {
+    setSearchQuery(value);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setDebouncedSearch(value);
+      setPage(1);
+    }, 400);
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, []);
 
   // Fetch the default agent for navigation
   useEffect(() => {
@@ -97,7 +116,7 @@ const LeadsPage = () => {
 
   useEffect(() => {
     fetchLeads();
-  }, [hotnessFilter, statusFilter, page]);
+  }, [hotnessFilter, statusFilter, debouncedSearch, page]);
 
   const fetchLeads = async () => {
     setLoading(true);
@@ -108,6 +127,9 @@ const LeadsPage = () => {
       }
       if (statusFilter !== 'all') {
         url += `&status=${statusFilter}`;
+      }
+      if (debouncedSearch.trim()) {
+        url += `&search=${encodeURIComponent(debouncedSearch.trim())}`;
       }
       const response = await axios.get(url);
       // Only show real leads from API - no demo data (multi-tenancy security)
@@ -154,15 +176,8 @@ const LeadsPage = () => {
     }
   };
 
-  const filteredLeads = leads.filter(lead => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      (lead.customer_name?.toLowerCase().includes(query)) ||
-      (lead.customer_phone?.includes(query)) ||
-      (lead.intent?.toLowerCase().includes(query))
-    );
-  });
+  // Search is now handled server-side via the `search` query parameter
+  const filteredLeads = leads;
 
   return (
     <div className="space-y-5 animate-fade-in" data-testid="leads-page">
@@ -173,14 +188,14 @@ const LeadsPage = () => {
 
       {/* Filters */}
       <Card className="bg-white border-slate-200 shadow-sm">
-        <CardContent className="p-3">
+        <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" strokeWidth={1.75} />
               <Input
-                placeholder="Search by name, phone, or intent..."
+                placeholder="Search by name or phone..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9 h-9 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                 data-testid="search-leads-input"
               />
@@ -275,7 +290,7 @@ const LeadsPage = () => {
                       </TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${stageColors[lead.sales_stage] || stageColors.awareness}`}>
-                          {lead.sales_stage?.charAt(0).toUpperCase() + lead.sales_stage?.slice(1) || 'Awareness'}
+                          {lead.sales_stage ? lead.sales_stage.charAt(0).toUpperCase() + lead.sales_stage.slice(1) : 'Awareness'}
                         </span>
                       </TableCell>
                       <TableCell>

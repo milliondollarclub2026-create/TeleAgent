@@ -20,6 +20,12 @@ logger = logging.getLogger(__name__)
 _key = (os.environ.get('ENCRYPTION_KEY') or '').strip()
 _fernet = None
 
+# Detect production: Render sets RENDER_EXTERNAL_URL, or user sets BACKEND_PUBLIC_URL
+_is_production = bool(
+    (os.environ.get('RENDER_EXTERNAL_URL') or '').strip()
+    or (os.environ.get('BACKEND_PUBLIC_URL') or '').strip()
+)
+
 if _key:
     try:
         _fernet = Fernet(_key.encode())
@@ -27,12 +33,22 @@ if _key:
     except Exception as e:
         logger.error(f"Invalid ENCRYPTION_KEY: {e}")
         _fernet = None
+        if _is_production:
+            raise RuntimeError(
+                "ENCRYPTION_KEY is set but invalid. Cannot start in production without working encryption. "
+                "Generate a valid key with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            )
 else:
-    logger.warning("ENCRYPTION_KEY not set — credentials will be stored unencrypted")
+    if _is_production:
+        raise RuntimeError(
+            "ENCRYPTION_KEY is required in production. Credentials cannot be stored unencrypted. "
+            "Generate a key with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        )
+    logger.warning("ENCRYPTION_KEY not set — credentials will be stored unencrypted (development only)")
 
 
 def encrypt_value(plaintext: str) -> str:
-    """Encrypt a plaintext string. Returns plaintext unchanged if no key configured."""
+    """Encrypt a plaintext string. Returns plaintext unchanged if no key configured (dev only)."""
     if not _fernet or not plaintext:
         return plaintext
     return _fernet.encrypt(plaintext.encode()).decode()

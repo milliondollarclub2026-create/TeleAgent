@@ -19,7 +19,7 @@ const faqData = [
     id: 'faq-2',
     question: 'What languages does LeadRelay support?',
     answer:
-      "LeadRelay supports 20+ languages including English, Spanish, Arabic, Russian, French, and more. The AI automatically detects the customer's language and responds naturally in their preferred language, switching seamlessly if the conversation changes.",
+      "LeadRelay supports 20+ languages including English, Spanish, Arabic, Russian, French, and more. The AI automatically detects the customer's language and responds naturally in their preferred language, switching automatically if the conversation changes.",
   },
   {
     id: 'faq-3',
@@ -37,7 +37,7 @@ const faqData = [
     id: 'faq-5',
     question: 'How does billing work?',
     answer:
-      '$30 per month per active channel. You only pay for what you use. No setup fees, no annual contracts. Cancel from your dashboard at any time.',
+      '$15 per month per agent. Hire the full team of three and get a $5/month bundle discount. Telegram is included at no extra cost; add Instagram for $10\u2013$25/month depending on your setup. No setup fees, no annual contracts. Cancel from your dashboard at any time.',
   },
   {
     id: 'faq-6',

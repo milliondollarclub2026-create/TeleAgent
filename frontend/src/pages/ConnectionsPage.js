@@ -175,11 +175,8 @@ const ConnectionsPage = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[60vh] gap-3">
-        <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center">
-          <Loader2 className="w-5 h-5 animate-spin text-white" strokeWidth={2} />
-        </div>
-        <p className="text-[13px] text-slate-400">Loading connections...</p>
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" strokeWidth={2} />
       </div>
     );
   }
@@ -245,7 +242,7 @@ const ConnectionsPage = () => {
                   Connect your Telegram bot to start receiving messages
                 </p>
                 <Button
-                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('telegram'))}
                   data-testid="setup-telegram-btn"
                 >
@@ -306,7 +303,7 @@ const ConnectionsPage = () => {
                   Connect your Instagram to automate DM replies
                 </p>
                 <Button
-                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('instagram'))}
                   data-testid="setup-instagram-btn"
                 >
@@ -375,7 +372,7 @@ const ConnectionsPage = () => {
                   Sync leads and contacts with your CRM
                 </p>
                 <Button
-                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('bitrix'))}
                   data-testid="setup-bitrix-btn"
                 >
@@ -436,7 +433,7 @@ const ConnectionsPage = () => {
                   Set up product catalog & lead tracking with your Google Sheet
                 </p>
                 <Button
-                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('google-sheets'))}
                   data-testid="setup-gsheets-btn"
                 >
@@ -493,7 +490,7 @@ const ConnectionsPage = () => {
                   Sync contacts and deals with HubSpot
                 </p>
                 <Button
-                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('hubspot'))}
                 >
                   Connect
@@ -549,7 +546,7 @@ const ConnectionsPage = () => {
                   Sync leads and contacts with Zoho CRM
                 </p>
                 <Button
-                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('zoho'))}
                 >
                   Connect
@@ -605,7 +602,7 @@ const ConnectionsPage = () => {
                   Connect your Freshsales account for deal tracking
                 </p>
                 <Button
-                  className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('freshsales'))}
                 >
                   Connect

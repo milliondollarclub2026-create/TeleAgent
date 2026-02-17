@@ -5,9 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { Input } from '../components/ui/input';
 import {
-  Plus,
   MessageSquare,
   Users,
   MoreVertical,
@@ -357,9 +355,6 @@ const TeamModal = ({ open, onClose, onHire }) => {
   );
 };
 
-// Storage key for hired prebuilt employees
-const HIRED_PREBUILT_KEY = 'hired_prebuilt_employees';
-
 const AgentsPage = () => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -371,7 +366,6 @@ const AgentsPage = () => {
   const [hiredPrebuilt, setHiredPrebuilt] = useState([]);
   const navigate = useNavigate();
   const { token, user } = useAuth();
-  const hiredPrebuiltKey = `hired_prebuilt_employees_${user?.tenant_id || 'default'}`;
 
   // Close team modal on Escape key
   useEffect(() => {
@@ -388,18 +382,51 @@ const AgentsPage = () => {
 
   useEffect(() => {
     fetchAgents();
-    // Load hired prebuilt employees from localStorage
-    const savedHired = localStorage.getItem(hiredPrebuiltKey);
-    if (savedHired) {
-      try {
-        setHiredPrebuilt(JSON.parse(savedHired));
-      } catch (e) {
-        console.error('Failed to parse hired prebuilt:', e);
-      }
-    }
+    fetchHiredPrebuilt();
   }, []);
 
-  // Sync localStorage when agents have prebuilt types (cleanup stale state)
+  // Fetch hired prebuilt state from backend config
+  const fetchHiredPrebuilt = async () => {
+    try {
+      const response = await axios.get(`${API}/config`);
+      const config = response.data || {};
+      const hired = config.hired_prebuilt || [];
+      setHiredPrebuilt(hired);
+
+      // Migrate from localStorage if backend has no data
+      const legacyKey = `hired_prebuilt_employees_${user?.tenant_id || 'default'}`;
+      const savedHired = localStorage.getItem(legacyKey);
+      if (savedHired && hired.length === 0) {
+        try {
+          const parsed = JSON.parse(savedHired);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setHiredPrebuilt(parsed);
+            await axios.put(`${API}/config`, { hired_prebuilt: parsed });
+            localStorage.removeItem(legacyKey);
+          }
+        } catch (e) {
+          console.error('Failed to migrate hired prebuilt from localStorage:', e);
+        }
+      } else if (savedHired && hired.length > 0) {
+        // Backend already has data, clean up localStorage
+        localStorage.removeItem(legacyKey);
+      }
+    } catch (e) {
+      console.error('Failed to fetch hired prebuilt config:', e);
+    }
+  };
+
+  // Persist hired prebuilt state to backend
+  const persistHiredPrebuilt = async (newHired) => {
+    setHiredPrebuilt(newHired);
+    try {
+      await axios.put(`${API}/config`, { hired_prebuilt: newHired });
+    } catch (e) {
+      console.error('Failed to persist hired prebuilt:', e);
+    }
+  };
+
+  // Sync when agents have prebuilt types (cleanup stale state)
   useEffect(() => {
     if (agents.length > 0 && hiredPrebuilt.length > 0) {
       // Find prebuilt IDs that now have real agents
@@ -410,8 +437,7 @@ const AgentsPage = () => {
       if (prebuiltIdsToRemove.length > 0) {
         const updatedHired = hiredPrebuilt.filter(id => !prebuiltIdsToRemove.includes(id));
         if (updatedHired.length !== hiredPrebuilt.length) {
-          setHiredPrebuilt(updatedHired);
-          localStorage.setItem(hiredPrebuiltKey, JSON.stringify(updatedHired));
+          persistHiredPrebuilt(updatedHired);
         }
       }
     }
@@ -456,8 +482,7 @@ const AgentsPage = () => {
     // Check if already hired
     if (!hiredPrebuilt.includes(prebuilt.id)) {
       const newHired = [...hiredPrebuilt, prebuilt.id];
-      setHiredPrebuilt(newHired);
-      localStorage.setItem(hiredPrebuiltKey, JSON.stringify(newHired));
+      persistHiredPrebuilt(newHired);
       toast.success(`${prebuilt.name} has joined your team!`);
     }
 
@@ -492,8 +517,7 @@ const AgentsPage = () => {
 
   const handleFirePrebuilt = async (prebuilt) => {
     const newHired = hiredPrebuilt.filter(id => id !== prebuilt.id);
-    setHiredPrebuilt(newHired);
-    localStorage.setItem(hiredPrebuiltKey, JSON.stringify(newHired));
+    persistHiredPrebuilt(newHired);
 
     // Clear analytics chat history and stop background refresh when Analytics agent is removed
     if (prebuilt.type === 'analytics') {
@@ -850,7 +874,7 @@ const AgentsPage = () => {
                     <div>
                       <div className="flex items-center gap-1 mb-0.5">
                         <TrendingUp className="w-3 h-3 text-slate-400" strokeWidth={2} />
-                        <span className="text-[10px] text-slate-400 font-medium uppercase">Conv.</span>
+                        <span className="text-[10px] text-slate-400 font-medium uppercase">Conversion</span>
                       </div>
                       <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
                         {agent.conversion_rate || 0}%
@@ -975,7 +999,7 @@ const AgentsPage = () => {
                     )}
                     <Button
                       onClick={(e) => { e.stopPropagation(); handleHirePrebuilt(employee); }}
-                      className="bg-slate-900 hover:bg-slate-800 text-white text-[12px] font-medium h-8 px-4 rounded-lg shadow-sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-medium h-8 px-4 rounded-lg shadow-sm"
                     >
                       Hire
                     </Button>
