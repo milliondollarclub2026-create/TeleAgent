@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, LayoutGrid } from 'lucide-react';
+import { X, Pencil, LayoutGrid } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,7 +33,7 @@ function ChartSkeleton() {
   );
 }
 
-export default function DashboardGrid({ widgets, loading, onDeleteWidget }) {
+export default function DashboardGrid({ widgets, loading, onDeleteWidget, onModifyWidget }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   if (loading) {
@@ -79,21 +79,34 @@ export default function DashboardGrid({ widgets, loading, onDeleteWidget }) {
     changeDirection: widget.changeDirection,
   });
 
-  const isStandard = (widget) => widget.is_standard;
+  const isKPI = (widget) => ['kpi', 'metric'].includes(widget.chart_type?.toLowerCase());
 
   const WidgetWrapper = ({ widget, children }) => (
     <div className="relative group">
       {children}
-      {/* Remove button for non-standard widgets */}
-      {!isStandard(widget) && onDeleteWidget && (
-        <button
-          onClick={() => setDeleteTarget(widget)}
-          className="absolute top-2 right-2 w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 hover:border-red-200"
-          title="Remove widget"
-        >
-          <X className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" strokeWidth={2} />
-        </button>
-      )}
+      {/* Hover controls — top right */}
+      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* Modify button (non-KPI only — KPIs have no chart to modify) */}
+        {!isKPI(widget) && onModifyWidget && (
+          <button
+            onClick={() => onModifyWidget(widget)}
+            className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
+            title="Modify widget"
+          >
+            <Pencil className="w-3 h-3 text-slate-400 group-hover:text-emerald-600" strokeWidth={2} />
+          </button>
+        )}
+        {/* Delete button */}
+        {onDeleteWidget && (
+          <button
+            onClick={() => setDeleteTarget(widget)}
+            className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
+            title="Remove widget"
+          >
+            <X className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" strokeWidth={2} />
+          </button>
+        )}
+      </div>
     </div>
   );
 

@@ -84,17 +84,22 @@ from sync_engine import (
     trigger_full_sync_background,
     resume_all_sync_loops,
     stop_sync_loop,
+    stop_all_syncs,
+    is_sync_active,
     get_active_syncs,
+    _active_full_syncs,
 )
+from sync_status import SyncStatus
 
 # Import Data Team agents (Phase 2)
 from agents.bobur import handle_chat_message as dashboard_chat_handler
-from agents.farid import analyze_schema as farid_analyze_schema
-from agents.dima import generate_dashboard_widgets as dima_generate_widgets
 from agents.anvar import execute_chart_query as anvar_execute_query
 from agents.nilufar import check_insights as nilufar_check_insights
 from agents.kpi_resolver import resolve_kpi as kpi_resolve
 from agents import ChartConfig, CRMProfile
+# NOTE: farid.analyze_schema and dima.generate_dashboard_widgets are no longer called
+# in the active onboarding flow (replaced by build_proposal + _generate_goal_widgets).
+# Their modules are kept for reference but not imported here.
 
 import bcrypt as _bcrypt_lib  # for password hashing upgrade
 
@@ -1505,6 +1510,9 @@ async def delete_account(request: AccountDeleteRequest, current_user: Dict = Dep
         raise HTTPException(status_code=403, detail="Incorrect password. Account deletion requires password confirmation.")
 
     try:
+        # 0. Cancel all active syncs immediately
+        await stop_all_syncs(tenant_id)
+
         # Delete in order to respect foreign key constraints
         # 1. Delete messages (via conversation_id since messages has no tenant_id)
         try:
@@ -1538,21 +1546,46 @@ async def delete_account(request: AccountDeleteRequest, current_user: Dict = Dep
         except Exception as e:
             logger.warning(f"Could not delete customers: {e}")
 
-        # 5. Delete documents
+        # 5. Delete agent_document_overrides BEFORE documents (FK: document_id -> documents.id)
+        try:
+            supabase.table('agent_document_overrides').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted agent_document_overrides for tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete agent_document_overrides: {e}")
+
+        # 6. Delete documents (safe now that overrides are gone)
         try:
             supabase.table('documents').delete().eq('tenant_id', tenant_id).execute()
             logger.info(f"Deleted documents for tenant {tenant_id}")
         except Exception as e:
             logger.warning(f"Could not delete documents: {e}")
 
-        # 6. Delete event logs
+        # 7. Delete event logs
         try:
             supabase.table('event_logs').delete().eq('tenant_id', tenant_id).execute()
             logger.info(f"Deleted event logs for tenant {tenant_id}")
         except Exception as e:
             logger.warning(f"Could not delete event logs: {e}")
 
-        # 7. Disconnect and delete telegram bot
+        # 8. Delete ALL CRM synced data + dashboard data
+        await _cleanup_crm_data(tenant_id)
+
+        # 9. Delete CRM connections
+        try:
+            supabase.table('crm_connections').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted crm_connections for tenant {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete crm_connections: {e}")
+
+        # 10. Delete additional tenant-owned tables
+        for extra_table in ['media_library', 'instagram_accounts', 'token_usage_logs']:
+            try:
+                supabase.table(extra_table).delete().eq('tenant_id', tenant_id).execute()
+                logger.info(f"Deleted {extra_table} for tenant {tenant_id}")
+            except Exception as e:
+                logger.warning(f"Could not delete {extra_table}: {e}")
+
+        # 11. Disconnect and delete telegram bot
         try:
             tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
             if tg_result.data:
@@ -1562,28 +1595,28 @@ async def delete_account(request: AccountDeleteRequest, current_user: Dict = Dep
         except Exception as e:
             logger.warning(f"Could not delete telegram bot: {e}")
 
-        # 8. Delete tenant config
+        # 10. Delete tenant config
         try:
             supabase.table('tenant_configs').delete().eq('tenant_id', tenant_id).execute()
             logger.info(f"Deleted tenant config for tenant {tenant_id}")
         except Exception as e:
             logger.warning(f"Could not delete tenant config: {e}")
 
-        # 9. Delete user
+        # 11. Delete user
         try:
             supabase.table('users').delete().eq('id', user_id).execute()
             logger.info(f"Deleted user {user_id}")
         except Exception as e:
             logger.warning(f"Could not delete user: {e}")
 
-        # 10. Delete tenant
+        # 12. Delete tenant
         try:
             supabase.table('tenants').delete().eq('id', tenant_id).execute()
             logger.info(f"Deleted tenant {tenant_id}")
         except Exception as e:
             logger.warning(f"Could not delete tenant: {e}")
 
-        # 11. Clear Bitrix cache if exists
+        # 13. Clear in-memory caches
         if tenant_id in _bitrix_webhooks_cache:
             del _bitrix_webhooks_cache[tenant_id]
 
@@ -1601,7 +1634,9 @@ async def delete_account_data(current_user: Dict = Depends(get_current_user)):
     tenant_id = current_user["tenant_id"]
 
     try:
-        # Delete user data but keep account structure
+        # 0. Cancel all active syncs immediately
+        await stop_all_syncs(tenant_id)
+
         # 1. Delete messages (via conversation_id since messages has no tenant_id)
         try:
             conv_result = supabase.table('conversations').select('id').eq('tenant_id', tenant_id).execute()
@@ -1630,6 +1665,12 @@ async def delete_account_data(current_user: Dict = Depends(get_current_user)):
         except Exception as e:
             logger.warning(f"Could not delete customers: {e}")
 
+        # 5. Delete agent_document_overrides BEFORE documents (FK: document_id -> documents.id)
+        try:
+            supabase.table('agent_document_overrides').delete().eq('tenant_id', tenant_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not delete agent_document_overrides: {e}")
+
         # 6. Delete documents
         try:
             supabase.table('documents').delete().eq('tenant_id', tenant_id).execute()
@@ -1642,19 +1683,36 @@ async def delete_account_data(current_user: Dict = Depends(get_current_user)):
         except Exception as e:
             logger.warning(f"Could not delete event logs: {e}")
 
-        # 8. Reset tenant config (but don't delete)
+        # 8. Delete ALL CRM synced data + dashboard data
+        await _cleanup_crm_data(tenant_id)
+
+        # 9. Delete CRM connections (hard delete, not just soft-delete)
+        try:
+            supabase.table('crm_connections').delete().eq('tenant_id', tenant_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not delete crm_connections: {e}")
+
+        # 10. Delete additional tenant-owned data tables
+        for extra_table in ['media_library', 'instagram_accounts', 'token_usage_logs']:
+            try:
+                supabase.table(extra_table).delete().eq('tenant_id', tenant_id).execute()
+            except Exception as e:
+                logger.warning(f"Could not delete {extra_table}: {e}")
+
+        # 9. Reset tenant config (but don't delete)
         try:
             supabase.table('tenant_configs').update({
                 "business_name": None,
                 "business_description": None,
                 "products_services": None,
                 "bitrix_webhook_url": None,
-                "bitrix_connected_at": None
+                "bitrix_connected_at": None,
+                "hired_prebuilt": "[]",
             }).eq('tenant_id', tenant_id).execute()
         except Exception as e:
             logger.warning(f"Could not reset tenant config: {e}")
 
-        # 9. Disconnect telegram bot but keep record
+        # 10. Disconnect telegram bot but keep record
         try:
             tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
             if tg_result.data:
@@ -1663,11 +1721,11 @@ async def delete_account_data(current_user: Dict = Depends(get_current_user)):
         except Exception as e:
             logger.warning(f"Could not disconnect telegram bot: {e}")
 
-        # 10. Clear Bitrix cache
+        # 11. Clear Bitrix cache
         if tenant_id in _bitrix_webhooks_cache:
             del _bitrix_webhooks_cache[tenant_id]
 
-        logger.info(f"Successfully deleted data for tenant {tenant_id}")
+        logger.info(f"Successfully deleted ALL data for tenant {tenant_id}")
         return {"success": True, "message": "All data deleted successfully. Your account is preserved."}
 
     except Exception as e:
@@ -2364,10 +2422,50 @@ async def test_bitrix_webhook(current_user: Dict = Depends(get_current_user)):
     return await client.test_connection()
 
 
+async def _cleanup_crm_data(tenant_id: str, crm_source: str = None):
+    """Delete all CRM synced data and dashboard config for a tenant.
+    If crm_source is provided, only delete data for that CRM type."""
+    # Tables that have crm_source column — can be filtered per-CRM
+    crm_tables = [
+        'crm_leads', 'crm_deals', 'crm_contacts', 'crm_companies', 'crm_activities',
+        'crm_sync_status', 'crm_users', 'crm_field_registry',
+        # Revenue / metric tables (Phase 2)
+        'tenant_metrics', 'tenant_alert_rules',
+        'revenue_models', 'revenue_snapshots', 'revenue_alerts',
+    ]
+    # Tables keyed only by tenant_id (no crm_source) — always fully cleaned
+    tenant_only_tables = [
+        'dashboard_widgets', 'dashboard_chat_messages', 'dashboard_configs',
+        'agent_traces', 'data_access_logs', 'crm_analytics_context',
+    ]
+
+    for table in crm_tables:
+        try:
+            q = supabase.table(table).delete().eq('tenant_id', tenant_id)
+            if crm_source:
+                q = q.eq('crm_source', crm_source)
+            q.execute()
+        except Exception as e:
+            logger.warning(f"Could not clean {table} for tenant {tenant_id}: {e}")
+
+    # Only clean tenant-only tables on full wipe (no crm_source filter)
+    if not crm_source:
+        for table in tenant_only_tables:
+            try:
+                supabase.table(table).delete().eq('tenant_id', tenant_id).execute()
+            except Exception as e:
+                logger.warning(f"Could not clean {table} for tenant {tenant_id}: {e}")
+
+    logger.info(f"CRM data cleanup complete for tenant {tenant_id} (crm_source={crm_source})")
+
+
 @api_router.post("/bitrix-crm/disconnect")
 async def disconnect_bitrix_webhook(current_user: Dict = Depends(get_current_user)):
     """Disconnect Bitrix24 CRM"""
     tenant_id = current_user["tenant_id"]
+
+    # Cancel any running syncs immediately
+    await stop_all_syncs(tenant_id, crm_type='bitrix24')
 
     # Clear from memory cache
     if tenant_id in _bitrix_webhooks_cache:
@@ -2376,6 +2474,9 @@ async def disconnect_bitrix_webhook(current_user: Dict = Depends(get_current_use
 
     # Soft-delete in crm_connections (primary)
     await crm_manager.remove_connection(tenant_id, 'bitrix24')
+
+    # Clean up CRM synced data
+    await _cleanup_crm_data(tenant_id, 'bitrix24')
 
     # Also clear legacy tables
     try:
@@ -3024,7 +3125,10 @@ async def hubspot_test(current_user: Dict = Depends(get_current_user)):
 @api_router.post("/hubspot/disconnect")
 async def hubspot_disconnect(current_user: Dict = Depends(get_current_user)):
     """Disconnect HubSpot CRM."""
-    await crm_manager.remove_connection(current_user["tenant_id"], 'hubspot')
+    tenant_id = current_user["tenant_id"]
+    await stop_all_syncs(tenant_id, crm_type='hubspot')
+    await crm_manager.remove_connection(tenant_id, 'hubspot')
+    await _cleanup_crm_data(tenant_id, 'hubspot')
     return {"success": True, "message": "HubSpot disconnected"}
 
 
@@ -3133,7 +3237,10 @@ async def zoho_test(current_user: Dict = Depends(get_current_user)):
 @api_router.post("/zoho/disconnect")
 async def zoho_disconnect(current_user: Dict = Depends(get_current_user)):
     """Disconnect Zoho CRM."""
-    await crm_manager.remove_connection(current_user["tenant_id"], 'zoho')
+    tenant_id = current_user["tenant_id"]
+    await stop_all_syncs(tenant_id, crm_type='zoho')
+    await crm_manager.remove_connection(tenant_id, 'zoho')
+    await _cleanup_crm_data(tenant_id, 'zoho')
     return {"success": True, "message": "Zoho disconnected"}
 
 
@@ -3207,7 +3314,10 @@ async def freshsales_test(current_user: Dict = Depends(get_current_user)):
 @api_router.post("/freshsales/disconnect")
 async def freshsales_disconnect(current_user: Dict = Depends(get_current_user)):
     """Disconnect Freshsales CRM."""
-    await crm_manager.remove_connection(current_user["tenant_id"], 'freshsales')
+    tenant_id = current_user["tenant_id"]
+    await stop_all_syncs(tenant_id, crm_type='freshsales')
+    await crm_manager.remove_connection(tenant_id, 'freshsales')
+    await _cleanup_crm_data(tenant_id, 'freshsales')
     return {"success": True, "message": "Freshsales disconnected"}
 
 
@@ -3259,6 +3369,21 @@ async def crm_sync_status(current_user: Dict = Depends(get_current_user)):
         return {"statuses": []}
 
 
+@api_router.post("/crm/sync/stop")
+async def crm_sync_stop(current_user: Dict = Depends(get_current_user)):
+    """Cancel all active syncs for a tenant (full + incremental)."""
+    tenant_id = current_user["tenant_id"]
+    cancelled = await stop_all_syncs(tenant_id)
+    return {"success": True, "cancelled": cancelled}
+
+
+@api_router.get("/crm/sync/active")
+async def crm_sync_is_active(current_user: Dict = Depends(get_current_user)):
+    """Check if any sync is currently running for this tenant."""
+    tenant_id = current_user["tenant_id"]
+    return {"active": is_sync_active(tenant_id)}
+
+
 @api_router.post("/crm/sync/refresh")
 async def crm_sync_refresh(current_user: Dict = Depends(get_current_user)):
     """Force an immediate incremental sync for all active CRM connections."""
@@ -3308,65 +3433,568 @@ async def _get_tenant_crm_source(supabase, tenant_id: str) -> Optional[str]:
     return None
 
 
+# ── Revenue Analyst onboarding helpers ──
+
+# DEPRECATED Phase 3 — remove after 2026-04-01. Use SchemaProfile.suggested_goals instead.
+_REVENUE_GOALS = [
+    {
+        "id": "forecast_accuracy",
+        "name": "Forecast Accuracy",
+        "description": "Win rates, sales cycle length, and deal velocity to predict revenue.",
+        "required_metrics": ["win_rate", "sales_cycle_days", "deal_velocity", "avg_deal_size"],
+        "requires_revenue_model": True,
+    },
+    {
+        "id": "pipeline_health",
+        "name": "Pipeline Health",
+        "description": "Pipeline value, stall risk, and deal flow through stages.",
+        "required_metrics": ["pipeline_value", "pipeline_stall_risk", "stage_conversion", "new_deals"],
+        "requires_revenue_model": False,
+    },
+    {
+        "id": "conversion_improvement",
+        "name": "Conversion Improvement",
+        "description": "Where deals drop off and how to improve win rates across the funnel.",
+        "required_metrics": ["win_rate", "stage_conversion", "lead_to_deal_rate", "activity_to_deal_ratio"],
+        "requires_revenue_model": True,
+    },
+    {
+        "id": "rep_performance",
+        "name": "Rep Performance",
+        "description": "Activity volume, close rates, and deal sizes across your sales team.",
+        "required_metrics": ["rep_activity_count", "activity_to_deal_ratio", "avg_deal_size"],
+        "requires_revenue_model": False,
+    },
+    {
+        "id": "lead_flow_health",
+        "name": "Lead Flow Health",
+        "description": "How efficiently leads convert to deals and enter the pipeline.",
+        "required_metrics": ["lead_to_deal_rate", "new_deals", "pipeline_value", "forecast_hygiene"],
+        "requires_revenue_model": False,
+    },
+]
+
+# DEPRECATED Phase 3 — remove after 2026-04-01. Use _generate_widgets_from_metrics() instead.
+# Widget templates per goal — all fields validated against ALLOWED_FIELDS whitelist
+_GOAL_WIDGET_TEMPLATES = {
+    "forecast_accuracy": [
+        {"chart_type": "kpi", "title": "Win Rate", "description": "Percentage of deals won in the period", "data_source": "crm_deals", "x_field": "won", "aggregation": "count", "size": "small"},
+        {"chart_type": "kpi", "title": "Avg Deal Size", "description": "Average value of won deals", "data_source": "crm_deals", "x_field": "won", "y_field": "value", "aggregation": "avg", "size": "small"},
+        {"chart_type": "line", "title": "Revenue Over Time", "description": "Closed deal revenue trend", "data_source": "crm_deals", "x_field": "closed_at", "y_field": "value", "aggregation": "sum", "sort_order": "asc", "size": "large"},
+        {"chart_type": "line", "title": "Deal Velocity", "description": "New deals created over time", "data_source": "crm_deals", "x_field": "created_at", "sort_order": "asc", "size": "large"},
+    ],
+    "pipeline_health": [
+        {"chart_type": "kpi", "title": "Pipeline Value", "description": "Total value of open deals", "data_source": "crm_deals", "x_field": "stage", "y_field": "value", "aggregation": "sum", "size": "small"},
+        {"chart_type": "kpi", "title": "Open Deals", "description": "Count of deals currently in pipeline", "data_source": "crm_deals", "x_field": "stage", "aggregation": "count", "size": "small"},
+        {"chart_type": "funnel", "title": "Stage Conversion Funnel", "description": "Deal count at each pipeline stage", "data_source": "crm_deals", "x_field": "stage", "size": "large"},
+        {"chart_type": "bar", "title": "Deal Value by Stage", "description": "Revenue potential at each stage", "data_source": "crm_deals", "x_field": "stage", "y_field": "value", "aggregation": "sum", "size": "medium"},
+    ],
+    "conversion_improvement": [
+        {"chart_type": "funnel", "title": "Stage Conversion Funnel", "description": "Deal drop-off through pipeline stages", "data_source": "crm_deals", "x_field": "stage", "size": "large"},
+        {"chart_type": "funnel", "title": "Lead Pipeline", "description": "Lead distribution across statuses", "data_source": "crm_leads", "x_field": "status", "size": "large"},
+        {"chart_type": "kpi", "title": "Win Rate", "description": "Percentage of deals won", "data_source": "crm_deals", "x_field": "won", "aggregation": "count", "size": "small"},
+        {"chart_type": "pie", "title": "Activities by Type", "description": "Breakdown of sales activities", "data_source": "crm_activities", "x_field": "type", "size": "medium", "item_limit": 6},
+    ],
+    "rep_performance": [
+        {"chart_type": "bar", "title": "Revenue per Rep", "description": "Total deal value closed per team member", "data_source": "crm_deals", "x_field": "assigned_to", "y_field": "value", "aggregation": "sum", "size": "medium"},
+        {"chart_type": "bar", "title": "Deals per Rep", "description": "Deal count by team member", "data_source": "crm_deals", "x_field": "assigned_to", "size": "medium"},
+        {"chart_type": "bar", "title": "Activities by Rep", "description": "Activity volume per team member", "data_source": "crm_activities", "x_field": "employee_name", "size": "medium"},
+        {"chart_type": "bar", "title": "Leads per Rep", "description": "Lead count by assignee", "data_source": "crm_leads", "x_field": "assigned_to", "size": "medium"},
+    ],
+    "lead_flow_health": [
+        {"chart_type": "kpi", "title": "New Leads (30d)", "description": "Leads created in the last 30 days", "data_source": "crm_leads", "x_field": "status", "aggregation": "count", "time_range_days": 30, "size": "small"},
+        {"chart_type": "funnel", "title": "Lead Pipeline", "description": "Lead distribution across pipeline statuses", "data_source": "crm_leads", "x_field": "status", "size": "large"},
+        {"chart_type": "line", "title": "Lead Trend", "description": "New leads over time", "data_source": "crm_leads", "x_field": "created_at", "sort_order": "asc", "size": "large"},
+        {"chart_type": "pie", "title": "Leads by Source", "description": "Where your leads are coming from", "data_source": "crm_leads", "x_field": "source", "size": "medium", "item_limit": 8},
+    ],
+}
+
+
+# DEPRECATED Phase 3 — remove after 2026-04-01
+# ---------------------------------------------------------------------------
+# Backward-compatibility: map legacy Farid category IDs → Revenue Analyst goal IDs
+# ---------------------------------------------------------------------------
+
+_CATEGORY_TO_GOALS: dict[str, list[str]] = {
+    "lead_pipeline":      ["lead_flow_health"],
+    "deal_analytics":     ["pipeline_health", "forecast_accuracy"],
+    "activity_tracking":  ["rep_performance"],
+    "team_performance":   ["rep_performance"],
+    "revenue_metrics":    ["forecast_accuracy"],
+    "contact_management": [],  # no direct Revenue Analyst equivalent
+}
+
+_VALID_GOAL_IDS: set[str] = {g["id"] for g in _REVENUE_GOALS}
+
+
+# TODO Phase 3: Remove backward-compat shim — once all tenants have migrated
+# selected_categories → selected_goals, this function and its two call sites
+# (lines ~3729, ~4259) can be deleted.
+def _map_categories_to_goals(selected_categories: list) -> list:
+    """
+    Translate legacy Farid category IDs to Revenue Analyst goal IDs.
+    Unknown IDs (already goal IDs) pass through unchanged.
+    Deduplicates the output list.
+    """
+    goals: list[str] = []
+    seen: set[str] = set()
+    for cat in (selected_categories or []):
+        if cat in _VALID_GOAL_IDS:
+            # Already a goal ID — keep as-is
+            candidates = [cat]
+        else:
+            candidates = _CATEGORY_TO_GOALS.get(cat, [])
+        for g in candidates:
+            if g not in seen:
+                seen.add(g)
+                goals.append(g)
+    return goals
+
+
+def _enrich_suggested_goals(schema, catalog_trust: list, proposal: dict) -> list:
+    """
+    Build enriched goal list from SchemaProfile.suggested_goals + metric catalog trust.
+    Falls back to _REVENUE_GOALS if schema has no suggested_goals.
+    """
+    suggested = schema.suggested_goals if schema else []
+    if not suggested:
+        # No schema-driven goals — use legacy path
+        return _revenue_goals_from_catalog(catalog_trust, proposal)
+
+    metric_info = {m["key"]: m for m in catalog_trust}
+
+    # Map suggested_goals from Farid to the frontend format
+    # Match them against _REVENUE_GOALS definitions for required_metrics
+    goal_defs_by_id = {g["id"]: g for g in _REVENUE_GOALS}
+    goals = []
+    for sg in suggested:
+        goal_id = sg.get("id", "")
+        goal_def = goal_defs_by_id.get(goal_id)
+        if not goal_def:
+            # Schema suggested a goal not in our definitions — create a minimal entry
+            goals.append({
+                "id": goal_id,
+                "name": sg.get("label", goal_id.replace("_", " ").title()),
+                "description": sg.get("reason", ""),
+                "available": True,
+                "trust_score": 0.5,
+                "trust_warning": None,
+                "model_note": None,
+                "requires_revenue_model": False,
+                "available_metric_count": 0,
+                "total_metric_count": 0,
+            })
+            continue
+
+        # Standard goal — compute availability from catalog
+        available_metrics = [
+            m for m in goal_def["required_metrics"]
+            if metric_info.get(m, {}).get("available", False)
+        ]
+        available = len(available_metrics) > 0
+        trusts = [
+            metric_info.get(m, {}).get("data_trust_score", 0.0)
+            for m in available_metrics
+        ]
+        trust_score = round(sum(trusts) / len(trusts), 2) if trusts else 0.0
+        trust_warning = None
+        if available and trust_score < 0.4:
+            trust_warning = f"Data quality is low ({trust_score:.0%} confidence). Metrics may be inaccurate."
+        elif available and trust_score < 0.7:
+            trust_warning = f"Data quality is moderate ({trust_score:.0%} confidence)."
+        model_note = None
+        if goal_def.get("requires_revenue_model") and proposal.get("requires_confirmation"):
+            model_note = "Requires confirming won/lost stage mapping before metrics are computed."
+        goals.append({
+            "id": goal_id,
+            "name": sg.get("label", goal_def["name"]),
+            "description": sg.get("reason", goal_def["description"]),
+            "available": available,
+            "trust_score": trust_score,
+            "trust_warning": trust_warning,
+            "model_note": model_note,
+            "requires_revenue_model": goal_def.get("requires_revenue_model", False),
+            "available_metric_count": len(available_metrics),
+            "total_metric_count": len(goal_def["required_metrics"]),
+        })
+
+    return goals
+
+
+# DEPRECATED Phase 3 — remove after 2026-04-01
+def _revenue_goals_from_catalog(catalog_trust: list, proposal: dict) -> list:
+    """Build enriched goal list from metric catalog trust info and revenue proposal."""
+    metric_info = {m["key"]: m for m in catalog_trust}
+    goals = []
+    for goal_def in _REVENUE_GOALS:
+        available_metrics = [
+            m for m in goal_def["required_metrics"]
+            if metric_info.get(m, {}).get("available", False)
+        ]
+        available = len(available_metrics) > 0
+        trusts = [
+            metric_info.get(m, {}).get("data_trust_score", 0.0)
+            for m in available_metrics
+        ]
+        trust_score = round(sum(trusts) / len(trusts), 2) if trusts else 0.0
+        trust_warning = None
+        if available and trust_score < 0.4:
+            trust_warning = f"Data quality is low ({trust_score:.0%} confidence). Metrics may be inaccurate."
+        elif available and trust_score < 0.7:
+            trust_warning = f"Data quality is moderate ({trust_score:.0%} confidence)."
+        model_note = None
+        if goal_def.get("requires_revenue_model") and proposal.get("requires_confirmation"):
+            model_note = "Requires confirming won/lost stage mapping before metrics are computed."
+        goals.append({
+            "id": goal_def["id"],
+            "name": goal_def["name"],
+            "description": goal_def["description"],
+            "available": available,
+            "trust_score": trust_score,
+            "trust_warning": trust_warning,
+            "model_note": model_note,
+            "requires_revenue_model": goal_def["requires_revenue_model"],
+            "available_metric_count": len(available_metrics),
+            "total_metric_count": len(goal_def["required_metrics"]),
+        })
+    return goals
+
+
+def _revenue_refinement_questions(proposal: dict, selected_goals: list) -> list:
+    """Generate dynamic refinement questions based on proposal ambiguity and selected goals."""
+    questions = []
+
+    # Won/lost stage mapping — only when ambiguous
+    if proposal.get("requires_confirmation"):
+        won_options = proposal.get("won_stage_values", [])
+        lost_options = proposal.get("lost_stage_values", [])
+        open_stages = proposal.get("open_stage_values", [])
+        all_stages = won_options + lost_options + open_stages
+        # Build option list: detected ones first, then remaining
+        won_stage_opts = [{"label": s, "value": s} for s in all_stages]
+        lost_stage_opts = [{"label": s, "value": s} for s in all_stages]
+        questions.append({
+            "id": "won_stages",
+            "type": "multiselect",
+            "question": "Which stages represent a won deal?",
+            "description": "Select all stages that mean the deal is closed/won.",
+            "options": won_stage_opts,
+            "default": won_options,
+        })
+        questions.append({
+            "id": "lost_stages",
+            "type": "multiselect",
+            "question": "Which stages represent a lost deal?",
+            "description": "Select all stages that mean the deal is lost or rejected.",
+            "options": lost_stage_opts,
+            "default": lost_options,
+        })
+
+    # Stage order — for funnel-dependent goals
+    funnel_goals = {"pipeline_health", "conversion_improvement"}
+    if funnel_goals.intersection(set(selected_goals)):
+        stage_order = proposal.get("stage_order", [])
+        if stage_order:
+            questions.append({
+                "id": "stage_order",
+                "type": "order",
+                "question": "Confirm your sales pipeline order",
+                "description": "Arrange stages from earliest to latest in your sales process.",
+                "options": [{"label": s, "value": s} for s in stage_order],
+                "default": stage_order,
+            })
+
+    # Time horizon — always present
+    questions.append({
+        "id": "time_horizon",
+        "type": "radio",
+        "question": "What time period should your dashboard focus on?",
+        "options": [
+            {"label": "Last 30 days — recent activity", "value": "30d"},
+            {"label": "Last 90 days — quarterly view", "value": "90d"},
+            {"label": "Last 12 months — annual overview", "value": "365d"},
+        ],
+        "default": "30d",
+    })
+
+    # Rep scope — only when rep_performance is selected
+    if "rep_performance" in selected_goals:
+        questions.append({
+            "id": "rep_scope",
+            "type": "radio",
+            "question": "How should rep performance be measured?",
+            "options": [
+                {"label": "By deal count — number of deals per rep", "value": "deal_count"},
+                {"label": "By revenue — total deal value per rep", "value": "revenue"},
+                {"label": "By activity — calls and emails per rep", "value": "activity"},
+            ],
+            "default": "deal_count",
+        })
+
+    return questions
+
+
+def _generate_widgets_from_metrics(tenant_metrics: list, time_range_days: int, crm_source: str) -> list:
+    """
+    Generate dashboard widgets from active tenant_metrics rows.
+    Maps display_format to chart_type: currency/number/percentage/days → kpi.
+    """
+    FORMAT_TO_CHART = {
+        "currency": "kpi",
+        "number": "kpi",
+        "percentage": "kpi",
+        "days": "kpi",
+    }
+    widgets = []
+    seen_titles: set = set()
+    position = 0
+
+    for tm in tenant_metrics:
+        title = tm.get("title") or tm.get("metric_key", "Metric")
+        if title in seen_titles:
+            continue
+        seen_titles.add(title)
+
+        display_format = tm.get("display_format", "number")
+        computation = tm.get("computation") or {}
+        if isinstance(computation, str):
+            import json as _json
+            try:
+                computation = _json.loads(computation)
+            except (ValueError, TypeError):
+                computation = {}
+        data_source = tm.get("source_table") or computation.get("table", "crm_deals")
+        x_field = computation.get("field", "stage")
+        y_field = computation.get("y_field", "count")
+        aggregation = computation.get("type", "count")
+
+        chart_type = FORMAT_TO_CHART.get(display_format, "kpi")
+
+        widgets.append({
+            "crm_source": crm_source,
+            "chart_type": chart_type,
+            "title": title,
+            "description": tm.get("description", ""),
+            "data_source": data_source,
+            "x_field": x_field,
+            "y_field": y_field,
+            "aggregation": aggregation,
+            "sort_order": "desc",
+            "item_limit": 10,
+            "time_range_days": time_range_days,
+            "position": position,
+            "size": "small" if chart_type == "kpi" else "medium",
+            "is_standard": True,
+            "source": "metrics",
+            "metric_key": tm.get("metric_key"),
+        })
+        position += 1
+
+    return widgets
+
+
+# DEPRECATED Phase 3 — remove after 2026-04-01
+def _generate_goal_widgets(goals: list, time_range_days: int, crm_source: str) -> list:
+    """Generate dashboard widgets from selected revenue goals. Deduplicates by title."""
+    widgets = []
+    seen_titles: set = set()
+    position = 0
+    for goal_id in goals:
+        for w in _GOAL_WIDGET_TEMPLATES.get(goal_id, []):
+            title = w["title"]
+            if title in seen_titles:
+                continue
+            seen_titles.add(title)
+            # Template may override time_range_days (e.g. "New Leads (30d)" always = 30d)
+            effective_time = w.get("time_range_days", time_range_days)
+            widgets.append({
+                "crm_source": crm_source,
+                "chart_type": w["chart_type"],
+                "title": title,
+                "description": w.get("description", ""),
+                "data_source": w["data_source"],
+                "x_field": w["x_field"],
+                "y_field": w.get("y_field", "count"),
+                "aggregation": w.get("aggregation", "count"),
+                "sort_order": w.get("sort_order", "desc"),
+                "item_limit": w.get("item_limit", 10),
+                "time_range_days": effective_time,
+                "position": position,
+                "size": w.get("size", "medium"),
+                "is_standard": True,
+                "source": "onboarding",
+                "metric_goal": goal_id,
+            })
+            position += 1
+    return widgets
+
+
 # ── Onboarding ──
 
 @api_router.post("/dashboard/onboarding/start")
 async def dashboard_onboarding_start(current_user: Dict = Depends(get_current_user)):
     """
-    Start dashboard onboarding: analyze synced CRM data and return categories.
+    Start Revenue Analyst onboarding: build revenue model proposal + metric catalog trust.
+    Returns available revenue goals to choose from.
     """
     tenant_id = current_user["tenant_id"]
     crm_source = await _get_tenant_crm_source(supabase, tenant_id)
     if not crm_source:
         raise HTTPException(status_code=400, detail="No active CRM connection found. Please connect your CRM first.")
 
-    # Check sync status — at least one entity must be synced
+    # Check sync status — deals MUST be synced (revenue model requires them)
     try:
-        sync_status = (
-            supabase.table("crm_sync_status")
+        import asyncio as _aio
+        sync_status = await _aio.to_thread(
+            lambda: supabase.table("crm_sync_status")
             .select("entity,status,synced_records")
             .eq("tenant_id", tenant_id)
             .eq("crm_source", crm_source)
             .execute()
         )
-        synced_entities = [
-            s for s in (sync_status.data or [])
-            if s.get("status") in ("completed", "complete") and (s.get("synced_records") or 0) > 0
-        ]
-        if not synced_entities:
+
+        # Stale sync recovery: if ALL statuses are stuck at "syncing" with no
+        # active background task (e.g. Render restarted), reset and re-trigger.
+        statuses = sync_status.data or []
+        if statuses:
+            all_stuck = all(s.get("status") == SyncStatus.SYNCING for s in statuses)
+            sync_key = f"{tenant_id}:{crm_source}"
+            has_active_task = (
+                sync_key in _active_full_syncs
+                and not _active_full_syncs[sync_key].done()
+            )
+            if all_stuck and not has_active_task:
+                logger.warning(
+                    f"Stale sync detected for tenant {tenant_id} — resetting and re-triggering"
+                )
+                await _aio.to_thread(
+                    lambda: supabase.table("crm_sync_status")
+                    .delete()
+                    .eq("tenant_id", tenant_id)
+                    .eq("crm_source", crm_source)
+                    .execute()
+                )
+                asyncio.create_task(
+                    trigger_full_sync_background(supabase, tenant_id, crm_source)
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="CRM sync was interrupted and has been restarted. Please wait a moment."
+                )
+
+        # No sync rows at all → sync never started; kick it off
+        if not statuses:
+            if not is_sync_active(tenant_id):
+                asyncio.create_task(
+                    trigger_full_sync_background(supabase, tenant_id, crm_source)
+                )
             raise HTTPException(
                 status_code=400,
-                detail="CRM data sync not complete. Please wait for the initial sync to finish."
+                detail="CRM data sync is starting. Please wait for it to complete."
             )
+
+        synced_entities = [
+            s for s in statuses
+            if s.get("status") == SyncStatus.COMPLETE and (s.get("synced_records") or 0) > 0
+        ]
+        deals_synced = any(
+            s.get("entity") == "deals" and s.get("status") == SyncStatus.COMPLETE
+            for s in statuses
+        )
+        if not synced_entities or not deals_synced:
+            still_syncing = any(
+                s.get("status") == SyncStatus.SYNCING for s in statuses
+            )
+            detail = (
+                "CRM data is still syncing. Please wait for deals to finish syncing."
+                if still_syncing
+                else "CRM data sync not complete. Please wait for the initial sync to finish."
+            )
+            raise HTTPException(status_code=400, detail=detail)
     except HTTPException:
-        raise  # Re-raise HTTPException (the "sync not complete" error above)
+        raise
     except Exception as e:
         logger.warning(f"Could not check sync status (table may not exist): {e}")
-        # Treat as no sync needed — proceed with onboarding anyway
 
     try:
-        # Run Farid's schema analysis
-        crm_profile = await farid_analyze_schema(supabase, tenant_id, crm_source)
+        from revenue.model_builder import build_proposal
+        from revenue.metric_catalog import get_catalog_with_trust
+        from dataclasses import asdict as _asdict
+
+        # Phase 3: Run schema discovery, proposal, and catalog trust in parallel
+        import asyncio as _asyncio
+        from agents.farid import discover_schema
+
+        async def _safe_discover_schema():
+            try:
+                profile = await discover_schema(supabase, tenant_id, crm_source)
+                if profile and profile.business_type == "unknown" and not profile.suggested_goals:
+                    return None  # Not useful — fall back
+                return profile
+            except Exception as e:
+                logger.warning("Schema discovery failed during onboarding, using legacy path: %s", e)
+                return None
+
+        schema_profile, proposal, catalog_trust = await _asyncio.gather(
+            _safe_discover_schema(),
+            build_proposal(supabase, tenant_id, crm_source),
+            get_catalog_with_trust(supabase, tenant_id, crm_source),
+        )
+        proposal_dict = _asdict(proposal)
+
+        # Use schema-driven goals if available, else legacy _REVENUE_GOALS
+        if schema_profile and schema_profile.suggested_goals:
+            goals = _enrich_suggested_goals(schema_profile, catalog_trust, proposal_dict)
+        else:
+            goals = _revenue_goals_from_catalog(catalog_trust, proposal_dict)
+
+        # Compute overall trust across available goals
+        available_goals = [g for g in goals if g["available"]]
+        overall_trust = round(
+            sum(g["trust_score"] for g in available_goals) / max(1, len(available_goals)), 2
+        ) if available_goals else 0.0
+
+        # Build crm_profile — include SchemaProfile data if available
+        crm_profile_data = {
+            "revenue_proposal": proposal_dict,
+            "goals": goals,
+            "overall_trust": overall_trust,
+        }
+        if schema_profile:
+            crm_profile_data.update({
+                "business_type": schema_profile.business_type,
+                "business_summary": schema_profile.business_summary,
+                "entity_labels": schema_profile.entity_labels,
+                "currency": schema_profile.currency,
+                "stage_field": schema_profile.stage_field,
+                "amount_field": schema_profile.amount_field,
+                "owner_field": schema_profile.owner_field,
+            })
 
         # Upsert into dashboard_configs
         config_data = {
             "tenant_id": tenant_id,
             "onboarding_state": "categories",
-            "crm_profile": crm_profile.model_dump(),
+            "crm_profile": crm_profile_data,
         }
-        supabase.table("dashboard_configs").upsert(
-            config_data, on_conflict="tenant_id"
-        ).execute()
+        await _aio.to_thread(
+            lambda: supabase.table("dashboard_configs").upsert(
+                config_data, on_conflict="tenant_id"
+            ).execute()
+        )
 
         return {
             "success": True,
-            "crm_profile": crm_profile.model_dump(),
-            "categories": crm_profile.categories,
+            "goals": goals,
+            "overall_trust": overall_trust,
+            "requires_confirmation": proposal.requires_confirmation,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Dashboard onboarding start failed")
-        raise HTTPException(status_code=500, detail="Failed to analyze CRM schema. Please try again.")
+        raise HTTPException(status_code=500, detail="Failed to analyze CRM data. Please try again.")
 
 
 @api_router.post("/dashboard/onboarding/select")
@@ -3375,14 +4003,15 @@ async def dashboard_onboarding_select(
     current_user: Dict = Depends(get_current_user),
 ):
     """
-    Save selected dashboard categories and generate refinement questions.
+    Save selected revenue goals and generate dynamic refinement questions.
     """
     tenant_id = current_user["tenant_id"]
 
-    # Validate that onboarding has been started (dashboard_configs record with onboarding_state must exist)
-    config_check = (
-        supabase.table("dashboard_configs")
-        .select("tenant_id, onboarding_state")
+    # Load stored config (contains the revenue proposal)
+    import asyncio as _aio
+    config_check = await _aio.to_thread(
+        lambda: supabase.table("dashboard_configs")
+        .select("*")
         .eq("tenant_id", tenant_id)
         .execute()
     )
@@ -3392,58 +4021,28 @@ async def dashboard_onboarding_select(
             detail="Onboarding not started. Call /dashboard/onboarding/start first."
         )
 
-    # Store selected categories
-    supabase.table("dashboard_configs").update({
-        "selected_categories": request.categories,
-        "onboarding_state": "refinement",
-    }).eq("tenant_id", tenant_id).execute()
+    config = config_check.data[0]
+    crm_profile = config.get("crm_profile") or {}
+    proposal = crm_profile.get("revenue_proposal", {})
 
-    # Generate refinement questions based on selected categories
-    questions = _generate_refinement_questions(request.categories)
+    # Store selected goals in both columns:
+    # - selected_goals  → new canonical column (goal IDs from the Metric Catalog)
+    # - selected_categories → kept for backward compatibility / older clients
+    await _aio.to_thread(
+        lambda: supabase.table("dashboard_configs").update({
+            "selected_categories": request.categories,
+            "selected_goals": request.categories,
+            "onboarding_state": "refinement",
+        }).eq("tenant_id", tenant_id).execute()
+    )
+
+    # Generate dynamic questions based on proposal ambiguity and chosen goals
+    questions = _revenue_refinement_questions(proposal, request.categories)
 
     return {
         "success": True,
         "questions": questions,
     }
-
-
-def _generate_refinement_questions(categories: list) -> list:
-    """Generate refinement questions based on selected dashboard categories."""
-    questions = []
-
-    if "lead_pipeline" in categories or "deal_analytics" in categories:
-        questions.append({
-            "id": "time_focus",
-            "question": "What time period is most important for your analysis?",
-            "options": ["Last 7 days", "Last 30 days", "Last 90 days", "All time"],
-            "default": "Last 30 days",
-        })
-
-    if "revenue_metrics" in categories or "deal_analytics" in categories:
-        questions.append({
-            "id": "currency_display",
-            "question": "What currency should values be displayed in?",
-            "options": ["USD", "EUR", "GBP", "AED", "UZS"],
-            "default": "USD",
-        })
-
-    if "team_performance" in categories:
-        questions.append({
-            "id": "team_view",
-            "question": "How would you like to view team performance?",
-            "options": ["By individual rep", "By team totals", "Both"],
-            "default": "Both",
-        })
-
-    if "activity_tracking" in categories:
-        questions.append({
-            "id": "activity_types",
-            "question": "Which activity types matter most?",
-            "options": ["All activities", "Calls only", "Meetings only", "Calls and meetings"],
-            "default": "All activities",
-        })
-
-    return questions
 
 
 @api_router.post("/dashboard/onboarding/refine")
@@ -3452,13 +4051,14 @@ async def dashboard_onboarding_refine(
     current_user: Dict = Depends(get_current_user),
 ):
     """
-    Save refinement answers, generate dashboard widgets, and complete onboarding.
+    Confirm revenue model from refinement answers, generate goal-based widgets, complete onboarding.
     """
     tenant_id = current_user["tenant_id"]
 
     # Load current config
-    config_result = (
-        supabase.table("dashboard_configs")
+    import asyncio as _aio
+    config_result = await _aio.to_thread(
+        lambda: supabase.table("dashboard_configs")
         .select("*")
         .eq("tenant_id", tenant_id)
         .single()
@@ -3472,30 +4072,105 @@ async def dashboard_onboarding_refine(
     if not crm_source:
         raise HTTPException(status_code=400, detail="No active CRM connection found.")
 
-    categories = config.get("selected_categories", [])
-    crm_profile_data = config.get("crm_profile", {})
-    crm_profile = CRMProfile(**crm_profile_data) if crm_profile_data else CRMProfile(
-        crm_source=crm_source, entities={}, categories=[], data_quality_score=0,
-    )
+    crm_profile = config.get("crm_profile") or {}
+    proposal = crm_profile.get("revenue_proposal", {})
+
+    # Prefer the new selected_goals column; fall back to legacy selected_categories
+    # (may contain old Farid category IDs) and auto-migrate them on the fly.
+    raw_selection = config.get("selected_goals") or config.get("selected_categories") or []
+    selected_goals = _map_categories_to_goals(raw_selection) if raw_selection else []
+
+    answers = request.answers
+
+    # Extract revenue model values from answers (fall back to proposal defaults)
+    won_stages = answers.get("won_stages", proposal.get("won_stage_values", []))
+    lost_stages = answers.get("lost_stages", proposal.get("lost_stage_values", []))
+    stage_order = answers.get("stage_order", proposal.get("stage_order", []))
+    time_horizon = answers.get("time_horizon", "30d")
+    time_range_days = {"30d": 30, "90d": 90, "365d": 365}.get(time_horizon, 30)
 
     try:
-        # Generate widgets via Dima
-        widgets = await dima_generate_widgets(
-            supabase, tenant_id, crm_source, categories, crm_profile, request.answers
-        )
+        # Upsert confirmed revenue model
+        if won_stages or lost_stages:
+            await _aio.to_thread(
+                lambda: supabase.table("revenue_models").upsert({
+                    "tenant_id": tenant_id,
+                    "crm_source": crm_source,
+                    "won_stage_values": won_stages,
+                    "lost_stage_values": lost_stages,
+                    "stage_order": stage_order,
+                    "confirmed_at": datetime.now(timezone.utc).isoformat(),
+                }, on_conflict="tenant_id,crm_source").execute()
+            )
+
+        # Phase 3: Generate tenant_metrics + alert rules from SchemaProfile
+        try:
+            from agents import SchemaProfile
+            from revenue.metric_generator import generate_and_persist
+            sp_data = crm_profile  # dict stored during onboarding_start
+            schema_profile = SchemaProfile(
+                tenant_id=tenant_id,
+                crm_source=crm_source,
+                business_type=sp_data.get("business_type", "unknown"),
+                business_summary=sp_data.get("business_summary", ""),
+                entity_labels=sp_data.get("entity_labels", {}),
+                currency=sp_data.get("currency"),
+                stage_field=sp_data.get("stage_field"),
+                amount_field=sp_data.get("amount_field"),
+                owner_field=sp_data.get("owner_field"),
+            )
+            metrics, alert_rules = await generate_and_persist(
+                supabase, tenant_id, crm_source, schema_profile, selected_goals,
+            )
+            logger.info(
+                "Onboarding generated %d metrics + %d alert rules for %s",
+                len(metrics), len(alert_rules), tenant_id,
+            )
+        except Exception as e:
+            logger.warning("generate_and_persist failed, will use goal fallback: %s", e)
+
+        # Phase 3: Try metric-based widgets first, fall back to goal-based
+        widgets = []
+        try:
+            tm_result = await _aio.to_thread(
+                lambda: supabase.table("tenant_metrics").select(
+                    "metric_key,title,description,display_format,computation,source_table"
+                ).eq("tenant_id", tenant_id).eq(
+                    "crm_source", crm_source
+                ).eq("active", True).execute()
+            )
+            if tm_result.data:
+                widgets = _generate_widgets_from_metrics(tm_result.data, time_range_days, crm_source)
+        except Exception as e:
+            logger.warning("Metric-based widget generation failed, using goal fallback: %s", e)
+
+        if not widgets:
+            # DEPRECATED Phase 3 — fallback to goal-based widgets
+            widgets = _generate_goal_widgets(selected_goals, time_range_days, crm_source)
 
         # Insert widgets into dashboard_widgets
         if widgets:
             for w in widgets:
                 w["tenant_id"] = tenant_id
-            supabase.table("dashboard_widgets").insert(widgets).execute()
+            await _aio.to_thread(
+                lambda: supabase.table("dashboard_widgets").insert(widgets).execute()
+            )
 
-        # Update config — mark onboarding complete
-        supabase.table("dashboard_configs").update({
-            "refinement_answers": request.answers,
-            "onboarding_state": "complete",
-            "completed_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("tenant_id", tenant_id).execute()
+        # Mark onboarding complete; persist final goal list + model confirmation timestamp
+        revenue_model_confirmed = (
+            datetime.now(timezone.utc).isoformat()
+            if (won_stages or lost_stages)
+            else None
+        )
+        await _aio.to_thread(
+            lambda: supabase.table("dashboard_configs").update({
+                "refinement_answers": answers,
+                "selected_goals": selected_goals,
+                "revenue_model_confirmed": revenue_model_confirmed,
+                "onboarding_state": "complete",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("tenant_id", tenant_id).execute()
+        )
 
         return {
             "success": True,
@@ -3516,15 +4191,20 @@ async def dashboard_reconfigure(current_user: Dict = Depends(get_current_user)):
     tenant_id = current_user["tenant_id"]
 
     # Soft-delete existing widgets
-    supabase.table("dashboard_widgets").update({
-        "deleted_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("tenant_id", tenant_id).is_("deleted_at", "null").execute()
+    import asyncio as _aio
+    await _aio.to_thread(
+        lambda: supabase.table("dashboard_widgets").update({
+            "deleted_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("tenant_id", tenant_id).is_("deleted_at", "null").execute()
+    )
 
     # Reset onboarding state
-    supabase.table("dashboard_configs").update({
-        "onboarding_state": "categories",
-        "completed_at": None,
-    }).eq("tenant_id", tenant_id).execute()
+    await _aio.to_thread(
+        lambda: supabase.table("dashboard_configs").update({
+            "onboarding_state": "categories",
+            "completed_at": None,
+        }).eq("tenant_id", tenant_id).execute()
+    )
 
     return {"success": True}
 
@@ -3641,6 +4321,7 @@ async def dashboard_widgets_get(
                         "changeDirection": kpi_result.changeDirection,
                         "data": kpi_result.data or [],
                     }
+                    widgets.append(widget)
                 else:
                     # Fallback: use anvar_execute_query and extract value from data
                     config = ChartConfig(
@@ -3762,6 +4443,39 @@ async def dashboard_widget_add(
     result = supabase.table("dashboard_widgets").insert(widget_data).execute()
 
     return {"success": True, "id": result.data[0]["id"] if result.data else None}
+
+
+@api_router.put("/dashboard/widgets/{widget_id}")
+async def dashboard_widget_update(
+    widget_id: str,
+    request: AddWidgetRequest,
+    current_user: Dict = Depends(get_current_user),
+):
+    """
+    Update an existing dashboard widget (e.g. change chart_type, data_source).
+    """
+    tenant_id = current_user["tenant_id"]
+
+    widget_data = {
+        "chart_type": request.chart_type,
+        "title": request.title,
+        "data_source": request.data_source,
+        "x_field": request.x_field,
+        "y_field": request.y_field,
+        "aggregation": request.aggregation,
+        "group_by": request.group_by,
+        "filter_field": request.filter_field,
+        "filter_value": request.filter_value,
+        "time_range_days": request.time_range_days,
+        "sort_order": request.sort_order,
+        "item_limit": request.item_limit,
+        "size": request.size,
+    }
+    supabase.table("dashboard_widgets").update(widget_data).eq(
+        "id", widget_id
+    ).eq("tenant_id", tenant_id).execute()
+
+    return {"success": True}
 
 
 @api_router.delete("/dashboard/widgets/{widget_id}")
@@ -3922,6 +4636,129 @@ async def dashboard_chat_clear(current_user: Dict = Depends(get_current_user)):
     return {"success": True}
 
 
+@api_router.get("/dashboard/chat/suggestions")
+async def dashboard_chat_suggestions(current_user: Dict = Depends(get_current_user)):
+    """
+    Return personalized chat suggestions based on tenant's SchemaProfile,
+    active metrics, and open alerts.
+    """
+    tenant_id = current_user["tenant_id"]
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+
+    suggestions = []
+    intro_message = None
+
+    try:
+        # Load SchemaProfile from dashboard_configs
+        config_result = (
+            supabase.table("dashboard_configs")
+            .select("crm_profile")
+            .eq("tenant_id", tenant_id)
+            .limit(1)
+            .execute()
+        )
+        crm_profile = {}
+        if config_result.data:
+            crm_profile = config_result.data[0].get("crm_profile") or {}
+
+        entity_labels = crm_profile.get("entity_labels", {})
+        business_type = crm_profile.get("business_type", "unknown")
+
+        # Load active metric titles
+        metric_titles = []
+        if crm_source:
+            try:
+                tm_result = supabase.table("tenant_metrics").select(
+                    "title,metric_key"
+                ).eq("tenant_id", tenant_id).eq(
+                    "crm_source", crm_source
+                ).eq("active", True).limit(10).execute()
+                metric_titles = [m.get("title", m.get("metric_key")) for m in (tm_result.data or [])]
+            except Exception:
+                pass
+
+        # Load open alerts count
+        alert_count = 0
+        if crm_source:
+            try:
+                alert_result = supabase.table("revenue_alerts").select(
+                    "id", count="exact"
+                ).eq("tenant_id", tenant_id).eq(
+                    "crm_source", crm_source
+                ).eq("status", "open").limit(0).execute()
+                alert_count = alert_result.count or 0
+            except Exception:
+                pass
+
+        suggestions = _build_chat_suggestions(entity_labels, metric_titles, alert_count)
+        intro_message = _build_intro_message(entity_labels, business_type)
+
+    except Exception as e:
+        logger.warning("Chat suggestions failed: %s", e)
+
+    # Fallback generic suggestions
+    if not suggestions:
+        suggestions = [
+            {"text": "How is my pipeline doing?"},
+            {"text": "Show me a conversion chart"},
+            {"text": "Analyze lead trends"},
+            {"text": "Any risks or alerts?"},
+        ]
+
+    if not intro_message:
+        intro_message = (
+            "Hi! I'm Bobur, your Analytics Team Lead. Ask me anything about "
+            "your CRM data, and I can analyze leads, visualize pipelines, or build charts."
+        )
+
+    return {
+        "suggestions": suggestions,
+        "intro_message": intro_message,
+    }
+
+
+def _build_chat_suggestions(entity_labels: dict, metric_titles: list, alert_count: int) -> list:
+    """Generate business-specific chat suggestions."""
+    suggestions = []
+
+    # Entity-specific suggestions
+    deal_label = entity_labels.get("deals", "deals")
+    lead_label = entity_labels.get("leads", "leads")
+
+    suggestions.append({"text": f"Show me {deal_label} by stage"})
+    suggestions.append({"text": f"How are my {lead_label} trending?"})
+
+    # Metric-specific suggestions
+    if metric_titles:
+        suggestions.append({"text": f"What's my {metric_titles[0]}?"})
+
+    # Alert-driven suggestion
+    if alert_count > 0:
+        suggestions.append({"text": "What risks should I focus on?"})
+    else:
+        suggestions.append({"text": "Any recommendations for improvement?"})
+
+    return suggestions[:4]
+
+
+def _build_intro_message(entity_labels: dict, business_type: str) -> str:
+    """Generate personalized Bobur intro based on schema."""
+    if business_type == "unknown" or not entity_labels:
+        return (
+            "Hi! I'm Bobur, your Analytics Team Lead. Ask me anything about "
+            "your CRM data, and I can analyze leads, visualize pipelines, or build charts."
+        )
+
+    deal_label = entity_labels.get("deals", "deals").lower()
+    lead_label = entity_labels.get("leads", "leads").lower()
+
+    return (
+        f"Hi! I'm Bobur, your Analytics Team Lead. I can help you analyze "
+        f"your {deal_label}, track {lead_label}, visualize your pipeline, "
+        f"and spot trends in your data. What would you like to know?"
+    )
+
+
 # ── Dashboard Config ──
 
 @api_router.get("/dashboard/config")
@@ -3939,9 +4776,32 @@ async def dashboard_config_get(current_user: Dict = Depends(get_current_user)):
         .execute()
     )
 
-    if result.data:
-        return {"config": result.data[0]}
-    return {"config": None}
+    if not result.data:
+        return {"config": None}
+
+    config = result.data[0]
+
+    # Backward-compatibility: if selected_goals is empty but selected_categories
+    # exists with legacy Farid IDs, auto-migrate and persist so the client always
+    # sees goal IDs in selected_goals.
+    if not config.get("selected_goals") and config.get("selected_categories"):
+        migrated = _map_categories_to_goals(config["selected_categories"])
+        if migrated:
+            try:
+                supabase.table("dashboard_configs").update({
+                    "selected_goals": migrated,
+                }).eq("tenant_id", config["tenant_id"]).execute()
+                config["selected_goals"] = migrated
+                logger.info(
+                    "Auto-migrated selected_categories → selected_goals for tenant %s: %s",
+                    config["tenant_id"], migrated,
+                )
+            except Exception as _mig_err:
+                logger.warning("Failed to persist selected_goals migration: %s", _mig_err)
+                # Return the in-memory migrated value anyway
+                config["selected_goals"] = migrated
+
+    return {"config": config}
 
 
 # ── Data Usage ──
@@ -4028,7 +4888,8 @@ async def initialize_analytics(
 async def stop_analytics(current_user: Dict = Depends(get_current_user)):
     """
     Stop analytics context when Bobur is fired.
-    This stops background refresh and marks the context as inactive.
+    This stops background refresh, marks the context as inactive,
+    and resets dashboard config so re-hiring triggers fresh onboarding.
     """
     tenant_id = current_user["tenant_id"]
 
@@ -4048,9 +4909,23 @@ async def stop_analytics(current_user: Dict = Depends(get_current_user)):
         except Exception as e:
             logger.debug(f"Could not mark analytics inactive: {e}")
 
+    # Reset dashboard config so re-hiring Bobur triggers fresh onboarding
+    try:
+        supabase.table("dashboard_configs").delete().eq("tenant_id", tenant_id).execute()
+    except Exception as e:
+        logger.debug(f"Could not delete dashboard_configs: {e}")
+    try:
+        supabase.table("dashboard_widgets").delete().eq("tenant_id", tenant_id).execute()
+    except Exception as e:
+        logger.debug(f"Could not delete dashboard_widgets: {e}")
+    try:
+        supabase.table("dashboard_chat_messages").delete().eq("tenant_id", tenant_id).execute()
+    except Exception as e:
+        logger.debug(f"Could not delete dashboard_chat_messages: {e}")
+
     return {
         "success": True,
-        "message": "Analytics context stopped"
+        "message": "Analytics context stopped and dashboard reset"
     }
 
 
@@ -8833,6 +9708,21 @@ async def get_integrations_status(current_user: Dict = Depends(get_current_user)
         logger.error(f"Error checking Bitrix status: {e}")
         bitrix_status = {"connected": False, "is_demo": True, "domain": None}
 
+    # Fallback: check crm_connections table if legacy path found nothing
+    if not bitrix_status["connected"]:
+        try:
+            crm_conn_result = supabase.table("crm_connections").select("crm_type,config").eq("tenant_id", tenant_id).eq("is_active", True).limit(1).execute()
+            if crm_conn_result.data:
+                conn = crm_conn_result.data[0]
+                conn_config = conn.get("config") or {}
+                bitrix_status = {
+                    "connected": True,
+                    "is_demo": False,
+                    "domain": conn_config.get("domain"),
+                }
+        except Exception as e:
+            logger.debug(f"crm_connections check skipped (table may not exist): {e}")
+
     # Get Instagram account status
     ig_account = None
     try:
@@ -9025,7 +9915,15 @@ async def delete_agent(agent_id: str, current_user: Dict = Depends(get_current_u
         except Exception as e:
             logger.warning(f"Could not clear Bitrix cache: {e}")
 
-        # 9. Reset the config (but don't delete tenant)
+        # 9. Cancel syncs and clean CRM data
+        await stop_all_syncs(tenant_id)
+        await _cleanup_crm_data(tenant_id)
+        try:
+            supabase.table('crm_connections').delete().eq('tenant_id', tenant_id).execute()
+        except Exception as e:
+            logger.warning(f"Could not delete crm_connections: {e}")
+
+        # 10. Reset the config (but don't delete tenant)
         try:
             supabase.table('tenant_configs').update({
                 "business_name": None,
@@ -9852,6 +10750,525 @@ async def get_media_by_name(name: str, current_user: Dict = Depends(get_current_
     except Exception as e:
         logger.exception("Error getting media by name")
         raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
+
+
+# ============ Revenue Model Endpoints ============
+
+class RevenueModelConfirmRequest(BaseModel):
+    """Body for POST /revenue/model/confirm."""
+    won_stage_values: List[str] = Field(..., min_items=1, description="Stages that mean WON")
+    lost_stage_values: List[str] = Field(..., min_items=1, description="Stages that mean LOST")
+    stage_order: List[str] = Field(default_factory=list, description="Full ordered stage list")
+    # Optional field-name overrides (defaults match normalized crm_deals column names)
+    deal_stage_field: str = Field(default="stage")
+    amount_field: str = Field(default="value")
+    close_date_field: str = Field(default="closed_at")
+    created_date_field: str = Field(default="created_at")
+    owner_field: str = Field(default="assigned_to")
+    currency_field: str = Field(default="currency")
+    # Carry-forward confidence + rationale from the proposal so they're stored alongside the model
+    confidence_json: dict = Field(default_factory=dict)
+    rationale_json: dict = Field(default_factory=dict)
+
+
+@api_router.post("/revenue/model/propose")
+async def revenue_model_propose(current_user: Dict = Depends(get_current_user)):
+    """
+    Inspect this tenant's synced crm_deals and return a proposed revenue model.
+
+    Response shape:
+    {
+        "status": "confirmed" | "proposed",
+        "model": { ... }        # if already confirmed
+        "proposal": { ... }     # if freshly built (includes questions[] when confidence < threshold)
+    }
+
+    Hard rule: confidence below threshold → questions[] is non-empty →
+    the caller MUST surface those questions and call /revenue/model/confirm
+    with the user's explicit answers before treating any stage as won/lost.
+    """
+    tenant_id = current_user["tenant_id"]
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        raise HTTPException(
+            status_code=400,
+            detail="No active CRM connection found. Connect your CRM before building a revenue model."
+        )
+
+    # Return already-confirmed model immediately (no need to re-propose)
+    try:
+        existing = (
+            supabase.table("revenue_models")
+            .select("*")
+            .eq("tenant_id", tenant_id)
+            .eq("crm_source", crm_source)
+            .limit(1)
+            .execute()
+        )
+        if existing.data and existing.data[0].get("confirmed_at"):
+            return {"status": "confirmed", "model": existing.data[0]}
+    except Exception as e:
+        logger.warning("revenue_model_propose: could not check existing model: %s", e)
+
+    # Build fresh proposal from crm_deals
+    try:
+        from revenue.model_builder import build_proposal
+        from dataclasses import asdict as _asdict
+        proposal = await build_proposal(supabase, tenant_id, crm_source)
+        return {"status": "proposed", "proposal": _asdict(proposal)}
+    except Exception as e:
+        logger.exception("revenue_model_propose: build_proposal failed")
+        raise HTTPException(status_code=500, detail=f"Failed to build revenue model proposal: {e}")
+
+
+@api_router.post("/revenue/model/confirm")
+async def revenue_model_confirm(
+    body: RevenueModelConfirmRequest,
+    current_user: Dict = Depends(get_current_user),
+):
+    """
+    Save a user-confirmed revenue model for this tenant.
+
+    Validation:
+    - won_stage_values must not be empty.
+    - lost_stage_values must not be empty.
+    - The two lists must not overlap (a stage cannot be both won and lost).
+
+    After a successful call, subsequent calls to /revenue/model/propose will
+    return status='confirmed' without rebuilding the proposal.
+    """
+    tenant_id = current_user["tenant_id"]
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        raise HTTPException(
+            status_code=400,
+            detail="No active CRM connection found."
+        )
+
+    # Overlap guard — hard rule: a stage cannot be both won and lost.
+    overlap = set(body.won_stage_values) & set(body.lost_stage_values)
+    if overlap:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Stages cannot be both WON and LOST: {sorted(overlap)}"
+        )
+
+    now_ts = datetime.now(timezone.utc).isoformat()
+    model_row = {
+        "tenant_id": tenant_id,
+        "crm_source": crm_source,
+        "deal_stage_field": body.deal_stage_field,
+        "amount_field": body.amount_field,
+        "close_date_field": body.close_date_field,
+        "created_date_field": body.created_date_field,
+        "owner_field": body.owner_field,
+        "currency_field": body.currency_field,
+        "won_stage_values": body.won_stage_values,
+        "lost_stage_values": body.lost_stage_values,
+        "stage_order": body.stage_order,
+        "confidence_json": body.confidence_json,
+        "rationale_json": body.rationale_json,
+        "confirmed_at": now_ts,
+        "updated_at": now_ts,
+    }
+
+    try:
+        result = (
+            supabase.table("revenue_models")
+            .upsert(model_row, on_conflict="tenant_id,crm_source")
+            .execute()
+        )
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to save revenue model.")
+        return {"status": "confirmed", "model": result.data[0]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("revenue_model_confirm: upsert failed")
+        raise HTTPException(status_code=500, detail=f"Failed to save revenue model: {e}")
+
+
+# ============ Revenue Metrics Endpoints ============
+
+class MetricQueryRequest(BaseModel):
+    """Body for POST /revenue/metrics/query."""
+    metric_key: str = Field(..., description="Metric key from GET /revenue/metrics")
+    dimension: Optional[str] = Field(default=None, description="Optional grouping dimension (e.g. 'assigned_to')")
+    time_range_days: Optional[int] = Field(default=None, ge=1, le=3650, description="Look-back window in days")
+    time_grain: Optional[str] = Field(default=None, description="Rollup grain: 'day' | 'week' | 'month' | 'quarter'")
+
+
+@api_router.get("/revenue/metrics")
+async def revenue_metrics_catalog(current_user: Dict = Depends(get_current_user)):
+    """
+    Return all 12 metric definitions with availability flags and data-trust scores.
+
+    Does NOT compute actual metric values — only metadata.  Callers should use
+    this endpoint to decide which metrics to surface in the UI and whether to
+    warn the user about data-quality issues before they see a number.
+
+    Response shape:
+    {
+        "metrics": [
+            {
+                "key": "win_rate",
+                "title": "Win Rate",
+                "description": "...",
+                "available": true,
+                "data_trust_score": 0.87,
+                "requires_revenue_model": false,
+                "allowed_dimensions": ["assigned_to"],
+                "allowed_time_grains": ["day", "week", "month", "quarter"],
+                "evidence": { "row_count": 245, "null_rates": {...} }
+            }, ...
+        ],
+        "revenue_model_confirmed": true,
+        "computed_at": "2026-02-19T..."
+    }
+    """
+    tenant_id = current_user["tenant_id"]
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        raise HTTPException(
+            status_code=400,
+            detail="No active CRM connection found. Connect your CRM before querying metrics."
+        )
+
+    try:
+        from revenue.metric_catalog import get_catalog_with_trust
+        from dataclasses import asdict as _asdict
+
+        metrics = await get_catalog_with_trust(supabase, tenant_id, crm_source)
+
+        # Check whether a confirmed revenue model exists
+        rev_model_row = (
+            supabase.table("revenue_models")
+            .select("confirmed_at")
+            .eq("tenant_id", tenant_id)
+            .eq("crm_source", crm_source)
+            .limit(1)
+            .execute()
+        )
+        revenue_model_confirmed = bool(
+            rev_model_row.data and rev_model_row.data[0].get("confirmed_at")
+        )
+
+        return {
+            "metrics": metrics,
+            "revenue_model_confirmed": revenue_model_confirmed,
+            "computed_at": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        logger.exception("revenue_metrics_catalog failed")
+        raise HTTPException(status_code=500, detail=f"Failed to build metrics catalog: {e}")
+
+
+@api_router.post("/revenue/metrics/query")
+async def revenue_metrics_query(
+    body: MetricQueryRequest,
+    current_user: Dict = Depends(get_current_user),
+):
+    """
+    Execute a single metric computation and return the result with evidence.
+
+    Validation before any DB query:
+    - metric_key must be a known catalog entry.
+    - dimension (if provided) must be in the metric's allowed_dimensions.
+    - All required tables must have data for this tenant.
+
+    Response shape:
+    {
+        "metric_key": "win_rate",
+        "title": "Win Rate",
+        "value": "34.2%",
+        "chart_type": "kpi",
+        "data": [],
+        "dimension": null,
+        "evidence": {
+            "row_count": 245,
+            "sampled_rows": 245,
+            "timeframe": "Last 90 days",
+            "fields_evaluated": ["won", "created_at"],
+            "null_rates": {"won": 0.02},
+            "data_trust_score": 0.87,
+            "computation_notes": []
+        },
+        "warnings": [],
+        "errors": []
+    }
+    """
+    tenant_id = current_user["tenant_id"]
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        raise HTTPException(
+            status_code=400,
+            detail="No active CRM connection found."
+        )
+
+    try:
+        from revenue.metric_catalog import MetricValidator, compute_metric
+        from dataclasses import asdict as _asdict
+
+        validator = MetricValidator()
+        ok, reason, _ = await validator.validate(
+            supabase, tenant_id, crm_source,
+            body.metric_key, body.dimension,
+        )
+        if not ok:
+            raise HTTPException(status_code=422, detail=reason)
+
+        result = await compute_metric(
+            metric_key=body.metric_key,
+            supabase=supabase,
+            tenant_id=tenant_id,
+            crm_source=crm_source,
+            dimension=body.dimension,
+            time_range_days=body.time_range_days,
+            time_grain=body.time_grain,
+        )
+
+        return {
+            "metric_key": result.metric_key,
+            "title": result.title,
+            "value": result.value,
+            "chart_type": result.chart_type,
+            "data": result.data,
+            "dimension": result.dimension,
+            "evidence": {
+                "row_count": result.evidence.row_count,
+                "sampled_rows": result.evidence.sampled_rows,
+                "timeframe": result.evidence.timeframe,
+                "fields_evaluated": result.evidence.fields_evaluated,
+                "null_rates": result.evidence.null_rates,
+                "data_trust_score": result.evidence.data_trust_score,
+                "computation_notes": result.evidence.computation_notes,
+            },
+            "warnings": result.warnings,
+            "errors": result.errors,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("revenue_metrics_query failed for metric '%s'", body.metric_key)
+        raise HTTPException(status_code=500, detail=f"Metric computation failed: {e}")
+
+
+# ============ Revenue / Analytics: Shared handler logic ============
+
+# Deprecation header helper — adds Deprecation + Sunset to legacy responses
+_DEPRECATION_HEADERS = {"Deprecation": "true", "Sunset": "2026-04-01"}
+
+
+async def _do_recompute(tenant_id: str, timeframe: str):
+    """Shared handler body for revenue recompute."""
+    if timeframe not in ("7d", "30d", "90d", "365d"):
+        raise HTTPException(status_code=422, detail="timeframe must be one of: 7d, 30d, 90d, 365d")
+
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        raise HTTPException(
+            status_code=400,
+            detail="No active CRM connection found. Connect your CRM first."
+        )
+
+    try:
+        from revenue.compute import compute_snapshot
+        snapshot = await compute_snapshot(supabase, tenant_id, crm_source, timeframe)
+        return {
+            "status": "ok",
+            "timeframe": timeframe,
+            "trust_score": snapshot.get("trust_score", 0.0),
+            "alert_count": snapshot.get("alert_count", 0),
+            "computed_at": snapshot.get("computed_at"),
+        }
+    except Exception as e:
+        logger.exception("_do_recompute failed")
+        raise HTTPException(status_code=500, detail=f"Recompute failed: {e}")
+
+
+async def _do_overview(tenant_id: str, timeframe: str):
+    """Shared handler body for revenue/analytics overview."""
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        raise HTTPException(status_code=400, detail="No active CRM connection found.")
+
+    try:
+        result = (
+            supabase.table("revenue_snapshots")
+            .select("*")
+            .eq("tenant_id", tenant_id)
+            .eq("crm_source", crm_source)
+            .eq("timeframe", timeframe)
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No snapshot found. Call POST /api/dashboard/analytics/recompute first."
+            )
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("_do_overview failed")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch snapshot: {e}")
+
+
+async def _do_alerts_list(tenant_id: str, status: str):
+    """Shared handler body for revenue/analytics alerts list."""
+    if status not in ("open", "dismissed", "all"):
+        raise HTTPException(status_code=422, detail="status must be: open | dismissed | all")
+
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        raise HTTPException(status_code=400, detail="No active CRM connection found.")
+
+    try:
+        q = (
+            supabase.table("revenue_alerts")
+            .select("*")
+            .eq("tenant_id", tenant_id)
+            .eq("crm_source", crm_source)
+            .order("created_at", desc=True)
+            .limit(100)
+        )
+        if status != "all":
+            q = q.eq("status", status)
+
+        result = q.execute()
+        alerts = result.data or []
+
+        severity_rank = {"critical": 0, "warning": 1, "info": 2}
+        alerts.sort(key=lambda a: severity_rank.get(a.get("severity", "info"), 2))
+
+        return {"alerts": alerts, "total": len(alerts)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("_do_alerts_list failed")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch alerts: {e}")
+
+
+async def _do_alert_dismiss(tenant_id: str, alert_id: str):
+    """Shared handler body for revenue/analytics alert dismiss."""
+    try:
+        existing = (
+            supabase.table("revenue_alerts")
+            .select("id,tenant_id,status")
+            .eq("id", alert_id)
+            .eq("tenant_id", tenant_id)
+            .limit(1)
+            .execute()
+        )
+        if not existing.data:
+            raise HTTPException(status_code=404, detail="Alert not found.")
+
+        alert = existing.data[0]
+        if alert["status"] == "dismissed":
+            return {"status": "already_dismissed", "alert_id": alert_id}
+
+        now_ts = datetime.now(timezone.utc).isoformat()
+
+        supabase.table("revenue_alerts").update(
+            {"status": "dismissed", "dismissed_at": now_ts}
+        ).eq("id", alert_id).eq("tenant_id", tenant_id).execute()
+
+        return {
+            "status": "dismissed",
+            "alert_id": alert_id,
+            "dismissed_at": now_ts,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("_do_alert_dismiss failed for alert %s", alert_id)
+        raise HTTPException(status_code=500, detail=f"Failed to dismiss alert: {e}")
+
+
+# ── New canonical routes: /dashboard/analytics/* ──────────────────────────
+
+@api_router.post("/dashboard/analytics/recompute")
+async def analytics_recompute(
+    timeframe: str = "30d",
+    current_user: Dict = Depends(get_current_user),
+):
+    """Trigger a full analytics snapshot recompute for this tenant."""
+    return await _do_recompute(current_user["tenant_id"], timeframe)
+
+
+@api_router.get("/dashboard/analytics/overview")
+async def analytics_overview(
+    timeframe: str = "30d",
+    current_user: Dict = Depends(get_current_user),
+):
+    """Return the latest analytics snapshot for this tenant."""
+    return await _do_overview(current_user["tenant_id"], timeframe)
+
+
+@api_router.get("/dashboard/analytics/alerts")
+async def analytics_alerts_list(
+    status: str = "open",
+    current_user: Dict = Depends(get_current_user),
+):
+    """Return analytics alerts for this tenant."""
+    return await _do_alerts_list(current_user["tenant_id"], status)
+
+
+@api_router.patch("/dashboard/analytics/alerts/{alert_id}/dismiss")
+async def analytics_alert_dismiss(
+    alert_id: str,
+    current_user: Dict = Depends(get_current_user),
+):
+    """Dismiss a single analytics alert."""
+    return await _do_alert_dismiss(current_user["tenant_id"], alert_id)
+
+
+# ── DEPRECATED Phase 3 — remove after 2026-04-01 ─────────────────────────
+# Legacy /revenue/* routes — kept as aliases with Deprecation headers.
+
+@api_router.post("/revenue/recompute")
+async def revenue_recompute(
+    timeframe: str = "30d",
+    current_user: Dict = Depends(get_current_user),
+):
+    """DEPRECATED: Use POST /dashboard/analytics/recompute instead."""
+    data = await _do_recompute(current_user["tenant_id"], timeframe)
+    return JSONResponse(content=data, headers=_DEPRECATION_HEADERS)
+
+
+@api_router.get("/revenue/overview")
+async def revenue_overview(
+    timeframe: str = "30d",
+    current_user: Dict = Depends(get_current_user),
+):
+    """DEPRECATED: Use GET /dashboard/analytics/overview instead."""
+    data = await _do_overview(current_user["tenant_id"], timeframe)
+    # _do_overview returns a dict (snapshot row) directly
+    if isinstance(data, dict):
+        return JSONResponse(content=data, headers=_DEPRECATION_HEADERS)
+    return data
+
+
+@api_router.get("/revenue/alerts")
+async def revenue_alerts_list(
+    status: str = "open",
+    current_user: Dict = Depends(get_current_user),
+):
+    """DEPRECATED: Use GET /dashboard/analytics/alerts instead."""
+    data = await _do_alerts_list(current_user["tenant_id"], status)
+    return JSONResponse(content=data, headers=_DEPRECATION_HEADERS)
+
+
+@api_router.patch("/revenue/alerts/{alert_id}/dismiss")
+async def revenue_alert_dismiss(
+    alert_id: str,
+    current_user: Dict = Depends(get_current_user),
+):
+    """DEPRECATED: Use PATCH /dashboard/analytics/alerts/{alert_id}/dismiss instead."""
+    data = await _do_alert_dismiss(current_user["tenant_id"], alert_id)
+    return JSONResponse(content=data, headers=_DEPRECATION_HEADERS)
 
 
 # ============ Health Check ============

@@ -18,7 +18,8 @@ import {
   Calendar,
   Radio,
   UserCircle2,
-  X
+  X,
+  AlertTriangle
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -160,6 +161,7 @@ const prebuiltEmployees = [
     name: 'Bobur',
     role: 'the Analytics Team Lead',
     description: 'Bobur connects to your CRM to analyze leads, visualize conversion rates, and generate insightful charts. He turns your raw sales data into actionable intelligence with beautiful plots.',
+    teamSize: 6,
     integrations: ['bitrix', 'sheets'], // CRM + Google Sheets
     type: 'analytics',
     // Orange/amber gradient - matches Bitrix24 brand
@@ -207,6 +209,46 @@ const jasurTeamMembers = [
   },
 ];
 
+// Bobur's 6-agent analytics team
+const boburTeamMembers = [
+  {
+    name: 'Bobur',
+    role: 'The Router',
+    description: 'Understands your question and routes it to the right specialist',
+    orbColors: ['#f97316', '#ea580c', '#f59e0b'],
+  },
+  {
+    name: 'Farid',
+    role: 'The Schema Analyst',
+    description: 'Maps your CRM structure — stages, fields, and pipelines',
+    orbColors: ['#8b5cf6', '#7c3aed', '#a78bfa'],
+  },
+  {
+    name: 'Dima',
+    role: 'The Chart Builder',
+    description: 'Turns data into clear, actionable charts and visualizations',
+    orbColors: ['#06b6d4', '#0891b2', '#22d3ee'],
+  },
+  {
+    name: 'Anvar',
+    role: 'The Data Engineer',
+    description: 'Queries and computes metrics from your raw CRM records',
+    orbColors: ['#10b981', '#059669', '#34d399'],
+  },
+  {
+    name: 'Nilufar',
+    role: 'The Insights Analyst',
+    description: 'Spots trends, anomalies, and generates recommendations',
+    orbColors: ['#ec4899', '#db2777', '#f472b6'],
+  },
+  {
+    name: 'Karim',
+    role: 'The Sync Engine',
+    description: 'Keeps your CRM data fresh with real-time ETL sync',
+    orbColors: ['#94a3b8', '#64748b', '#cbd5e1'],
+  },
+];
+
 // Team modal CSS keyframes (injected once)
 const teamModalStyles = `
 @keyframes teamModalFadeIn {
@@ -231,8 +273,8 @@ if (typeof document !== 'undefined' && !document.getElementById('team-modal-styl
   document.head.appendChild(style);
 }
 
-// Team Modal Component — Clean white panel with team roster
-const TeamModal = ({ open, onClose, onHire }) => {
+// Team Modal Component — Clean white panel with team roster (generic)
+const TeamModal = ({ open, onClose, onHire, teamName, teamLead, members }) => {
   if (!open) return null;
 
   return (
@@ -241,7 +283,7 @@ const TeamModal = ({ open, onClose, onHire }) => {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Jasur's Sales Team"
+      aria-label={teamName}
     >
       {/* Backdrop */}
       <div
@@ -270,10 +312,10 @@ const TeamModal = ({ open, onClose, onHire }) => {
         {/* Team Lead Header */}
         <div className="px-6 pt-6 pb-5 border-b border-slate-100">
           <div className="flex items-center gap-4">
-            <AiOrb size={54} colors={['#10b981', '#059669', '#14b8a6']} state="idle" />
+            <AiOrb size={54} colors={teamLead.orbColors} state="idle" />
             <div>
               <h2 className="text-[16px] font-bold text-slate-900 tracking-tight">
-                Jasur's Sales Team
+                {teamName}
               </h2>
               <p className="text-[12.5px] text-slate-500 mt-1 flex items-center gap-2">
                 <span className="flex items-center gap-1.5">
@@ -281,7 +323,7 @@ const TeamModal = ({ open, onClose, onHire }) => {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
                   </span>
-                  6 specialists
+                  {members.length} specialists
                 </span>
                 <span className="text-slate-300">·</span>
                 <span>Always online</span>
@@ -296,7 +338,7 @@ const TeamModal = ({ open, onClose, onHire }) => {
             Team Members
           </p>
           <div className="space-y-0.5">
-            {jasurTeamMembers.map((member, i) => (
+            {members.map((member, i) => (
               <div
                 key={member.name}
                 className="flex items-center gap-3.5 px-3 py-3 rounded-xl hover:bg-slate-50/80 transition-all duration-200 cursor-default"
@@ -336,7 +378,7 @@ const TeamModal = ({ open, onClose, onHire }) => {
               onClick={() => { onHire(); onClose(); }}
               className="w-full h-11 rounded-xl text-[13px] font-semibold bg-slate-900 hover:bg-slate-800 text-white transition-all duration-200 shadow-sm"
             >
-              Hire Jasur's Team
+              Hire {teamLead.name}'s Team
             </Button>
           ) : (
             <div className="flex items-center justify-center gap-2 py-1">
@@ -362,16 +404,20 @@ const AgentsPage = () => {
   const [agentToDelete, setAgentToDelete] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCards, setExpandedCards] = useState({});
-  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [teamModalOpen, setTeamModalOpen] = useState(null); // null | 'sales' | 'analytics'
   const [hiredPrebuilt, setHiredPrebuilt] = useState([]);
   const [hireDialogOpen, setHireDialogOpen] = useState(false);
+  const [fireDialogOpen, setFireDialogOpen] = useState(false);
+  const [prebuiltToFire, setPrebuiltToFire] = useState(null);
+  const [syncActive, setSyncActive] = useState(false);
+  const [fireLoading, setFireLoading] = useState(false);
   const [prebuiltToHire, setPrebuiltToHire] = useState(null);
   const navigate = useNavigate();
   const { token, user, updateHiredPrebuilt } = useAuth();
 
   // Close team modal on Escape key
   useEffect(() => {
-    const handleEsc = (e) => { if (e.key === 'Escape') setTeamModalOpen(false); };
+    const handleEsc = (e) => { if (e.key === 'Escape') setTeamModalOpen(null); };
     if (teamModalOpen) {
       document.addEventListener('keydown', handleEsc);
       document.body.style.overflow = 'hidden';
@@ -521,6 +567,26 @@ const AgentsPage = () => {
   };
 
   const handleFirePrebuilt = async (prebuilt) => {
+    // For analytics prebuilt (Bobur), check if sync is active and show confirmation
+    if (prebuilt.type === 'analytics') {
+      setPrebuiltToFire(prebuilt);
+      try {
+        const res = await axios.get(`${API}/crm/sync/active`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setSyncActive(res.data?.active || false);
+      } catch {
+        setSyncActive(false);
+      }
+      setFireDialogOpen(true);
+      return;
+    }
+
+    // Non-analytics prebuilts fire immediately
+    await executeFirePrebuilt(prebuilt);
+  };
+
+  const executeFirePrebuilt = async (prebuilt) => {
     const newHired = hiredPrebuilt.filter(id => id !== prebuilt.id);
     persistHiredPrebuilt(newHired);
 
@@ -529,21 +595,17 @@ const AgentsPage = () => {
       localStorage.removeItem(`analytics_chat_history_${user?.tenant_id || 'default'}`);
       localStorage.removeItem(`analytics_pending_question_${user?.tenant_id || 'default'}`);
 
-      // Stop analytics context background refresh
+      // Stop all syncs and analytics context
       try {
-        fetch(`${API}/analytics/stop`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({})
-        }).then(response => {
-          if (response.ok) {
-            console.log('Analytics context stopped');
-          }
-        }).catch(err => {
-          console.warn('Analytics stop failed:', err);
+        await axios.post(`${API}/crm/sync/stop`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (e) {
+        console.warn('Sync stop failed:', e);
+      }
+      try {
+        await axios.post(`${API}/analytics/stop`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
         });
       } catch (e) {
         // Silently fail
@@ -730,15 +792,28 @@ const AgentsPage = () => {
                     </h3>
                     <p className="text-[12px] text-slate-500 mb-2">{employee.role}</p>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {(employee.integrations || []).includes('telegram') ? (
+                      {(employee.integrations || []).includes('telegram') && (
                         <Badge className="bg-[#0088cc]/10 text-[#0088cc] hover:bg-[#0088cc]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
                           <TelegramIcon className="w-3 h-3" />
                           Telegram
                         </Badge>
-                      ) : (
+                      )}
+                      {(employee.integrations || []).includes('instagram') && (
+                        <Badge className="bg-[#E1306C]/10 text-[#E1306C] hover:bg-[#E1306C]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                          <Radio className="w-3 h-3" strokeWidth={2} />
+                          Instagram
+                        </Badge>
+                      )}
+                      {(employee.integrations || []).includes('bitrix') && (
                         <Badge className="bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
                           <BitrixIcon size="sm" />
                           Bitrix24
+                        </Badge>
+                      )}
+                      {(employee.integrations || []).includes('sheets') && (
+                        <Badge className="bg-[#4CAF50]/10 text-[#2E7D32] hover:bg-[#4CAF50]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                          <GoogleSheetsIcon className="w-3 h-3" />
+                          Sheets
                         </Badge>
                       )}
                     </div>
@@ -748,6 +823,24 @@ const AgentsPage = () => {
                   <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-2">
                     {employee.description}
                   </p>
+
+                  {/* Team & Status Footer */}
+                  <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setTeamModalOpen(employee.type); }}
+                      className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-700 transition-colors"
+                    >
+                      <Users className="w-3.5 h-3.5" strokeWidth={2} />
+                      {employee.teamSize} specialists
+                    </button>
+                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                      </span>
+                      Always online
+                    </span>
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -762,7 +855,10 @@ const AgentsPage = () => {
               <Card
                 key={agent.id}
                 className="bg-white border-slate-200/80 shadow-sm hover:shadow-[0_8px_30px_-8px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.06)] hover:border-slate-300/80 hover:-translate-y-[2px] transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] cursor-pointer group relative overflow-hidden"
-                onClick={() => navigate(`/app/agents/${agent.id}`)}
+                onClick={() => prebuiltConfig
+                  ? (prebuiltConfig.type === 'analytics' ? navigate('/app/crm-dashboard') : navigate(`/app/agents/${agent.id}`))
+                  : navigate(`/app/agents/${agent.id}`)
+                }
                 data-testid={`agent-card-${agent.id}`}
                 style={{ animationDelay: `${(hiredPrebuiltEmployees.length + index) * 50}ms` }}
               >
@@ -796,122 +892,190 @@ const AgentsPage = () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
                       <DropdownMenuItem
-                        onClick={(e) => { e.stopPropagation(); navigate(`/app/agents/${agent.id}`); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          prebuiltConfig
+                            ? (prebuiltConfig.type === 'analytics' ? navigate('/app/crm-dashboard') : navigate(`/app/agents/${agent.id}`))
+                            : navigate(`/app/agents/${agent.id}`);
+                        }}
                         className="gap-2.5 text-[13px]"
                       >
                         <LayoutDashboard className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
-                        Dashboard
+                        {prebuiltConfig ? 'Open' : 'Dashboard'}
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => { e.stopPropagation(); navigate(`/app/agents/${agent.id}/settings`); }}
-                        className="gap-2.5 text-[13px]"
-                      >
-                        <Settings className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
-                        Settings
-                      </DropdownMenuItem>
+                      {!prebuiltConfig && (
+                        <DropdownMenuItem
+                          onClick={(e) => { e.stopPropagation(); navigate(`/app/agents/${agent.id}/settings`); }}
+                          className="gap-2.5 text-[13px]"
+                        >
+                          <Settings className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+                          Settings
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="gap-2.5 text-[13px] text-red-600 focus:text-red-600 focus:bg-red-50"
                         onClick={(e) => { e.stopPropagation(); confirmDelete(agent); }}
                       >
                         <Trash2 className="w-4 h-4" strokeWidth={1.75} />
-                        Delete
+                        {prebuiltConfig ? 'Remove' : 'Delete'}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
 
                 <CardContent className="p-5 relative z-[1]">
-                  {/* Header */}
-                  <div className="mb-4">
-                    {prebuiltConfig ? (
-                      /* Prebuilt agent - show orb */
-                      <AiOrb
-                        size={56}
-                        colors={prebuiltConfig.orbColors}
-                        state="idle"
-                        className="group-hover:ai-orb--hover"
-                      />
-                    ) : (
-                      /* Regular agent - show initials */
-                      <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${getAgentGradient(agent.name)} flex items-center justify-center shadow-sm`}>
-                        <span className="text-[17px] font-semibold text-white tracking-wide">
-                          {getInitials(agent.name)}
+                  {prebuiltConfig ? (
+                    /* Prebuilt-type agent (e.g. Jasur) — same layout as hired prebuilt cards */
+                    <>
+                      {/* Header - Animated Orb */}
+                      <div className="mb-4">
+                        <AiOrb
+                          size={56}
+                          colors={prebuiltConfig.orbColors}
+                          state="idle"
+                          className="group-hover:ai-orb--hover"
+                        />
+                      </div>
+
+                      {/* Name & Status */}
+                      <div className="mb-3">
+                        <h3 className="font-semibold text-slate-900 text-[15px] truncate group-hover:text-slate-700 transition-colors mb-1">
+                          {prebuiltConfig.name}
+                        </h3>
+                        <p className="text-[12px] text-slate-500 mb-2">{prebuiltConfig.role}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {(prebuiltConfig.integrations || []).includes('telegram') && (
+                            <Badge className="bg-[#0088cc]/10 text-[#0088cc] hover:bg-[#0088cc]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                              <TelegramIcon className="w-3 h-3" />
+                              Telegram
+                            </Badge>
+                          )}
+                          {(prebuiltConfig.integrations || []).includes('instagram') && (
+                            <Badge className="bg-[#E1306C]/10 text-[#E1306C] hover:bg-[#E1306C]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                              <Radio className="w-3 h-3" strokeWidth={2} />
+                              Instagram
+                            </Badge>
+                          )}
+                          {(prebuiltConfig.integrations || []).includes('bitrix') && (
+                            <Badge className="bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                              <BitrixIcon size="sm" />
+                              Bitrix24
+                            </Badge>
+                          )}
+                          {(prebuiltConfig.integrations || []).includes('sheets') && (
+                            <Badge className="bg-[#4CAF50]/10 text-[#2E7D32] hover:bg-[#4CAF50]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                              <GoogleSheetsIcon className="w-3 h-3" />
+                              Sheets
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-2">
+                        {prebuiltConfig.description}
+                      </p>
+
+                      {/* Team & Status Footer */}
+                      <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setTeamModalOpen(prebuiltConfig.type); }}
+                          className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 hover:text-slate-700 transition-colors"
+                        >
+                          <Users className="w-3.5 h-3.5" strokeWidth={2} />
+                          {prebuiltConfig.teamSize} specialists
+                        </button>
+                        <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                          </span>
+                          Always online
                         </span>
                       </div>
-                    )}
-                  </div>
+                    </>
+                  ) : (
+                    /* Regular user-created agent — stats layout */
+                    <>
+                      {/* Header */}
+                      <div className="mb-4">
+                        <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${getAgentGradient(agent.name)} flex items-center justify-center shadow-sm`}>
+                          <span className="text-[17px] font-semibold text-white tracking-wide">
+                            {getInitials(agent.name)}
+                          </span>
+                        </div>
+                      </div>
 
-                  {/* Name & Status */}
-                  <div className="mb-3">
-                    <h3 className="font-semibold text-slate-900 text-[15px] truncate group-hover:text-slate-700 transition-colors mb-1">
-                      {prebuiltConfig ? prebuiltConfig.name : agent.name}
-                    </h3>
-                    {prebuiltConfig && (
-                      <p className="text-[12px] text-slate-500 mb-2">{prebuiltConfig.role}</p>
-                    )}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {agent.channel && (
-                        <Badge className={`${getChannelInfo(agent.channel).color} border-0 text-[10px] font-medium px-1.5 py-0 gap-1`}>
-                          <ChannelIcon channel={agent.channel} size="sm" />
-                          {getChannelInfo(agent.channel).name}
-                        </Badge>
+                      {/* Name & Status */}
+                      <div className="mb-3">
+                        <h3 className="font-semibold text-slate-900 text-[15px] truncate group-hover:text-slate-700 transition-colors mb-1">
+                          {agent.name}
+                        </h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {agent.channel && (
+                            <Badge className={`${getChannelInfo(agent.channel).color} border-0 text-[10px] font-medium px-1.5 py-0 gap-1`}>
+                              <ChannelIcon channel={agent.channel} size="sm" />
+                              {getChannelInfo(agent.channel).name}
+                            </Badge>
+                          )}
+                          {agent.bitrix_connected && (
+                            <Badge className="bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
+                              <BitrixIcon size="sm" />
+                              Bitrix24
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Stats Grid */}
+                      <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+                        <div>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <MessageSquare className="w-3 h-3 text-slate-400" strokeWidth={2} />
+                            <span className="text-[10px] text-slate-400 font-medium uppercase">Chats</span>
+                          </div>
+                          <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
+                            {agent.conversations_count || 0}
+                          </p>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <Users className="w-3 h-3 text-slate-400" strokeWidth={2} />
+                            <span className="text-[10px] text-slate-400 font-medium uppercase">Leads</span>
+                          </div>
+                          <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
+                            {agent.leads_count || 0}
+                          </p>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <TrendingUp className="w-3 h-3 text-slate-400" strokeWidth={2} />
+                            <span className="text-[10px] text-slate-400 font-medium uppercase">Conversion</span>
+                          </div>
+                          <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
+                            {agent.conversion_rate || 0}%
+                          </p>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <Clock className="w-3 h-3 text-slate-400" strokeWidth={2} />
+                            <span className="text-[10px] text-slate-400 font-medium uppercase">Resp.</span>
+                          </div>
+                          <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
+                            {agent.avg_response_time ? `${agent.avg_response_time}s` : '-'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Footer */}
+                      {agent.created_at && (
+                        <div className="flex items-center gap-1 mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-400">
+                          <Calendar className="w-3 h-3" strokeWidth={2} />
+                          <span>Created {formatDate(agent.created_at)}</span>
+                        </div>
                       )}
-                      {agent.bitrix_connected && (
-                        <Badge className="bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722]/10 cursor-default border-0 text-[10px] font-medium px-1.5 py-0 gap-1">
-                          <BitrixIcon size="sm" />
-                          Bitrix24
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Stats Grid */}
-                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
-                    <div>
-                      <div className="flex items-center gap-1 mb-0.5">
-                        <MessageSquare className="w-3 h-3 text-slate-400" strokeWidth={2} />
-                        <span className="text-[10px] text-slate-400 font-medium uppercase">Chats</span>
-                      </div>
-                      <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
-                        {agent.conversations_count || 0}
-                      </p>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1 mb-0.5">
-                        <Users className="w-3 h-3 text-slate-400" strokeWidth={2} />
-                        <span className="text-[10px] text-slate-400 font-medium uppercase">Leads</span>
-                      </div>
-                      <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
-                        {agent.leads_count || 0}
-                      </p>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1 mb-0.5">
-                        <TrendingUp className="w-3 h-3 text-slate-400" strokeWidth={2} />
-                        <span className="text-[10px] text-slate-400 font-medium uppercase">Conversion</span>
-                      </div>
-                      <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
-                        {agent.conversion_rate || 0}%
-                      </p>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1 mb-0.5">
-                        <Clock className="w-3 h-3 text-slate-400" strokeWidth={2} />
-                        <span className="text-[10px] text-slate-400 font-medium uppercase">Resp.</span>
-                      </div>
-                      <p className="text-[15px] font-semibold text-slate-900 tabular-nums">
-                        {agent.avg_response_time ? `${agent.avg_response_time}s` : '-'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Footer */}
-                  {agent.created_at && (
-                    <div className="flex items-center gap-1 mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-400">
-                      <Calendar className="w-3 h-3" strokeWidth={2} />
-                      <span>Created {formatDate(agent.created_at)}</span>
-                    </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -937,7 +1101,7 @@ const AgentsPage = () => {
               <Card
                 key={employee.id}
                 className={`bg-white border-slate-200/80 shadow-sm hover:shadow-[0_8px_30px_-8px_rgba(0,0,0,0.12),0_2px_6px_-1px_rgba(0,0,0,0.06)] hover:border-slate-300/80 hover:-translate-y-[2px] transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group relative overflow-hidden ${employee.teamSize ? 'cursor-pointer' : ''}`}
-                onClick={employee.teamSize ? () => setTeamModalOpen(true) : undefined}
+                onClick={employee.teamSize ? () => setTeamModalOpen(employee.type) : undefined}
               >
                 {/* "6 Agents" pill — top right */}
                 {employee.teamSize && (
@@ -983,6 +1147,17 @@ const AgentsPage = () => {
                                 style={{ zIndex: 10 - idx }}
                               >
                                 <TelegramIcon className="w-[17px] h-[17px] text-white ml-[1px]" />
+                              </div>
+                            );
+                          }
+                          if (integration === 'instagram') {
+                            return (
+                              <div
+                                key={integration}
+                                className="w-9 h-9 rounded-full bg-gradient-to-br from-[#F56040] to-[#C13584] flex items-center justify-center shadow-lg shadow-[#E1306C]/30 ring-[2.5px] ring-white"
+                                style={{ zIndex: 10 - idx }}
+                              >
+                                <Radio className="w-[17px] h-[17px] text-white" strokeWidth={2} />
                               </div>
                             );
                           }
@@ -1034,13 +1209,30 @@ const AgentsPage = () => {
       </div>
       )}
 
-      {/* Team Modal */}
+      {/* Jasur's Sales Team Modal */}
       <TeamModal
-        open={teamModalOpen}
-        onClose={() => setTeamModalOpen(false)}
+        open={teamModalOpen === 'sales'}
+        onClose={() => setTeamModalOpen(null)}
+        teamName="Jasur's Sales Team"
+        teamLead={prebuiltEmployees.find(e => e.type === 'sales')}
+        members={jasurTeamMembers}
         onHire={
           !hiredPrebuilt.includes('prebuilt-sales') && !prebuiltTypesInUse.has('sales')
             ? () => handleHirePrebuilt(prebuiltEmployees.find(e => e.type === 'sales'))
+            : undefined
+        }
+      />
+
+      {/* Bobur's Analytics Team Modal */}
+      <TeamModal
+        open={teamModalOpen === 'analytics'}
+        onClose={() => setTeamModalOpen(null)}
+        teamName="Bobur's Analytics Team"
+        teamLead={prebuiltEmployees.find(e => e.type === 'analytics')}
+        members={boburTeamMembers}
+        onHire={
+          !hiredPrebuilt.includes('prebuilt-analytics')
+            ? () => confirmHirePrebuilt(prebuiltEmployees.find(e => e.type === 'analytics'))
             : undefined
         }
       />
@@ -1088,6 +1280,51 @@ const AgentsPage = () => {
               }}
             >
               Hire
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Fire Bobur confirmation dialog */}
+      <AlertDialog open={fireDialogOpen} onOpenChange={(open) => { if (!fireLoading) setFireDialogOpen(open); }}>
+        <AlertDialogContent className="sm:max-w-[440px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-slate-900">
+              <Trash2 className="w-5 h-5 text-red-500" strokeWidth={1.75} />
+              Remove {prebuiltToFire?.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="text-slate-500 text-[13px] leading-relaxed">
+                {syncActive && (
+                  <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200 mb-3">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" strokeWidth={2} />
+                    <p className="text-amber-800 text-[13px]">
+                      CRM data is currently syncing. Removing Bobur will immediately halt the sync and delete all synced CRM data.
+                    </p>
+                  </div>
+                )}
+                <p>This will remove the CRM Dashboard and delete all synced CRM data, dashboard configurations, and analytics history.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-slate-200 text-[13px]" disabled={fireLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white text-[13px]"
+              disabled={fireLoading}
+              onClick={async (e) => {
+                e.preventDefault();
+                setFireLoading(true);
+                await executeFirePrebuilt(prebuiltToFire);
+                setFireLoading(false);
+                setFireDialogOpen(false);
+                setPrebuiltToFire(null);
+              }}
+            >
+              {fireLoading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
+              Remove
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

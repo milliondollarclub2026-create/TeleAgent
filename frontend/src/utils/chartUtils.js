@@ -16,6 +16,9 @@ export const chartHasValidData = (chart) => {
   if (type === 'kpi' || type === 'metric') {
     return chart.value !== undefined && chart.value !== null;
   }
+  if (type === 'deal_table' || type === 'record_table') {
+    return Array.isArray(chart.deals) && chart.deals.length > 0;
+  }
   return (
     Array.isArray(chart.data) &&
     chart.data.length > 0 &&

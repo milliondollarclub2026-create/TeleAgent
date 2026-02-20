@@ -1,9 +1,14 @@
 """
-KPI Resolver — Zero-cost pattern matcher.
-Maps KPI patterns to Supabase queries and returns ChartResult with type='kpi'.
-No LLM calls. Pure Python + SQL.
+KPI Resolver — Zero-cost pattern matcher (Phase 2 Refactor).
+
+First looks up tenant_metrics WHERE is_kpi=true, executes computation recipe
+via the generic compute engine. Falls back to legacy 14 hardcoded patterns
+when tenant_metrics is empty.
+
+No LLM calls. Pure Python + SQL. Cost: $0.
 """
 
+import json
 import logging
 from typing import Optional
 
@@ -12,9 +17,9 @@ from agents import ChartResult
 logger = logging.getLogger(__name__)
 
 
-# ── KPI Pattern Definitions ──
-# Each pattern: (query_builder_fn_name, title, comparison_mode)
-# comparison_mode: "period" = compare current vs previous period, None = no comparison
+# DEPRECATED Phase 3 — remove after 2026-04-01. Use tenant_metrics + dynamic_compute instead.
+# ── Legacy KPI Pattern Definitions (fallback) ──
+# Each pattern: table, agg, title, optional field/filter/format
 KPI_PATTERNS = {
     "total_leads": {
         "table": "crm_leads",
@@ -115,19 +120,113 @@ async def resolve_kpi(
     """
     Resolve a KPI pattern to a ChartResult.
 
-    Args:
-        supabase: Supabase client
-        tenant_id: Tenant UUID
-        crm_source: CRM type (e.g. "bitrix24")
-        pattern: KPI pattern key (e.g. "total_leads")
-        time_range_days: Override time range if provided
+    Phase 2 flow:
+    1. Look up metric in tenant_metrics WHERE metric_key=pattern AND is_kpi=true
+    2. If found, execute computation recipe via generic compute engine
+    3. If not found, fall back to legacy KPI_PATTERNS
 
-    Returns:
-        ChartResult with type='kpi', or None if pattern is unknown
+    Returns ChartResult with type='kpi', or None if pattern is unknown.
     """
+    # Try dynamic resolution first
+    dynamic_result = await _resolve_dynamic(supabase, tenant_id, crm_source, pattern, time_range_days)
+    if dynamic_result is not None:
+        return dynamic_result
+
+    # Fall back to legacy patterns
+    return await _resolve_legacy(supabase, tenant_id, crm_source, pattern, time_range_days)
+
+
+async def _resolve_dynamic(
+    supabase,
+    tenant_id: str,
+    crm_source: str,
+    pattern: str,
+    time_range_days: Optional[int],
+) -> Optional[ChartResult]:
+    """
+    Look up metric in tenant_metrics and compute via dynamic engine.
+    Returns None if metric not found (triggering legacy fallback).
+    """
+    try:
+        result = supabase.table("tenant_metrics").select("*").eq(
+            "tenant_id", tenant_id
+        ).eq("crm_source", crm_source).eq(
+            "metric_key", pattern
+        ).eq("is_kpi", True).eq("active", True).limit(1).execute()
+
+        if not result.data:
+            return None
+
+        metric_def = result.data[0]
+
+        # Parse computation if stored as string
+        computation = metric_def.get("computation", {})
+        if isinstance(computation, str):
+            computation = json.loads(computation)
+            metric_def["computation"] = computation
+
+        # Parse required_fields if stored as string
+        req_fields = metric_def.get("required_fields", [])
+        if isinstance(req_fields, str):
+            metric_def["required_fields"] = json.loads(req_fields)
+
+        # Import compute engine (deferred to avoid circular imports)
+        from revenue.dynamic_compute import compute_metric, format_metric_card
+
+        metric_result = await compute_metric(
+            supabase, tenant_id, crm_source, metric_def,
+            timeframe_days=time_range_days,
+        )
+
+        if metric_result.value is None:
+            return None
+
+        # Convert to ChartResult format
+        card = format_metric_card(metric_result)
+
+        # Format value for display
+        display_format = metric_def.get("display_format", "number")
+        display_value = _format_dynamic_value(metric_result.value, display_format, metric_result.currency)
+
+        # Build title with time range suffix
+        title = metric_def.get("title", pattern)
+        if time_range_days and not title.endswith(")"):
+            title = _add_time_suffix(title, time_range_days)
+
+        # Extract trend info
+        change = None
+        change_direction = None
+        if card.get("trend"):
+            trend = card["trend"]
+            change = f"{trend['change_pct']:+.0f}%"
+            change_direction = trend.get("direction", "flat")
+
+        return ChartResult(
+            type="kpi",
+            title=title,
+            value=display_value,
+            change=change,
+            changeDirection=change_direction,
+        )
+
+    except Exception as e:
+        logger.debug(f"Dynamic KPI resolution failed for {pattern}: {e}")
+        return None
+
+
+async def _resolve_legacy(
+    supabase,
+    tenant_id: str,
+    crm_source: str,
+    pattern: str,
+    time_range_days: Optional[int],
+) -> Optional[ChartResult]:
+    """Legacy KPI resolution using hardcoded KPI_PATTERNS."""
     config = KPI_PATTERNS.get(pattern)
     if not config:
         return None
+
+    logger.debug(f"Using legacy KPI resolution for {pattern}")
 
     try:
         table = config["table"]
@@ -141,18 +240,7 @@ async def resolve_kpi(
 
         # Adjust title when caller provides a custom time range
         if time_range_days and not config.get("time_range_days"):
-            if time_range_days == 1:
-                title = f"{title} (Today)"
-            elif time_range_days == 7:
-                title = f"{title} (7d)"
-            elif time_range_days == 30:
-                title = f"{title} (30d)"
-            elif time_range_days == 90:
-                title = f"{title} (90d)"
-            elif time_range_days == 365:
-                title = f"{title} (1y)"
-            else:
-                title = f"{title} ({time_range_days}d)"
+            title = _add_time_suffix(title, time_range_days)
 
         # Special aggregations
         if agg == "conversion_rate":
@@ -185,7 +273,6 @@ async def resolve_kpi(
             else:
                 change_direction = "flat"
 
-        # Format the value
         display_value = _format_value(current_value, fmt)
 
         return ChartResult(
@@ -197,7 +284,7 @@ async def resolve_kpi(
         )
 
     except Exception as e:
-        logger.error(f"KPI resolver error for pattern '{pattern}': {e}")
+        logger.error(f"Legacy KPI resolver error for pattern '{pattern}': {e}")
         return None
 
 
@@ -232,13 +319,11 @@ async def _query_aggregate(
                 query = query.lt(time_field, end_date.isoformat())
 
         if agg == "count":
-            # Use count=exact to get total without fetching rows
             result = query.limit(0).execute()
             return result.count if result.count is not None else 0
 
         elif agg in ("sum", "avg"):
-            # Fetch the field values and aggregate in Python
-            result = query.select(field).execute()
+            result = query.select(field).limit(50000).execute()
             rows = result.data or []
             values = [float(r[field]) for r in rows if r.get(field) is not None]
             if not values:
@@ -257,23 +342,16 @@ async def _resolve_conversion_rate(supabase, tenant_id, crm_source, title):
     """Calculate deal conversion rate: won / total * 100."""
     try:
         total_q = (
-            supabase.table("crm_deals")
-            .select("*", count="exact")
-            .eq("tenant_id", tenant_id)
-            .eq("crm_source", crm_source)
-            .limit(0)
-            .execute()
+            supabase.table("crm_deals").select("*", count="exact")
+            .eq("tenant_id", tenant_id).eq("crm_source", crm_source)
+            .limit(0).execute()
         )
         total = total_q.count or 0
 
         won_q = (
-            supabase.table("crm_deals")
-            .select("*", count="exact")
-            .eq("tenant_id", tenant_id)
-            .eq("crm_source", crm_source)
-            .is_("won", True)
-            .limit(0)
-            .execute()
+            supabase.table("crm_deals").select("*", count="exact")
+            .eq("tenant_id", tenant_id).eq("crm_source", crm_source)
+            .is_("won", True).limit(0).execute()
         )
         won = won_q.count or 0
 
@@ -299,15 +377,10 @@ async def _resolve_closing_soon(supabase, tenant_id, crm_source, title):
         future = now + timedelta(days=30)
 
         result = (
-            supabase.table("crm_deals")
-            .select("*", count="exact")
-            .eq("tenant_id", tenant_id)
-            .eq("crm_source", crm_source)
-            .gte("closed_at", now.isoformat())
-            .lte("closed_at", future.isoformat())
-            .is_("won", False)
-            .limit(0)
-            .execute()
+            supabase.table("crm_deals").select("*", count="exact")
+            .eq("tenant_id", tenant_id).eq("crm_source", crm_source)
+            .gte("closed_at", now.isoformat()).lte("closed_at", future.isoformat())
+            .is_("won", False).limit(0).execute()
         )
 
         return ChartResult(
@@ -322,8 +395,10 @@ async def _resolve_closing_soon(supabase, tenant_id, crm_source, title):
         return None
 
 
+# ── Formatting Helpers ───────────────────────────────────────────────
+
 def _format_value(value, fmt):
-    """Format a numeric value for display."""
+    """Format a numeric value for display (legacy)."""
     if value is None:
         return 0
     if fmt == "currency":
@@ -338,3 +413,45 @@ def _format_value(value, fmt):
     if isinstance(value, float):
         return round(value, 1)
     return value
+
+
+def _format_dynamic_value(value, display_format, currency=None):
+    """Format a value using dynamic display_format from tenant_metrics."""
+    if value is None:
+        return 0
+    symbol = currency or "$"
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return value
+
+    if display_format == "currency":
+        if num >= 1_000_000:
+            return f"{symbol}{num/1_000_000:,.1f}M"
+        elif num >= 1_000:
+            return f"{symbol}{num:,.0f}"
+        else:
+            return f"{symbol}{num:,.2f}"
+    elif display_format == "percentage":
+        return f"{num:.1f}%"
+    elif display_format == "days":
+        return f"{num:.1f} days"
+    elif isinstance(value, float):
+        return round(value, 1)
+    return value
+
+
+def _add_time_suffix(title: str, days: int) -> str:
+    """Add a time range suffix to a title."""
+    if days == 1:
+        return f"{title} (Today)"
+    elif days == 7:
+        return f"{title} (7d)"
+    elif days == 30:
+        return f"{title} (30d)"
+    elif days == 90:
+        return f"{title} (90d)"
+    elif days == 365:
+        return f"{title} (1y)"
+    else:
+        return f"{title} ({days}d)"

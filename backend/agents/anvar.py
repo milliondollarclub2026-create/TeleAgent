@@ -5,6 +5,7 @@ Zero LLM cost. Pure SQL builder with field whitelisting for security.
 """
 
 import logging
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from collections import Counter
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── Security: Allowed tables and fields whitelist ──
-ALLOWED_FIELDS = {
+DEFAULT_ALLOWED_FIELDS = {
     "crm_leads": [
         "status", "source", "assigned_to", "value", "currency",
         "created_at", "modified_at", "contact_name",
@@ -32,8 +33,8 @@ ALLOWED_FIELDS = {
         "created_at", "modified_at",
     ],
     "crm_activities": [
-        "type", "employee_name", "completed", "started_at",
-        "duration_seconds", "subject",
+        "type", "employee_name", "employee_id", "completed", "started_at",
+        "duration_seconds", "subject", "modified_at",
     ],
 }
 
@@ -46,6 +47,48 @@ DATE_FIELDS = {
 NUMERIC_FIELDS = {
     "value", "revenue", "employee_count", "duration_seconds",
 }
+
+# Backward-compat alias — existing imports of ALLOWED_FIELDS still work
+ALLOWED_FIELDS = DEFAULT_ALLOWED_FIELDS
+
+# ── Dynamic field loading from crm_field_registry ──
+
+# In-memory cache: {(tenant_id, crm_source): (fields_dict, timestamp)}
+_field_cache: dict[tuple, tuple] = {}
+FIELD_CACHE_TTL = 300  # 5 minutes
+
+
+async def load_allowed_fields(supabase, tenant_id: str, crm_source: str) -> dict:
+    """Load per-tenant field whitelist from crm_field_registry.
+    Falls back to DEFAULT_ALLOWED_FIELDS if registry is empty."""
+    cache_key = (tenant_id, crm_source)
+    now = time.time()
+    if cache_key in _field_cache:
+        cached, ts = _field_cache[cache_key]
+        if now - ts < FIELD_CACHE_TTL:
+            return cached
+
+    try:
+        result = supabase.table("crm_field_registry").select(
+            "entity,field_name"
+        ).eq("tenant_id", tenant_id).eq("crm_source", crm_source).execute()
+
+        if not result.data:
+            logger.info(f"No field registry for {tenant_id}/{crm_source}, using defaults")
+            return DEFAULT_ALLOWED_FIELDS
+
+        # Group by entity → list of field names
+        fields = {}
+        for row in result.data:
+            table = f"crm_{row['entity']}"
+            fields.setdefault(table, []).append(row["field_name"])
+
+        _field_cache[cache_key] = (fields, now)
+        return fields
+
+    except Exception as e:
+        logger.warning(f"load_allowed_fields failed ({e}), using defaults")
+        return DEFAULT_ALLOWED_FIELDS
 
 
 async def execute_chart_query(

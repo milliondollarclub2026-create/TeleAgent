@@ -3,6 +3,7 @@ Bitrix24 CRM Adapter.
 Wraps BitrixCRMClient with normalization + full pagination for ETL sync.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -21,6 +22,9 @@ class BitrixAdapter(CRMAdapter):
             client: BitrixCRMClient instance (from bitrix_crm.py)
         """
         self.client = client
+        # Rep name resolution cache: {str(user_id): "First Last"}
+        # Populated by prepare_user_cache() or load_user_cache_from_db()
+        self._user_cache: dict[str, str] = {}
 
     async def test_connection(self) -> dict:
         return await self.client.test_connection()
@@ -63,9 +67,11 @@ class BitrixAdapter(CRMAdapter):
         }
 
         try:
-            result = await self.client._call(method, params)
+            envelope = await self.client._call_raw(method, params)
+            result = envelope.get("result", []) if isinstance(envelope, dict) else []
             records = result if isinstance(result, list) else []
-            has_more = len(records) >= 50
+            # Authoritative: Bitrix only includes "next" when more pages exist
+            has_more = "next" in envelope if isinstance(envelope, dict) else False
             return records, has_more
         except Exception as e:
             logger.error(f"Bitrix fetch_page error ({entity}, offset={offset}): {e}")
@@ -113,20 +119,119 @@ class BitrixAdapter(CRMAdapter):
         try:
             while True:
                 params["start"] = start
-                result = await self.client._call(method, params)
+                envelope = await self.client._call_raw(method, params)
+                result = envelope.get("result", []) if isinstance(envelope, dict) else []
                 records = result if isinstance(result, list) else []
                 if not records:
                     break
                 all_records.extend(records)
-                if len(records) < 50:
+                # Use authoritative "next" field instead of len(records) < 50
+                if "next" not in envelope:
                     break
-                start += 50
+                start = envelope["next"]
                 if start > 10000:
                     break
             return all_records
         except Exception as e:
             logger.error(f"Bitrix fetch_modified_since error ({entity}): {e}")
             return []
+
+    async def prepare_user_cache(
+        self, supabase=None, tenant_id: str = None, crm_source: str = None
+    ) -> None:
+        """
+        Fetch the Bitrix24 user directory via user.get and build the rep name cache.
+        Upserts records to crm_users for persistence across incremental sync cycles.
+        Called once at the start of a full sync — non-fatal if it fails.
+        """
+        all_users: list[dict] = []
+        start = 0
+
+        try:
+            while True:
+                envelope = await self.client._call_raw("user.get", {
+                    "select": ["ID", "NAME", "LAST_NAME", "EMAIL"],
+                    "start": start,
+                })
+                result = envelope.get("result", []) if isinstance(envelope, dict) else []
+                users = result if isinstance(result, list) else []
+                if not users:
+                    break
+                all_users.extend(users)
+                # Use authoritative "next" field instead of len(users) < 50
+                if "next" not in envelope:
+                    break
+                start = envelope["next"]
+                if start > 5000:  # Safety cap — portals with >5k users are enterprise
+                    logger.warning("Bitrix user.get pagination cap reached at 5000")
+                    break
+        except Exception as e:
+            logger.warning(f"Bitrix user.get failed — rep names will not be resolved: {e}")
+            return  # Non-fatal: normalize falls back to employee_id
+
+        # Build in-memory cache
+        self._user_cache = {}
+        db_records: list[dict] = []
+        for u in all_users:
+            uid = str(u.get("ID", "")).strip()
+            if not uid:
+                continue
+            name_parts = [u.get("NAME", "") or "", u.get("LAST_NAME", "") or ""]
+            full_name = " ".join(p for p in name_parts if p).strip()
+            display_name = full_name or f"User {uid}"
+            self._user_cache[uid] = display_name
+            db_records.append({
+                "tenant_id": tenant_id,
+                "crm_source": crm_source,
+                "external_id": uid,
+                "name": display_name,
+                "email": u.get("EMAIL") or None,
+                "is_active": True,
+                "synced_at": datetime.now(timezone.utc).isoformat(),
+            })
+
+        # Persist to crm_users (best-effort; non-fatal, in thread to avoid blocking)
+        if supabase and tenant_id and crm_source and db_records:
+            try:
+                for i in range(0, len(db_records), 500):
+                    batch = db_records[i:i + 500]
+                    await asyncio.to_thread(lambda b=batch: supabase.table("crm_users").upsert(
+                        b,
+                        on_conflict="tenant_id,crm_source,external_id",
+                    ).execute())
+                logger.info(
+                    f"User cache ready: {len(self._user_cache)} reps "
+                    f"(tenant={tenant_id}, crm={crm_source})"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to persist user cache to crm_users: {e}")
+
+    async def load_user_cache_from_db(
+        self, supabase=None, tenant_id: str = None, crm_source: str = None
+    ) -> None:
+        """
+        Load the rep name cache from the crm_users DB table (no API call).
+        Used by incremental sync so every 15-min loop doesn't hit the Bitrix API.
+        Falls back silently if the table is empty or not yet populated.
+        """
+        if not supabase or not tenant_id or not crm_source:
+            return
+        try:
+            result = await asyncio.to_thread(lambda: (
+                supabase.table("crm_users")
+                .select("external_id, name")
+                .eq("tenant_id", tenant_id)
+                .eq("crm_source", crm_source)
+                .eq("is_active", True)
+                .execute()
+            ))
+            for row in result.data or []:
+                uid = str(row.get("external_id", "")).strip()
+                name = row.get("name") or ""
+                if uid and name:
+                    self._user_cache[uid] = name
+        except Exception as e:
+            logger.warning(f"Failed to load user cache from crm_users: {e}")
 
     def normalize(self, entity: str, raw: dict) -> dict:
         normalizer = {
@@ -142,15 +247,31 @@ class BitrixAdapter(CRMAdapter):
         return fn(raw)
 
     def _parse_date(self, value) -> Optional[str]:
-        """Parse Bitrix date string to ISO format."""
+        """Parse Bitrix date string to consistent ISO format.
+
+        Bitrix returns mixed formats: ISO with T, space-separated,
+        with/without Z suffix. Normalize all to ISO 8601.
+        """
         if not value:
             return None
         try:
             if isinstance(value, str):
-                return value
+                # Normalize common Bitrix date quirks
+                cleaned = value.strip()
+                # Replace space separator with T (e.g. "2024-01-15 10:30:00")
+                if " " in cleaned and "T" not in cleaned:
+                    cleaned = cleaned.replace(" ", "T", 1)
+                # Strip trailing Z for fromisoformat compatibility (Python <3.11)
+                if cleaned.endswith("Z"):
+                    cleaned = cleaned[:-1] + "+00:00"
+                # Validate by parsing, then re-serialize
+                dt = datetime.fromisoformat(cleaned)
+                return dt.isoformat()
             return str(value)
-        except Exception:
-            return None
+        except (ValueError, TypeError):
+            # If parsing fails, return the raw string as fallback
+            logger.debug("Could not parse date value: %s", value)
+            return str(value) if value else None
 
     def _extract_phone(self, raw) -> Optional[str]:
         """Extract first phone from Bitrix phone array."""
@@ -191,7 +312,7 @@ class BitrixAdapter(CRMAdapter):
 
     def _normalize_deal(self, raw: dict) -> dict:
         stage = raw.get("STAGE_ID", "")
-        won = stage.startswith("WON") if stage else None
+        won = (stage == "WON" or stage.endswith(":WON")) if stage else None
 
         return {
             "external_id": str(raw.get("ID", "")),
@@ -256,15 +377,28 @@ class BitrixAdapter(CRMAdapter):
             duration_seconds = None
 
         completed_raw = raw.get("COMPLETED")
-        completed = completed_raw == "Y" if isinstance(completed_raw, str) else bool(completed_raw) if completed_raw is not None else None
+        completed = (
+            completed_raw == "Y"
+            if isinstance(completed_raw, str)
+            else bool(completed_raw) if completed_raw is not None else None
+        )
+
+        employee_id = str(raw.get("RESPONSIBLE_ID", "")).strip() or None
+        # Resolve name from in-memory cache (populated by prepare_user_cache or
+        # load_user_cache_from_db before the sync loop processes activities).
+        employee_name = self._user_cache.get(employee_id) if employee_id else None
 
         return {
             "external_id": str(raw.get("ID", "")),
             "type": type_map.get(type_id, type_id),
             "subject": raw.get("SUBJECT"),
-            "employee_id": str(raw.get("RESPONSIBLE_ID", "")) or None,
-            "employee_name": None,
+            "employee_id": employee_id,
+            "employee_name": employee_name,
             "duration_seconds": duration_seconds,
             "completed": completed,
             "started_at": self._parse_date(raw.get("START_TIME") or raw.get("CREATED")),
+            # LAST_UPDATED is fetched in select_map["activities"] and used as
+            # the incremental sync cursor field via _get_max_modified().
+            # Fall back to CREATED if LAST_UPDATED is missing (some activities lack it).
+            "modified_at": self._parse_date(raw.get("LAST_UPDATED") or raw.get("CREATED")),
         }

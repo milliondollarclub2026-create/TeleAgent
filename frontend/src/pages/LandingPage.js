@@ -59,8 +59,7 @@ function CRMAnalyticsSection() {
   ];
 
   const dataTeam = [
-    { name: 'Bobur', role: 'Routes', colors: ['#f97316', '#ea580c', '#f59e0b'] },
-    { name: 'Farid', role: 'Schema', colors: ['#3b82f6', '#2563eb', '#60a5fa'] },
+    { name: 'Bobur', role: 'Revenue Analyst', colors: ['#f97316', '#ea580c', '#f59e0b'] },
     { name: 'Dima', role: 'Charts', colors: ['#8b5cf6', '#7c3aed', '#a78bfa'] },
     { name: 'Anvar', role: 'Data', colors: ['#10b981', '#059669', '#34d399'] },
     { name: 'Nilufar', role: 'Insights', colors: ['#ec4899', '#db2777', '#f472b6'] },
@@ -81,13 +80,13 @@ function CRMAnalyticsSection() {
             </div>
 
             <h2 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight font-['Plus_Jakarta_Sans'] mb-6">
-              Your CRM data,
+              Your Revenue Analyst,
               <br />
-              <span className="text-emerald-600">decoded instantly</span>
+              <span className="text-emerald-600">always watching</span>
             </h2>
 
             <p className="text-slate-500 text-lg leading-relaxed mb-8">
-              Connect any CRM and let six AI agents analyze your schema, build visualizations, query data, and surface insights. No SQL. No spreadsheets. Just ask.
+              Connect your CRM and Bobur monitors your pipeline, win rates, and deal flow in real time. Ask anything in plain English — get answers backed by your live data.
             </p>
 
             {/* Speed comparison */}
@@ -188,8 +187,8 @@ function CRMAnalyticsSection() {
                 >
                   <Activity className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" strokeWidth={2} />
                   <div>
-                    <p className="text-[11px] font-semibold text-amber-800">Nilufar's Insight</p>
-                    <p className="text-[11px] text-amber-700 leading-relaxed">Win rate up 12% this month. Deals from HubSpot close 2x faster than Bitrix24.</p>
+                    <p className="text-[11px] font-semibold text-amber-800">Bobur's Alert</p>
+                    <p className="text-[11px] text-amber-700 leading-relaxed">8 deals stalling in Proposal for 3+ weeks — $47K at risk. Review and follow up.</p>
                   </div>
                 </div>
               </div>
@@ -452,8 +451,8 @@ export default function LandingPage() {
                 role: 'Analytics Team Lead',
                 roleColor: 'text-orange-600',
                 orbColors: ['#f97316', '#ea580c', '#f59e0b'],
-                desc: 'Leads a 6-agent analytics team that syncs your CRM data, builds live dashboards, and surfaces AI-powered insights. Supports Bitrix24, HubSpot, Zoho, and Freshsales.',
-                tags: ['Multi-CRM', 'Dashboard', 'AI Insights', 'ETL Sync'],
+                desc: 'Your AI Revenue Analyst. Monitors pipeline health, tracks win rates, detects stalling deals, and alerts you to revenue risks — before they become problems.',
+                tags: ['Revenue Analyst', 'Live Alerts', 'CRM Chat', 'Pipeline Intelligence'],
               },
             ].map((agent) => (
               <div
@@ -585,7 +584,7 @@ export default function LandingPage() {
                 Your next sales hire costs $15/month
               </h3>
               <p className="text-emerald-100/80 text-lg">
-                Live in 10 minutes. Cancel anytime.
+                Live in 10 minutes. Sales agent + revenue intelligence. Cancel anytime.
               </p>
             </div>
             <button

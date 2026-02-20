@@ -80,3 +80,87 @@ class RouterResult(BaseModel):
     agent: str               # "kpi_resolver", "dima", "anvar", "nilufar", "bobur"
     filters: dict = Field(default_factory=dict)
     confidence: float = 1.0
+
+
+# ── Phase 1: Schema Discovery models ───────────────────────────────────
+
+class FieldProfile(BaseModel):
+    """One field in a CRM entity — profiled from actual data."""
+    field_name: str
+    field_type: str
+    fill_rate: float = 1.0        # 1.0 - null_rate
+    distinct_count: int = 0
+    sample_values: list = Field(default_factory=list)
+    semantic_role: Optional[str] = None  # AI-inferred: 'status_field', 'amount_field', etc.
+
+
+class EntityProfile(BaseModel):
+    """One CRM entity (e.g. deals, leads) with its field profiles."""
+    entity: str
+    record_count: int = 0
+    fields: list[FieldProfile] = Field(default_factory=list)
+    business_label: str = ""      # AI-generated: "Enrollments", "Deals"
+    business_interpretation: str = ""
+
+
+class SchemaProfile(BaseModel):
+    """Full tenant CRM schema profile — Farid's output."""
+    tenant_id: str
+    crm_source: str
+    business_type: str = "unknown"
+    business_summary: str = ""
+    entities: list[EntityProfile] = Field(default_factory=list)
+    suggested_goals: list[dict] = Field(default_factory=list)
+    data_quality_score: float = 0.0
+    stage_field: Optional[str] = None
+    amount_field: Optional[str] = None
+    owner_field: Optional[str] = None
+    currency: Optional[str] = None
+    entity_labels: dict = Field(default_factory=dict)
+
+
+# ── Phase 2: Dynamic Metrics, Alerts & Recommendations ────────────────
+
+class DynamicMetricEvidence(BaseModel):
+    """Evidence attached to every computed metric — proves the number is real."""
+    row_count: int = 0
+    timeframe: str = "all time"
+    definition: str = ""            # Human-readable recipe summary
+    source_tables: list[str] = Field(default_factory=list)
+    caveats: list[str] = Field(default_factory=list)
+    data_freshness: Optional[str] = None  # e.g. "2 hours ago"
+    null_rates: dict = Field(default_factory=dict)
+
+
+class DynamicMetricResult(BaseModel):
+    """Return type from the generic compute engine."""
+    metric_key: str
+    title: str
+    value: Optional[Any] = None
+    display_format: str = "number"    # 'number', 'currency', 'percentage', 'days'
+    currency: Optional[str] = None
+    evidence: DynamicMetricEvidence = Field(default_factory=DynamicMetricEvidence)
+    confidence: float = 0.0
+    comparison: Optional[dict] = None  # {previous_value, change_pct, direction}
+
+
+class AlertResult(BaseModel):
+    """One fired alert from the alerts engine."""
+    alert_type: str              # 'trend_decline', 'stagnation', 'concentration', etc.
+    severity: str                # 'critical', 'warning', 'info'
+    title: str
+    summary: str
+    evidence: dict = Field(default_factory=dict)
+    metric_key: Optional[str] = None
+    entity: Optional[str] = None
+
+
+class Recommendation(BaseModel):
+    """Nilufar's output — actionable business recommendation."""
+    severity: str                # 'critical', 'warning', 'info', 'opportunity'
+    title: str
+    finding: str                 # What happened
+    impact: str = ""             # Business impact
+    action: str = ""             # What to do about it
+    evidence: dict = Field(default_factory=dict)
+    related_metrics: list[str] = Field(default_factory=list)

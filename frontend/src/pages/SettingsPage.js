@@ -42,6 +42,7 @@ export default function SettingsPage() {
   const [deleteDataDialogOpen, setDeleteDataDialogOpen] = useState(false);
   const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -102,7 +103,11 @@ export default function SettingsPage() {
       toast.success('All data deleted successfully');
       setDeleteDataDialogOpen(false);
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to delete data');
+      const detail = error.response?.data?.detail;
+      const msg = typeof detail === 'string' ? detail
+        : Array.isArray(detail) ? detail.map(d => d.msg || String(d)).join(', ')
+        : 'Failed to delete data';
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -112,15 +117,22 @@ export default function SettingsPage() {
     setLoading(true);
     try {
       await axios.delete(`${API_URL}/api/account`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        data: { password: deletePassword },
       });
       toast.success('Account deleted successfully');
       logout();
       navigate('/login', { replace: true });
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to delete account');
+      const detail = error.response?.data?.detail;
+      // Pydantic validation errors return an array of objects — extract the message
+      const msg = typeof detail === 'string' ? detail
+        : Array.isArray(detail) ? detail.map(d => d.msg || String(d)).join(', ')
+        : 'Failed to delete account';
+      toast.error(msg);
       setDeleteAccountDialogOpen(false);
       setConfirmText('');
+      setDeletePassword('');
       setLoading(false);
     }
   };
@@ -331,7 +343,7 @@ export default function SettingsPage() {
                 <p className="text-sm font-medium text-slate-900">Delete all data</p>
               </div>
               <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                Remove all leads, conversations, documents, and disconnect integrations. Your account will remain active.
+                Remove all leads, conversations, documents, CRM synced data, dashboards, and disconnect integrations. Your account will remain active.
               </p>
             </div>
             <Button
@@ -394,6 +406,10 @@ export default function SettingsPage() {
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-1 h-1 rounded-full bg-red-400" />
+                  CRM synced data and dashboards
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1 h-1 rounded-full bg-red-400" />
                   Integration connections
                 </li>
               </ul>
@@ -425,7 +441,7 @@ export default function SettingsPage() {
       {/* Delete Account Dialog */}
       <AlertDialog open={deleteAccountDialogOpen} onOpenChange={(open) => {
         setDeleteAccountDialogOpen(open);
-        if (!open) setConfirmText('');
+        if (!open) { setConfirmText(''); setDeletePassword(''); }
       }}>
         <AlertDialogContent className="sm:max-w-[440px]">
           <AlertDialogHeader>
@@ -440,17 +456,30 @@ export default function SettingsPage() {
               <p>
                 Your account, all data, agents, leads, conversations, and integrations will be permanently deleted.
               </p>
-              <div className="mt-4">
-                <Label className="text-slate-600 text-xs">
-                  Type <span className="font-mono font-semibold text-red-600">DELETE</span> to confirm:
-                </Label>
-                <Input
-                  value={confirmText}
-                  onChange={(e) => setConfirmText(e.target.value)}
-                  placeholder="Type DELETE"
-                  className="mt-2 h-10 border-slate-200 focus:border-red-300 focus:ring-red-200"
-                  disabled={loading}
-                />
+              <div className="mt-4 space-y-3">
+                <div>
+                  <Label className="text-slate-600 text-xs">Enter your password:</Label>
+                  <Input
+                    type="password"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    placeholder="Your current password"
+                    className="mt-1.5 h-10 border-slate-200 focus:border-red-300 focus:ring-red-200"
+                    disabled={loading}
+                  />
+                </div>
+                <div>
+                  <Label className="text-slate-600 text-xs">
+                    Type <span className="font-mono font-semibold text-red-600">DELETE</span> to confirm:
+                  </Label>
+                  <Input
+                    value={confirmText}
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    placeholder="Type DELETE"
+                    className="mt-1.5 h-10 border-slate-200 focus:border-red-300 focus:ring-red-200"
+                    disabled={loading}
+                  />
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -461,7 +490,7 @@ export default function SettingsPage() {
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 text-white text-[13px] disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={handleDeleteAccount}
-              disabled={loading || confirmText !== 'DELETE'}
+              disabled={loading || confirmText !== 'DELETE' || !deletePassword}
             >
               {loading ? (
                 <>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ArrowUp, Loader2, Plus, User, Trash2 } from 'lucide-react';
+import { ArrowUp, Loader2, Plus, User, Trash2, Pencil, X, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -10,9 +10,9 @@ import { chartHasValidData } from '../../utils/chartUtils';
 // Bobur's orb colors (orange/amber - matches Bitrix24)
 const BOBUR_ORB_COLORS = ['#f97316', '#ea580c', '#f59e0b'];
 
-const INTRO_MESSAGE = "Hi! I'm Bobur, your Analytics Team Lead. Ask me anything about your CRM data, and I can analyze leads, visualize pipelines, or build charts for your dashboard.";
+const DEFAULT_INTRO = "Hi! I'm Bobur, your Analytics Team Lead. Ask me anything about your CRM data, and I can analyze leads, visualize pipelines, or build charts for your dashboard.";
 
-const suggestedActions = [
+const DEFAULT_SUGGESTIONS = [
   { text: "Show me a conversion chart" },
   { text: "Analyze lead trends" },
   { text: "Visualize sales pipeline" },
@@ -84,7 +84,7 @@ const markdownComponents = {
   ),
 };
 
-export default function DashboardChat({ api, onAddWidget }) {
+export default function DashboardChat({ api, onAddWidget, modifyingWidget, onReplaceWidget, onCancelModify }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -92,6 +92,8 @@ export default function DashboardChat({ api, onAddWidget }) {
   const [thinkingIndex, setThinkingIndex] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [suggestedActions, setSuggestedActions] = useState(DEFAULT_SUGGESTIONS);
+  const [introMessage, setIntroMessage] = useState(DEFAULT_INTRO);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -106,6 +108,25 @@ export default function DashboardChat({ api, onAddWidget }) {
       }, 400);
     }
   }, []);
+
+  // Load chat suggestions from API on mount
+  useEffect(() => {
+    if (!api.getChatSuggestions) return;
+    const loadSuggestions = async () => {
+      try {
+        const { data } = await api.getChatSuggestions();
+        if (data?.suggestions?.length > 0) {
+          setSuggestedActions(data.suggestions);
+        }
+        if (data?.intro_message) {
+          setIntroMessage(data.intro_message);
+        }
+      } catch {
+        // Keep defaults on failure
+      }
+    };
+    loadSuggestions();
+  }, [api]);
 
   // Load server-persisted chat history on mount
   useEffect(() => {
@@ -128,11 +149,11 @@ export default function DashboardChat({ api, onAddWidget }) {
         setHasMore(data.has_more || false);
       } else {
         // No history — show intro
-        setMessages([{ id: 'intro', role: 'assistant', text: INTRO_MESSAGE, isIntro: true }]);
+        setMessages([{ id: 'intro', role: 'assistant', text: introMessage, isIntro: true }]);
       }
     };
     loadHistory();
-  }, [api]);
+  }, [api, introMessage]);
 
   // Load older messages (pagination)
   const loadOlderMessages = async () => {
@@ -223,11 +244,50 @@ export default function DashboardChat({ api, onAddWidget }) {
     }
   };
 
+  // Auto-inject context message when modify mode starts
+  useEffect(() => {
+    if (modifyingWidget) {
+      const chartType = modifyingWidget.chart_type || 'chart';
+      const title = modifyingWidget.title || 'widget';
+      const contextMsg = {
+        id: `modify-ctx-${Date.now()}`,
+        role: 'assistant',
+        text: `I'm ready to modify your **${title}** (${chartType} chart). What changes would you like? For example: "make this a bar chart", "change to last 30 days", or "show by source instead".`,
+        isModifyContext: true,
+      };
+      setMessages(prev => [...prev, contextMsg]);
+    }
+  }, [modifyingWidget]);
+
+  // Replace widget handler (wraps onReplaceWidget with chart data)
+  const handleReplaceOnDashboard = async (chart) => {
+    if (onReplaceWidget) {
+      const chartType = chart.type || chart.chart_type || 'bar';
+      const { error } = await onReplaceWidget({
+        title: chart.title || modifyingWidget?.title || 'Chart',
+        chart_type: chartType,
+        data_source: chart.data_source || modifyingWidget?.data_source || 'crm_leads',
+        crm_source: chart.crm_source || 'bitrix24',
+        x_field: chart.x_field || null,
+        y_field: chart.y_field || 'count',
+        aggregation: chart.aggregation || 'count',
+        filter_field: chart.filter_field || null,
+        filter_value: chart.filter_value || null,
+        time_range_days: chart.time_range_days || null,
+        sort_order: chart.sort_order || 'desc',
+        item_limit: chart.item_limit || 10,
+        size: ['line', 'funnel'].includes(chartType) ? 'large' : 'medium',
+      });
+      return { error };
+    }
+    return { error: null };
+  };
+
   // Clear chat history
   const handleClearChat = async () => {
     const { error } = await api.clearChatHistory();
     if (!error) {
-      setMessages([{ id: 'intro', role: 'assistant', text: INTRO_MESSAGE, isIntro: true }]);
+      setMessages([{ id: 'intro', role: 'assistant', text: introMessage, isIntro: true }]);
       setHasMore(false);
       toast.success('Chat cleared');
     }
@@ -285,6 +345,27 @@ export default function DashboardChat({ api, onAddWidget }) {
 
   return (
     <div className="h-full flex flex-col">
+      {/* Modify mode banner */}
+      {modifyingWidget && (
+        <div className="flex-shrink-0 px-4 py-2.5 bg-emerald-50 border-b border-emerald-200">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              <Pencil className="w-3.5 h-3.5 text-emerald-600" strokeWidth={2} />
+              <span className="text-emerald-800 font-medium">
+                Modifying: {modifyingWidget.title}
+              </span>
+              <span className="text-emerald-600 text-xs">({modifyingWidget.chart_type})</span>
+            </div>
+            <button
+              onClick={onCancelModify}
+              className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" strokeWidth={2} />
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
@@ -340,12 +421,20 @@ export default function DashboardChat({ api, onAddWidget }) {
                           const validCharts = msg.charts.filter(chartHasValidData);
                           if (validCharts.length === 0) return null;
 
+                          const dealTables = validCharts.filter(c => ['deal_table', 'record_table'].includes(c.type?.toLowerCase()));
                           const kpis = validCharts.filter(c => ['kpi', 'metric'].includes(c.type?.toLowerCase()));
                           const smallCharts = validCharts.filter(c => ['pie', 'donut', 'bar'].includes(c.type?.toLowerCase()));
                           const wideCharts = validCharts.filter(c => ['line', 'area', 'funnel'].includes(c.type?.toLowerCase()));
 
                           return (
                             <>
+                              {dealTables.length > 0 && (
+                                <div className="space-y-3">
+                                  {dealTables.map((chart, i) => (
+                                    <RecordTable key={`deal-${i}`} chart={chart} />
+                                  ))}
+                                </div>
+                              )}
                               {kpis.length > 0 && (
                                 <div className={`grid gap-3 ${kpis.length === 1 ? 'grid-cols-1 max-w-xs' : kpis.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
                                   {kpis.map((chart, i) => (
@@ -360,7 +449,7 @@ export default function DashboardChat({ api, onAddWidget }) {
                                   {smallCharts.map((chart, i) => (
                                     <div key={`small-${i}`}>
                                       <ChartRenderer chart={chart} chartIndex={kpis.length + i} />
-                                      <AddToDashboardBtn chart={chart} onAdd={handleAddToDashboard} />
+                                      <AddToDashboardBtn chart={chart} onAdd={modifyingWidget ? handleReplaceOnDashboard : handleAddToDashboard} isReplace={!!modifyingWidget} />
                                     </div>
                                   ))}
                                 </div>
@@ -370,7 +459,7 @@ export default function DashboardChat({ api, onAddWidget }) {
                                   {wideCharts.map((chart, i) => (
                                     <div key={`wide-${i}`}>
                                       <ChartRenderer chart={chart} chartIndex={kpis.length + smallCharts.length + i} />
-                                      <AddToDashboardBtn chart={chart} onAdd={handleAddToDashboard} />
+                                      <AddToDashboardBtn chart={chart} onAdd={modifyingWidget ? handleReplaceOnDashboard : handleAddToDashboard} isReplace={!!modifyingWidget} />
                                     </div>
                                   ))}
                                 </div>
@@ -478,15 +567,125 @@ export default function DashboardChat({ api, onAddWidget }) {
   );
 }
 
-// "Add to Dashboard" button under non-KPI charts
-function AddToDashboardBtn({ chart, onAdd }) {
-  const [added, setAdded] = useState(false);
-  const [adding, setAdding] = useState(false);
+// Record table renderer for deal_query / record_query results
+// Supports dynamic columns via chart.columns, falls back to hardcoded deal columns
+function RecordTable({ chart }) {
+  const { deals = [], title, truncated, crm_source, columns } = chart;
 
-  if (added) {
+  // Default deal columns (backward compat)
+  const defaultColumns = [
+    { key: 'title', label: 'Deal' },
+    { key: 'stage', label: 'Stage' },
+    { key: 'value', label: 'Value', format: 'currency' },
+    { key: 'assigned_to', label: 'Owner' },
+    { key: 'days_in_stage', label: 'Days in Stage', format: 'days_highlight' },
+  ];
+  const cols = columns?.length > 0 ? columns : defaultColumns;
+
+  const formatValue = (val) => {
+    if (val === null || val === undefined) return '—';
+    if (typeof val === 'string') return val;
+    if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
+    if (val >= 1_000) return `$${(val / 1_000).toFixed(0)}K`;
+    return `$${val}`;
+  };
+
+  const formatCell = (val, format) => {
+    if (format === 'currency') return formatValue(val);
+    if (format === 'days_highlight') {
+      if (val === null || val === undefined) return '—';
+      return (
+        <span className={`font-medium ${val > 30 ? 'text-red-600' : val > 14 ? 'text-amber-600' : 'text-slate-600'}`}>
+          {val}d
+        </span>
+      );
+    }
+    if (val === null || val === undefined) return '—';
+    return String(val);
+  };
+
+  const rowClass = (row) => {
+    const days = row.days_in_stage;
+    if (days === null || days === undefined) return '';
+    if (days > 30) return 'bg-red-50';
+    if (days > 14) return 'bg-amber-50';
+    return '';
+  };
+
+  const buildCrmLink = (deal) => {
+    if (!deal.source_id) return null;
+    if (crm_source === 'bitrix24') {
+      return `https://crm.bitrix24.com/crm/deal/details/${deal.source_id}/`;
+    }
+    return null;
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-200 overflow-hidden text-[13px]">
+      {title && (
+        <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50">
+          <span className="font-semibold text-slate-700 text-xs">{title}</span>
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="min-w-full">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              {cols.map((col) => (
+                <th key={col.key || col.label} className="px-3 py-2 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                  {col.label}
+                </th>
+              ))}
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {deals.map((deal, i) => {
+              const crmUrl = buildCrmLink(deal);
+              return (
+                <tr key={i} className={`${rowClass(deal)} hover:bg-slate-50 transition-colors`}>
+                  {cols.map((col) => (
+                    <td key={col.key || col.label} className={`px-3 py-2.5 ${col.key === 'title' ? 'font-medium text-slate-800 max-w-[180px] truncate' : 'text-slate-600 whitespace-nowrap'}`} title={col.key === 'title' ? deal[col.key] : undefined}>
+                      {formatCell(deal[col.key], col.format)}
+                    </td>
+                  ))}
+                  <td className="px-3 py-2.5">
+                    {crmUrl && (
+                      <a
+                        href={crmUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 whitespace-nowrap"
+                      >
+                        <ExternalLink className="w-3 h-3" strokeWidth={2} />
+                        Open
+                      </a>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {truncated && (
+        <div className="px-4 py-2 border-t border-slate-100 bg-slate-50">
+          <span className="text-[11px] text-slate-400">Showing {deals.length} deals — more exist. Refine your query to narrow results.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// "Add to Dashboard" / "Replace Widget" button under non-KPI charts
+function AddToDashboardBtn({ chart, onAdd, isReplace }) {
+  const [done, setDone] = useState(false);
+  const [working, setWorking] = useState(false);
+
+  if (done) {
     return (
       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-600 mt-2">
-        Added to dashboard
+        {isReplace ? 'Widget replaced' : 'Added to dashboard'}
       </span>
     );
   }
@@ -494,24 +693,33 @@ function AddToDashboardBtn({ chart, onAdd }) {
   return (
     <button
       onClick={async () => {
-        if (adding) return;
-        setAdding(true);
+        if (working) return;
+        setWorking(true);
         try {
           const { error } = await onAdd(chart);
-          if (!error) setAdded(true);
+          if (!error) setDone(true);
         } finally {
-          setAdding(false);
+          setWorking(false);
         }
       }}
-      disabled={adding}
-      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+      disabled={working}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+        isReplace
+          ? 'text-amber-700 bg-amber-50 hover:bg-amber-100'
+          : 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100'
+      }`}
     >
-      {adding ? (
+      {working ? (
         <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} />
+      ) : isReplace ? (
+        <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
       ) : (
         <Plus className="w-3.5 h-3.5" strokeWidth={2} />
       )}
-      {adding ? 'Adding...' : 'Add to Dashboard'}
+      {working
+        ? (isReplace ? 'Replacing...' : 'Adding...')
+        : (isReplace ? 'Replace on Dashboard' : 'Add to Dashboard')
+      }
     </button>
   );
 }

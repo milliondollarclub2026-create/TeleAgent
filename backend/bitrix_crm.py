@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 # Bitrix24 REST API timeout
 BITRIX_TIMEOUT = 30.0
 
-# Bitrix24 rate limiting: max 2 requests per second per webhook
-BITRIX_MAX_REQUESTS_PER_SECOND = 2
+# Bitrix24 rate limiting: Bitrix allows ~5 req/s for webhooks; 4 gives headroom
+BITRIX_MAX_REQUESTS_PER_SECOND = 4
 BITRIX_RATE_LIMIT_WINDOW = 1.0  # seconds
 
 
@@ -37,24 +37,26 @@ class BitrixRateLimiter:
         self._lock = asyncio.Lock()
 
     async def acquire(self, webhook_url: str):
-        """Wait until we can make a request without hitting rate limit"""
-        async with self._lock:
-            now = time.time()
-            # Clean old entries
-            self._requests[webhook_url] = [t for t in self._requests[webhook_url] if now - t < self.window]
+        """Wait until we can make a request without hitting rate limit.
 
-            if len(self._requests[webhook_url]) >= self.max_requests:
-                # Calculate wait time
+        Sleeps OUTSIDE the lock so concurrent entity syncs aren't blocked.
+        """
+        while True:
+            async with self._lock:
+                now = time.time()
+                # Clean old entries
+                self._requests[webhook_url] = [t for t in self._requests[webhook_url] if now - t < self.window]
+
+                if len(self._requests[webhook_url]) < self.max_requests:
+                    self._requests[webhook_url].append(now)
+                    return  # Got a slot
+
                 oldest = min(self._requests[webhook_url])
-                wait_time = self.window - (now - oldest)
-                if wait_time > 0:
-                    logger.debug(f"Bitrix rate limit: waiting {wait_time:.2f}s")
-                    await asyncio.sleep(wait_time)
-                    now = time.time()
-                    # Clean again after waiting
-                    self._requests[webhook_url] = [t for t in self._requests[webhook_url] if now - t < self.window]
+                wait_time = self.window - (now - oldest) + 0.01
 
-            self._requests[webhook_url].append(now)
+            # Sleep outside the lock so other coroutines can proceed
+            logger.debug(f"Bitrix rate limit: waiting {wait_time:.2f}s")
+            await asyncio.sleep(wait_time)
 
 
 # Global rate limiter instance
@@ -75,40 +77,61 @@ class BitrixCRMClient:
             webhook_url: Full webhook URL like https://portal.bitrix24.kz/rest/1/abc123/
         """
         self.webhook_url = webhook_url.rstrip('/')
-        self._http_client = None
-    
-    async def _call(self, method: str, params: dict = None) -> dict:
-        """Make REST API call to Bitrix24 with rate limiting"""
-        # Apply rate limiting before making request
-        await _bitrix_rate_limiter.acquire(self.webhook_url)
+        self._http_client: Optional[httpx.AsyncClient] = None
 
-        # Bitrix24 REST API expects method.json or method endpoint
+    def _get_http_client(self) -> httpx.AsyncClient:
+        """Reuse a single httpx client for TCP/TLS connection pooling."""
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(timeout=BITRIX_TIMEOUT)
+        return self._http_client
+
+    async def close(self):
+        """Close the underlying HTTP client."""
+        if self._http_client and not self._http_client.is_closed:
+            await self._http_client.aclose()
+            self._http_client = None
+
+    async def _call_raw(self, method: str, params: dict = None) -> dict:
+        """Make REST API call and return the FULL response envelope.
+
+        Returns the complete JSON body (including ``result``, ``next``, ``total``).
+        Use this when you need pagination metadata.
+        """
+        await _bitrix_rate_limiter.acquire(self.webhook_url)
         url = f"{self.webhook_url}/{method}.json"
 
         try:
-            async with httpx.AsyncClient(timeout=BITRIX_TIMEOUT) as client:
-                if params:
-                    response = await client.post(url, json=params)
-                else:
-                    response = await client.get(url)
-                
-                if response.status_code != 200:
-                    logger.error(f"Bitrix24 API error: {response.status_code} - {response.text}")
-                    raise BitrixAPIError(f"API error: {response.status_code}")
-                
-                data = response.json()
-                
-                if "error" in data:
-                    error_msg = data.get("error_description", data.get("error", "Unknown error"))
-                    logger.error(f"Bitrix24 error: {error_msg}")
-                    raise BitrixAPIError(error_msg)
-                
-                return data.get("result", data)
-                
+            client = self._get_http_client()
+            if params:
+                response = await client.post(url, json=params)
+            else:
+                response = await client.get(url)
+
+            if response.status_code != 200:
+                logger.error(f"Bitrix24 API error: {response.status_code} - {response.text}")
+                raise BitrixAPIError(f"API error: {response.status_code}")
+
+            data = response.json()
+
+            if "error" in data:
+                error_msg = data.get("error_description", data.get("error", "Unknown error"))
+                logger.error(f"Bitrix24 error: {error_msg}")
+                raise BitrixAPIError(error_msg)
+
+            return data  # Full envelope: {result, next, total, ...}
+
         except httpx.TimeoutException:
             raise BitrixAPIError("Connection timeout - please check your Bitrix24 portal")
         except httpx.RequestError as e:
             raise BitrixAPIError(f"Connection error: {str(e)}")
+
+    async def _call(self, method: str, params: dict = None) -> dict:
+        """Make REST API call to Bitrix24 with rate limiting.
+
+        Returns only the ``result`` field (backwards-compatible).
+        """
+        data = await self._call_raw(method, params)
+        return data.get("result", data)
     
     # ==================== Connection Test ====================
     
@@ -299,7 +322,8 @@ class BitrixCRMClient:
 
             while True:
                 params["start"] = start
-                result = await self._call("crm.lead.list", params)
+                envelope = await self._call_raw("crm.lead.list", params)
+                result = envelope.get("result", [])
 
                 # Handle response - Bitrix24 returns list directly or in result
                 leads = result if isinstance(result, list) else []
@@ -313,11 +337,11 @@ class BitrixCRMClient:
                 if not fetch_all or len(all_leads) >= limit:
                     break
 
-                # Bitrix24 returns 50 items per page, if we got less, we're done
-                if len(leads) < 50:
+                # Use authoritative "next" field from Bitrix envelope
+                if "next" not in envelope:
                     break
 
-                start += 50
+                start = envelope["next"]
 
                 # Safety limit to prevent infinite loops
                 if start > 5000:
@@ -357,7 +381,8 @@ class BitrixCRMClient:
 
             while True:
                 params["start"] = start
-                result = await self._call("crm.deal.list", params)
+                envelope = await self._call_raw("crm.deal.list", params)
+                result = envelope.get("result", [])
                 deals = result if isinstance(result, list) else []
 
                 if not deals:
@@ -368,10 +393,11 @@ class BitrixCRMClient:
                 if not fetch_all or len(all_deals) >= limit:
                     break
 
-                if len(deals) < 50:
+                # Use authoritative "next" field from Bitrix envelope
+                if "next" not in envelope:
                     break
 
-                start += 50
+                start = envelope["next"]
 
                 if start > 5000:
                     logger.warning("Hit safety limit of 5000 deals while fetching")

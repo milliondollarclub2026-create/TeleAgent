@@ -54,3 +54,22 @@ class CRMAdapter(ABC):
         Returns None if not supported.
         """
         return None
+
+    async def prepare_user_cache(
+        self, supabase=None, tenant_id: str = None, crm_source: str = None
+    ) -> None:
+        """
+        Fetch the CRM user directory and build an in-memory {user_id: name} cache.
+        Also upserts records to crm_users table for persistence.
+        Called once at the start of a full sync.
+        Override in adapters that support user lookup.
+        """
+
+    async def load_user_cache_from_db(
+        self, supabase=None, tenant_id: str = None, crm_source: str = None
+    ) -> None:
+        """
+        Load the user name cache from the crm_users table (no API call).
+        Called at the start of incremental sync cycles.
+        Override in adapters that support user lookup.
+        """

@@ -2,6 +2,11 @@
 Karim — CRM Sync Engine.
 Handles full sync (initial load) and incremental sync (15-min updates).
 No LLM cost. Pure ETL pipeline.
+
+IMPORTANT: The supabase-py client is SYNCHRONOUS (httpx.Client, not AsyncClient).
+Every .execute() call blocks the thread. In an async FastAPI context, this blocks
+the event loop and starves all other requests. All Supabase calls in this module
+MUST go through `_db(fn)` which runs them in a thread pool via asyncio.to_thread().
 """
 
 import asyncio
@@ -11,17 +16,36 @@ from typing import Optional, Callable
 
 from crm_adapters import CRMAdapter, create_adapter
 from crypto_utils import decrypt_value
+from sync_status import SyncStatus
+from agents.field_profiler import profile_entity_fields, upsert_field_profiles
 
 logger = logging.getLogger(__name__)
 
-# Track active sync loops: {tenant_id: asyncio.Task}
+
+async def _db(fn):
+    """Run a synchronous Supabase call in a thread pool to avoid blocking the event loop."""
+    return await asyncio.to_thread(fn)
+
+# Track active sync loops: {"{tenant_id}:{crm_type}": asyncio.Task}
 _active_syncs: dict[str, asyncio.Task] = {}
+
+# Track active full-sync tasks so they can be cancelled mid-run
+_active_full_syncs: dict[str, asyncio.Task] = {}
 
 # Default incremental sync interval (seconds)
 DEFAULT_SYNC_INTERVAL = 900  # 15 minutes
 
 # Batch size for upserts
 UPSERT_BATCH_SIZE = 500
+
+# Maximum pages per entity during full sync (10,000 records at 50/page)
+MAX_PAGES_PER_ENTITY = 200
+
+# If this fraction of a page's records were already seen, assume wrap-around
+DUPLICATE_THRESHOLD = 0.8
+
+# Syncs stuck in "syncing" longer than this (seconds) are considered stale
+STALE_SYNC_TIMEOUT = 600  # 10 minutes
 
 
 class SyncEngine:
@@ -47,14 +71,30 @@ class SyncEngine:
         results = {}
         entities = self.adapter.supported_entities()
 
-        for entity in entities:
+        # Pre-fetch user directory so _normalize_activity() can resolve employee_name.
+        # Non-fatal: if the CRM doesn't support it, the adapter no-ops.
+        try:
+            await self.adapter.prepare_user_cache(
+                supabase=self.supabase,
+                tenant_id=self.tenant_id,
+                crm_source=self.crm_source,
+            )
+        except Exception as e:
+            logger.warning(f"prepare_user_cache failed (continuing without rep names): {e}")
+
+        # Sync all entities in parallel — the shared rate limiter ensures
+        # we stay within the per-webhook budget across concurrent tasks.
+        async def _safe_sync(entity):
             try:
-                result = await self._sync_entity_full(entity, progress_callback)
-                results[entity] = result
+                return await self._sync_entity_full(entity, progress_callback)
             except Exception as e:
                 logger.error(f"Full sync failed for {entity} (tenant={self.tenant_id}): {e}")
-                results[entity] = {"status": "error", "error": str(e)}
-                await self._update_sync_status(entity, "error", error_message=str(e))
+                await self._update_sync_status(entity, SyncStatus.ERROR, error_message=str(e))
+                return {"status": SyncStatus.ERROR, "error": str(e)}
+
+        tasks = [_safe_sync(entity) for entity in entities]
+        entity_results = await asyncio.gather(*tasks)
+        results = dict(zip(entities, entity_results))
 
         return results
 
@@ -67,6 +107,17 @@ class SyncEngine:
         """
         results = {}
         entities = self.adapter.supported_entities()
+
+        # Load rep name cache from DB (avoids hitting the CRM API every 15 minutes).
+        # Falls back silently if crm_users table is empty or not yet populated.
+        try:
+            await self.adapter.load_user_cache_from_db(
+                supabase=self.supabase,
+                tenant_id=self.tenant_id,
+                crm_source=self.crm_source,
+            )
+        except Exception as e:
+            logger.warning(f"load_user_cache_from_db failed (rep names may be missing): {e}")
 
         for entity in entities:
             try:
@@ -83,17 +134,32 @@ class SyncEngine:
         table_name = f"crm_{entity}"
 
         # Mark as syncing
-        await self._update_sync_status(entity, "syncing", synced_records=0)
+        await self._update_sync_status(entity, SyncStatus.SYNCING, synced_records=0)
 
         all_normalized = []
         offset = 0
         total_fetched = 0
+        total_failed = 0
+        page_count = 0
+        seen_ids: set[str] = set()
 
         while True:
             raw_records, has_more = await self.adapter.fetch_page(entity, offset=offset)
 
             if not raw_records:
                 break
+
+            # Duplicate / wrap-around detection
+            page_ids = [str(r.get("ID", "")) for r in raw_records if r.get("ID")]
+            if page_ids:
+                already_seen = sum(1 for pid in page_ids if pid in seen_ids)
+                if len(page_ids) > 0 and already_seen / len(page_ids) >= DUPLICATE_THRESHOLD:
+                    logger.warning(
+                        f"Wrap-around detected for {entity} at offset {offset}: "
+                        f"{already_seen}/{len(page_ids)} records already seen. Breaking."
+                    )
+                    break
+                seen_ids.update(page_ids)
 
             for raw in raw_records:
                 normalized = self.adapter.normalize(entity, raw)
@@ -104,15 +170,18 @@ class SyncEngine:
                     all_normalized.append(normalized)
 
             total_fetched += len(raw_records)
+            page_count += 1
 
             # Batch upsert when we have enough
             if len(all_normalized) >= UPSERT_BATCH_SIZE:
-                await self._batch_upsert(table_name, all_normalized[:UPSERT_BATCH_SIZE])
+                batch = all_normalized[:UPSERT_BATCH_SIZE]
+                failed = await self._batch_upsert(table_name, batch)
+                total_failed += failed
                 all_normalized = all_normalized[UPSERT_BATCH_SIZE:]
 
             # Update progress
             await self._update_sync_status(
-                entity, "syncing",
+                entity, SyncStatus.SYNCING,
                 synced_records=total_fetched,
                 total_records=total_fetched if not has_more else None
             )
@@ -126,11 +195,32 @@ class SyncEngine:
             if not has_more:
                 break
 
+            # Safety cap: prevent runaway pagination
+            if page_count >= MAX_PAGES_PER_ENTITY:
+                logger.warning(
+                    f"Hit MAX_PAGES_PER_ENTITY ({MAX_PAGES_PER_ENTITY}) for {entity} "
+                    f"(tenant={self.tenant_id}). Stopping pagination."
+                )
+                break
+
             offset += len(raw_records)
 
         # Upsert remaining records
         if all_normalized:
-            await self._batch_upsert(table_name, all_normalized)
+            failed = await self._batch_upsert(table_name, all_normalized)
+            total_failed += failed
+
+        # Check if >50% of records failed — mark as ERROR
+        if total_fetched > 0 and total_failed > total_fetched * 0.5:
+            error_msg = f"{total_failed}/{total_fetched} records failed to upsert"
+            logger.error(f"Sync failed for {entity}: {error_msg} (tenant={self.tenant_id})")
+            await self._update_sync_status(
+                entity, SyncStatus.ERROR,
+                error_message=error_msg,
+                synced_records=total_fetched - total_failed,
+                total_records=total_fetched,
+            )
+            return {"status": SyncStatus.ERROR, "error": error_msg, "records": total_fetched - total_failed}
 
         # Calculate max modified_at for sync cursor
         max_modified = await self._get_max_modified(table_name)
@@ -138,7 +228,7 @@ class SyncEngine:
         # Mark complete
         now = datetime.now(timezone.utc).isoformat()
         await self._update_sync_status(
-            entity, "complete",
+            entity, SyncStatus.COMPLETE,
             synced_records=total_fetched,
             total_records=total_fetched,
             last_sync_cursor=max_modified,
@@ -146,7 +236,11 @@ class SyncEngine:
         )
 
         logger.info(f"Full sync complete: {entity} ({total_fetched} records) for tenant {self.tenant_id}")
-        return {"status": "complete", "records": total_fetched}
+
+        # Profile fields after successful full sync
+        await self._update_field_registry(entity)
+
+        return {"status": SyncStatus.COMPLETE, "records": total_fetched}
 
     async def _sync_entity_incremental(self, entity: str) -> dict:
         """Incremental sync for a single entity."""
@@ -165,8 +259,8 @@ class SyncEngine:
         if not raw_records:
             # Update last_incremental_at even if no changes
             now = datetime.now(timezone.utc).isoformat()
-            await self._update_sync_status(entity, "complete", last_incremental_at=now)
-            return {"status": "complete", "records": 0}
+            await self._update_sync_status(entity, SyncStatus.COMPLETE, last_incremental_at=now)
+            return {"status": SyncStatus.COMPLETE, "records": 0}
 
         # Normalize and upsert
         normalized = []
@@ -187,35 +281,57 @@ class SyncEngine:
         max_modified = await self._get_max_modified(table_name)
         now = datetime.now(timezone.utc).isoformat()
         await self._update_sync_status(
-            entity, "complete",
+            entity, SyncStatus.COMPLETE,
             last_sync_cursor=max_modified,
             last_incremental_at=now,
         )
 
         logger.info(f"Incremental sync: {entity} ({len(normalized)} records) for tenant {self.tenant_id}")
-        return {"status": "complete", "records": len(normalized)}
 
-    async def _batch_upsert(self, table_name: str, records: list[dict]):
-        """Upsert a batch of records into the target table."""
-        if not records:
-            return
+        # Re-profile fields after incremental sync (may discover new field values)
+        await self._update_field_registry(entity)
 
+        return {"status": SyncStatus.COMPLETE, "records": len(normalized)}
+
+    async def _update_field_registry(self, entity: str):
+        """Profile fields for an entity and upsert into crm_field_registry.
+        Non-fatal: failure here does not block sync."""
         try:
-            self.supabase.table(table_name).upsert(
+            profiles = await profile_entity_fields(
+                self.supabase, self.tenant_id, self.crm_source, entity
+            )
+            if profiles:
+                await upsert_field_profiles(self.supabase, profiles)
+        except Exception as e:
+            logger.warning(f"Field registry update failed for {entity} (non-fatal): {e}")
+
+    async def _batch_upsert(self, table_name: str, records: list[dict]) -> int:
+        """Upsert a batch of records into the target table.
+
+        Returns the number of failed records (0 = all succeeded).
+        """
+        if not records:
+            return 0
+
+        failed_count = 0
+        try:
+            await _db(lambda: self.supabase.table(table_name).upsert(
                 records,
                 on_conflict="tenant_id,crm_source,external_id"
-            ).execute()
+            ).execute())
         except Exception as e:
             logger.error(f"Batch upsert failed for {table_name}: {e}")
             # Try one-by-one as fallback
             for record in records:
                 try:
-                    self.supabase.table(table_name).upsert(
-                        record,
+                    await _db(lambda r=record: self.supabase.table(table_name).upsert(
+                        r,
                         on_conflict="tenant_id,crm_source,external_id"
-                    ).execute()
+                    ).execute())
                 except Exception as inner_e:
+                    failed_count += 1
                     logger.warning(f"Single upsert failed for {table_name} (id={record.get('external_id')}): {inner_e}")
+        return failed_count
 
     async def _update_sync_status(self, entity: str, status: str, **kwargs):
         """Update or insert sync status tracking."""
@@ -233,21 +349,21 @@ class SyncEngine:
                 data[key] = kwargs[key]
 
         try:
-            self.supabase.table("crm_sync_status").upsert(
+            await _db(lambda: self.supabase.table("crm_sync_status").upsert(
                 data,
                 on_conflict="tenant_id,crm_source,entity"
-            ).execute()
+            ).execute())
         except Exception as e:
             logger.warning(f"Failed to update sync status for {entity}: {e}")
 
     async def _get_sync_cursor(self, entity: str) -> Optional[datetime]:
         """Get the last sync cursor for an entity."""
         try:
-            result = self.supabase.table("crm_sync_status").select(
+            result = await _db(lambda: self.supabase.table("crm_sync_status").select(
                 "last_sync_cursor"
             ).eq("tenant_id", self.tenant_id).eq(
                 "crm_source", self.crm_source
-            ).eq("entity", entity).execute()
+            ).eq("entity", entity).execute())
 
             if result.data and result.data[0].get("last_sync_cursor"):
                 cursor_str = result.data[0]["last_sync_cursor"]
@@ -263,11 +379,11 @@ class SyncEngine:
     async def _get_max_modified(self, table_name: str) -> Optional[str]:
         """Get the maximum modified_at value from a table for this tenant+source."""
         try:
-            result = self.supabase.table(table_name).select(
+            result = await _db(lambda: self.supabase.table(table_name).select(
                 "modified_at"
             ).eq("tenant_id", self.tenant_id).eq(
                 "crm_source", self.crm_source
-            ).order("modified_at", desc=True).limit(1).execute()
+            ).order("modified_at", desc=True).limit(1).execute())
 
             if result.data and result.data[0].get("modified_at"):
                 return result.data[0]["modified_at"]
@@ -298,9 +414,9 @@ async def trigger_full_sync(supabase, tenant_id: str, crm_type: str) -> dict:
     After completion, starts the incremental sync loop.
     """
     # Load connection
-    result = supabase.table("crm_connections").select(
+    result = await _db(lambda: supabase.table("crm_connections").select(
         "credentials, config, crm_type"
-    ).eq("tenant_id", tenant_id).eq("crm_type", crm_type).eq("is_active", True).execute()
+    ).eq("tenant_id", tenant_id).eq("crm_type", crm_type).eq("is_active", True).execute())
 
     if not result.data:
         logger.warning(f"No active {crm_type} connection for tenant {tenant_id}")
@@ -324,24 +440,82 @@ async def trigger_full_sync(supabase, tenant_id: str, crm_type: str) -> dict:
     # Update last_sync_at on the connection
     try:
         now = datetime.now(timezone.utc).isoformat()
-        supabase.table("crm_connections").update(
+        await _db(lambda: supabase.table("crm_connections").update(
             {"last_sync_at": now}
-        ).eq("tenant_id", tenant_id).eq("crm_type", crm_type).execute()
+        ).eq("tenant_id", tenant_id).eq("crm_type", crm_type).execute())
     except Exception as e:
         logger.warning(f"Failed to update last_sync_at: {e}")
 
     # Start incremental sync loop
     await start_incremental_sync_loop(supabase, tenant_id, crm_type)
 
+    # Fire-and-forget: recompute revenue snapshots with fresh data
+    asyncio.create_task(_recompute_revenue_background(supabase, tenant_id, crm_type))
+
     return sync_result
 
 
+async def _recompute_revenue_background(supabase, tenant_id: str, crm_source: str):
+    """
+    Fire-and-forget: recompute revenue snapshots for all standard timeframes
+    after a CRM sync completes. Never raises — all exceptions are logged.
+    NOTE: compute_snapshot makes many sync Supabase calls internally,
+    so we yield control between timeframes to avoid starving the event loop.
+    """
+    try:
+        from revenue.compute import compute_snapshot
+        for timeframe in ["30d", "90d"]:
+            try:
+                await compute_snapshot(supabase, tenant_id, crm_source, timeframe)
+                logger.info(
+                    "Revenue snapshot refreshed after sync "
+                    "(tenant=%s, crm=%s, timeframe=%s)",
+                    tenant_id, crm_source, timeframe,
+                )
+            except Exception as e:
+                logger.warning(
+                    "Revenue snapshot recompute failed (tenant=%s, crm=%s, timeframe=%s): %s",
+                    tenant_id, crm_source, timeframe, e,
+                )
+            await asyncio.sleep(0)  # Yield to event loop between snapshots
+    except Exception as e:
+        logger.warning("_recompute_revenue_background import failed: %s", e)
+
+
 async def trigger_full_sync_background(supabase, tenant_id: str, crm_type: str):
-    """Fire-and-forget wrapper for trigger_full_sync. Runs as a background task."""
+    """Fire-and-forget wrapper for trigger_full_sync. Tracked so it can be cancelled."""
+    sync_key = f"{tenant_id}:{crm_type}"
+
+    # Concurrent sync lock: skip if already running for this tenant+crm
+    if sync_key in _active_full_syncs:
+        existing = _active_full_syncs[sync_key]
+        if not existing.done():
+            logger.info(f"Full sync already running for {sync_key}, skipping duplicate")
+            return
+
+    # Store current task so stop_all_syncs can cancel it
+    _active_full_syncs[sync_key] = asyncio.current_task()
     try:
         await trigger_full_sync(supabase, tenant_id, crm_type)
+    except asyncio.CancelledError:
+        logger.info(f"Full sync cancelled for {sync_key}")
+        # Mark all in-progress entities as error so frontend sees clean state
+        try:
+            result = await _db(lambda: supabase.table("crm_sync_status").select("entity, status").eq(
+                "tenant_id", tenant_id
+            ).eq("crm_source", crm_type).eq("status", SyncStatus.SYNCING).execute())
+            for row in (result.data or []):
+                await _db(lambda e=row["entity"]: supabase.table("crm_sync_status").update(
+                    {"status": SyncStatus.ERROR, "error_message": "Sync cancelled by user"}
+                ).eq("tenant_id", tenant_id).eq("crm_source", crm_type).eq(
+                    "entity", e
+                ).execute())
+        except Exception:
+            pass
     except Exception as e:
         logger.error(f"Background full sync failed for {crm_type} (tenant={tenant_id}): {e}")
+    finally:
+        _active_full_syncs.pop(sync_key, None)
 
 
 async def start_incremental_sync_loop(
@@ -363,9 +537,9 @@ async def start_incremental_sync_loop(
             await asyncio.sleep(interval)
             try:
                 # Re-load credentials each time (they might have been refreshed)
-                result = supabase.table("crm_connections").select(
+                result = await _db(lambda: supabase.table("crm_connections").select(
                     "credentials, config"
-                ).eq("tenant_id", tenant_id).eq("crm_type", crm_type).eq("is_active", True).execute()
+                ).eq("tenant_id", tenant_id).eq("crm_type", crm_type).eq("is_active", True).execute())
 
                 if not result.data:
                     logger.info(f"CRM connection removed, stopping sync loop for {sync_key}")
@@ -381,9 +555,9 @@ async def start_incremental_sync_loop(
 
                 # Update last_sync_at
                 now = datetime.now(timezone.utc).isoformat()
-                supabase.table("crm_connections").update(
+                await _db(lambda: supabase.table("crm_connections").update(
                     {"last_sync_at": now}
-                ).eq("tenant_id", tenant_id).eq("crm_type", crm_type).execute()
+                ).eq("tenant_id", tenant_id).eq("crm_type", crm_type).execute())
 
             except asyncio.CancelledError:
                 logger.info(f"Incremental sync loop cancelled for {sync_key}")
@@ -412,15 +586,88 @@ async def stop_sync_loop(tenant_id: str, crm_type: str = None):
             logger.info(f"Stopped sync loop for {key}")
 
 
+async def stop_all_syncs(tenant_id: str, crm_type: str = None):
+    """Cancel ALL sync activity for a tenant — both full syncs and incremental loops."""
+    keys_to_stop = []
+    if crm_type:
+        keys_to_stop = [f"{tenant_id}:{crm_type}"]
+    else:
+        keys_to_stop = [k for k in list(_active_full_syncs) if k.startswith(f"{tenant_id}:")]
+        keys_to_stop += [k for k in list(_active_syncs) if k.startswith(f"{tenant_id}:") and k not in keys_to_stop]
+
+    cancelled = []
+    for key in keys_to_stop:
+        # Cancel running full sync
+        if key in _active_full_syncs:
+            _active_full_syncs[key].cancel()
+            _active_full_syncs.pop(key, None)
+            cancelled.append(f"full_sync:{key}")
+        # Cancel incremental loop
+        if key in _active_syncs:
+            _active_syncs[key].cancel()
+            _active_syncs.pop(key, None)
+            cancelled.append(f"incremental:{key}")
+
+    if cancelled:
+        logger.info(f"Cancelled all syncs for {tenant_id}: {cancelled}")
+    return cancelled
+
+
+def is_sync_active(tenant_id: str) -> bool:
+    """Check if any sync (full or incremental) is currently running for a tenant."""
+    prefix = f"{tenant_id}:"
+    for key, task in _active_full_syncs.items():
+        if key.startswith(prefix) and not task.done():
+            return True
+    for key, task in _active_syncs.items():
+        if key.startswith(prefix) and not task.done():
+            return True
+    return False
+
+
+async def _cleanup_stale_syncs(supabase):
+    """Reset any stuck 'syncing' rows to 'error' on server startup.
+
+    If the server crashed or restarted mid-sync, rows may be stuck in 'syncing'
+    status forever. This resets them so the frontend shows a clean state and
+    users can re-trigger a full sync.
+    """
+    try:
+        result = await _db(lambda: supabase.table("crm_sync_status").select(
+            "tenant_id, crm_source, entity"
+        ).eq("status", SyncStatus.SYNCING).execute())
+
+        stale_rows = result.data or []
+        if not stale_rows:
+            return
+
+        for row in stale_rows:
+            try:
+                await _db(lambda r=row: supabase.table("crm_sync_status").update(
+                    {"status": SyncStatus.ERROR, "error_message": "Reset on server restart (was stuck syncing)"}
+                ).eq("tenant_id", r["tenant_id"]).eq(
+                    "crm_source", r["crm_source"]
+                ).eq("entity", r["entity"]).execute())
+            except Exception as e:
+                logger.warning(f"Failed to reset stale sync row: {e}")
+
+        logger.info(f"Reset {len(stale_rows)} stale 'syncing' rows to 'error'")
+    except Exception as e:
+        logger.warning(f"Failed to cleanup stale syncs: {e}")
+
+
 async def resume_all_sync_loops(supabase):
     """
     Resume incremental sync loops for all active CRM connections.
     Called on server startup.
     """
+    # First, clean up any syncs stuck in "syncing" from a previous crash
+    await _cleanup_stale_syncs(supabase)
+
     try:
-        result = supabase.table("crm_connections").select(
+        result = await _db(lambda: supabase.table("crm_connections").select(
             "tenant_id, crm_type"
-        ).eq("is_active", True).execute()
+        ).eq("is_active", True).execute())
 
         if not result.data:
             logger.info("No active CRM connections to resume sync for")
@@ -431,9 +678,9 @@ async def resume_all_sync_loops(supabase):
             crm_type = conn["crm_type"]
 
             # Check if we have completed at least one full sync
-            sync_check = supabase.table("crm_sync_status").select(
+            sync_check = await _db(lambda: supabase.table("crm_sync_status").select(
                 "status"
-            ).eq("tenant_id", tenant_id).eq("crm_source", crm_type).eq("status", "complete").execute()
+            ).eq("tenant_id", tenant_id).eq("crm_source", crm_type).eq("status", SyncStatus.COMPLETE).execute())
 
             if sync_check.data:
                 await start_incremental_sync_loop(supabase, tenant_id, crm_type)

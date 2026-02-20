@@ -78,23 +78,37 @@ function CRMDashboardPageInner() {
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
+
+  // Modify widget flow: tracks which widget is being modified via chat
+  const [modifyingWidget, setModifyingWidget] = useState(null);
+
   // --- Load config on mount ---
+  const [initSlow, setInitSlow] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
+
+    // Show feedback if init takes >10s (e.g. cold backend start)
+    const slowTimer = setTimeout(() => {
+      if (!cancelled) setInitSlow(true);
+    }, 10000);
+
     const init = async () => {
       setConfigLoading(true);
 
-      // Check integrations status to determine if CRM is connected
-      const { data: intData } = await api.getIntegrationsStatus();
+      // Run both API calls in parallel
+      const [intResult, cfgResult] = await Promise.all([
+        api.getIntegrationsStatus(),
+        api.getConfig(),
+      ]);
+      clearTimeout(slowTimer);
       if (cancelled) return;
-      const crmConnected = intData?.bitrix?.connected ?? false;
-      setHasCRM(crmConnected);
 
-      // Get dashboard config
-      const { data: cfgData, error } = await api.getConfig();
-      if (cancelled) return;
+      const crmConnected = intResult.data?.bitrix?.connected ?? false;
+      setHasCRM(crmConnected);
       setConfigLoading(false);
 
+      const { data: cfgData, error } = cfgResult;
       if (error || !cfgData) {
         setConfig(null);
         return;
@@ -110,7 +124,7 @@ function CRMDashboardPageInner() {
       }
     };
     init();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(slowTimer); };
   }, []);
 
   // --- Load dashboard data ---
@@ -118,10 +132,11 @@ function CRMDashboardPageInner() {
     setWidgetsLoading(true);
     setInsightsLoading(true);
 
-    const [widgetRes, insightRes, usageRes] = await Promise.all([
+    const [widgetRes, insightRes, usageRes, alertRes] = await Promise.all([
       api.getWidgets(),
       api.getInsights(),
       api.getDataUsage(),
+      api.getRevenueAlerts('open'),
     ]);
 
     if (widgetRes.data) {
@@ -129,9 +144,20 @@ function CRMDashboardPageInner() {
     }
     setWidgetsLoading(false);
 
-    if (insightRes.data) {
-      setInsights(Array.isArray(insightRes.data) ? insightRes.data : insightRes.data.insights || []);
-    }
+    // Map revenue alerts to insight format (dismissible) and prepend to nilufar insights
+    const alertItems = (alertRes.data?.alerts || []).map(a => ({
+      id: a.id,
+      title: a.summary,
+      description: (a.recommended_actions_json || [])[0] || '',
+      severity: a.severity,
+      suggested_action: (a.recommended_actions_json || [])[1] || null,
+      dismissible: true,
+    }));
+
+    const nilufarInsights = insightRes.data
+      ? (Array.isArray(insightRes.data) ? insightRes.data : insightRes.data.insights || [])
+      : [];
+    setInsights([...alertItems, ...nilufarInsights]);
     setInsightsLoading(false);
 
     if (usageRes.data) {
@@ -169,6 +195,36 @@ function CRMDashboardPageInner() {
     return { data, error };
   }, [api]);
 
+  // --- Modify widget (switch to chat with widget context) ---
+  const handleModifyWidget = useCallback((widget) => {
+    setModifyingWidget(widget);
+    setActiveTab('chat');
+  }, []);
+
+  // --- Replace widget (from modify flow in chat) ---
+  const handleReplaceWidget = useCallback(async (widgetData) => {
+    if (!modifyingWidget?.id) return { error: 'No widget to replace' };
+    const { error } = await api.updateWidget(modifyingWidget.id, widgetData);
+    if (!error) {
+      // Refetch to get hydrated data
+      const { data: refreshed } = await api.getWidgets();
+      if (refreshed) {
+        setWidgets(Array.isArray(refreshed) ? refreshed : refreshed.widgets || []);
+      }
+      setModifyingWidget(null);
+      toast.success('Widget updated');
+    }
+    return { error };
+  }, [api, modifyingWidget]);
+
+  // --- Dismiss revenue alert ---
+  const handleDismissAlert = useCallback(async (alertId) => {
+    const { error } = await api.dismissRevenueAlert(alertId);
+    if (!error) {
+      setInsights(prev => prev.filter(i => i.id !== alertId));
+    }
+  }, [api]);
+
   // --- Reconfigure ---
   const handleReconfigure = useCallback(async () => {
     const { error } = await api.reconfigure();
@@ -190,6 +246,9 @@ function CRMDashboardPageInner() {
       <div className="h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] flex flex-col items-center justify-center gap-4">
         <AiOrb size={64} colors={BOBUR_ORB_COLORS} state="thinking" />
         <p className="text-[13px] text-slate-500 font-medium">Loading dashboard...</p>
+        {initSlow && (
+          <p className="text-xs text-slate-400 animate-pulse">Backend is starting up, please wait...</p>
+        )}
       </div>
     );
   }
@@ -257,14 +316,20 @@ function CRMDashboardPageInner() {
             dataUsage={dataUsage}
             lastRefreshed={lastRefreshed}
             onDeleteWidget={handleDeleteWidget}
+            onModifyWidget={handleModifyWidget}
             onReconfigure={handleReconfigure}
             onRefresh={handleRefresh}
             refreshing={refreshing}
+            onDismissAlert={handleDismissAlert}
+            getRevenueOverview={api.getRevenueOverview}
           />
         ) : (
           <DashboardChat
             api={api}
             onAddWidget={handleAddWidget}
+            modifyingWidget={modifyingWidget}
+            onReplaceWidget={handleReplaceWidget}
+            onCancelModify={() => setModifyingWidget(null)}
           />
         )}
       </div>

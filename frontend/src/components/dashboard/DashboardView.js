@@ -3,6 +3,7 @@ import { RefreshCw, Settings2 } from 'lucide-react';
 import DashboardGrid from './DashboardGrid';
 import InsightsPanel from './InsightsPanel';
 import DataUsageBar from './DataUsageBar';
+import MetricsSummaryCard from './MetricsSummaryCard';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,9 +24,12 @@ export default function DashboardView({
   dataUsage,
   lastRefreshed,
   onDeleteWidget,
+  onModifyWidget,
   onReconfigure,
   onRefresh,
   refreshing,
+  onDismissAlert,
+  getRevenueOverview,
 }) {
   return (
     <div className="h-full overflow-y-auto">
@@ -78,17 +82,24 @@ export default function DashboardView({
           </div>
         </div>
 
+        {/* Analytics summary */}
+        {getRevenueOverview && (
+          <MetricsSummaryCard getRevenueOverview={getRevenueOverview} />
+        )}
+
         {/* Widget grid */}
         <DashboardGrid
           widgets={widgets}
           loading={widgetsLoading}
           onDeleteWidget={onDeleteWidget}
+          onModifyWidget={onModifyWidget}
         />
 
         {/* Insights panel */}
         <InsightsPanel
           insights={insights}
           loading={insightsLoading}
+          onDismissAlert={onDismissAlert}
         />
 
         {/* Data usage bar */}

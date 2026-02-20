@@ -51,7 +51,8 @@ export default function useDashboardApi() {
   const apiCallWithToast = useCallback(async (method, path, data = null, errorMsg) => {
     const result = await apiCall(method, path, data);
     if (result.error) {
-      toast.error(errorMsg || result.error);
+      // Show actual backend error when available; fall back to generic message
+      toast.error(result.error !== 'Something went wrong' ? result.error : (errorMsg || result.error));
     }
     return result;
   }, [apiCall]);
@@ -86,12 +87,38 @@ export default function useDashboardApi() {
     apiCallWithToast('post', '/api/dashboard/widgets', widgetData, 'Failed to add widget'),
   [apiCallWithToast]);
 
+  const updateWidget = useCallback((widgetId, widgetData) =>
+    apiCallWithToast('put', `/api/dashboard/widgets/${widgetId}`, widgetData, 'Failed to update widget'),
+  [apiCallWithToast]);
+
   const deleteWidget = useCallback((widgetId) =>
     apiCallWithToast('delete', `/api/dashboard/widgets/${widgetId}`, null, 'Failed to delete widget'),
   [apiCallWithToast]);
 
   const getInsights = useCallback(() =>
     apiCall('get', '/api/dashboard/insights'),
+  [apiCall]);
+
+  // --- Analytics (formerly Revenue) ---
+  const getRevenueAlerts = useCallback((status = 'open') =>
+    apiCall('get', '/api/dashboard/analytics/alerts', { status }),
+  [apiCall]);
+
+  const getRevenueOverview = useCallback((timeframe = '30d') =>
+    apiCall('get', '/api/dashboard/analytics/overview', { timeframe }),
+  [apiCall]);
+
+  const recomputeRevenue = useCallback((timeframe = '30d') =>
+    apiCallWithToast('post', `/api/dashboard/analytics/recompute?timeframe=${timeframe}`, {}, 'Recompute failed'),
+  [apiCallWithToast]);
+
+  const dismissRevenueAlert = useCallback((alertId) =>
+    apiCallWithToast('patch', `/api/dashboard/analytics/alerts/${alertId}/dismiss`, {}, 'Failed to dismiss alert'),
+  [apiCallWithToast]);
+
+  // --- Chat Suggestions ---
+  const getChatSuggestions = useCallback(() =>
+    apiCall('get', '/api/dashboard/chat/suggestions'),
   [apiCall]);
 
   // --- Chat ---
@@ -116,6 +143,10 @@ export default function useDashboardApi() {
     apiCall('get', '/api/crm/sync/status'),
   [apiCall]);
 
+  const triggerSync = useCallback(() =>
+    apiCall('post', '/api/crm/sync/start'),
+  [apiCall]);
+
   const getIntegrationsStatus = useCallback(() =>
     apiCall('get', '/api/integrations/status'),
   [apiCall]);
@@ -130,6 +161,7 @@ export default function useDashboardApi() {
     getConfig,
     getWidgets,
     addWidget,
+    updateWidget,
     deleteWidget,
     getInsights,
     // Chat
@@ -139,6 +171,14 @@ export default function useDashboardApi() {
     // Data
     getDataUsage,
     getSyncStatus,
+    triggerSync,
     getIntegrationsStatus,
-  }), [startOnboarding, selectCategories, submitRefinement, reconfigure, getConfig, getWidgets, addWidget, deleteWidget, getInsights, sendChatMessage, getChatHistory, clearChatHistory, getDataUsage, getSyncStatus, getIntegrationsStatus]);
+    // Analytics (formerly Revenue)
+    getRevenueAlerts,
+    getRevenueOverview,
+    recomputeRevenue,
+    dismissRevenueAlert,
+    // Chat Suggestions
+    getChatSuggestions,
+  }), [startOnboarding, selectCategories, submitRefinement, reconfigure, getConfig, getWidgets, addWidget, updateWidget, deleteWidget, getInsights, sendChatMessage, getChatHistory, clearChatHistory, getDataUsage, getSyncStatus, triggerSync, getIntegrationsStatus, getRevenueAlerts, getRevenueOverview, recomputeRevenue, dismissRevenueAlert, getChatSuggestions]);
 }
