@@ -287,6 +287,12 @@ async def _evaluate_concentration(
         if not rows:
             return None
 
+        # Single-rep CRM — concentration alert is meaningless
+        if dimension_field == "assigned_to":
+            unique_owners = set(r.get(dimension_field) for r in rows if r.get(dimension_field))
+            if len(unique_owners) <= 1:
+                return None
+
         # Aggregate by dimension
         totals: dict[str, float] = {}
         grand_total = 0.0
@@ -458,6 +464,191 @@ def _evaluate_divergence(
             "divergence_pct": round(total_divergence, 1),
         },
     )
+
+
+# ── Ad-hoc health check (Step 5) ────────────────────────────────────
+
+async def compute_adhoc_health_check(
+    supabase,
+    tenant_id: str,
+    crm_source: str,
+) -> list[AlertResult]:
+    """
+    Run 4 data-driven checks when no alert rules or dynamic metrics exist.
+    Pure SQL, $0 cost. Returns list[AlertResult].
+    """
+    fired: list[AlertResult] = []
+
+    try:
+        # 1. Stale deals — not modified in 30+ days, won=false
+        cutoff_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        stale_result = supabase.table("crm_deals").select(
+            "*", count="exact"
+        ).eq("tenant_id", tenant_id).eq(
+            "crm_source", crm_source
+        ).is_("won", False).lt("modified_at", cutoff_30d).limit(0).execute()
+        stale_count = stale_result.count or 0
+
+        total_open = supabase.table("crm_deals").select(
+            "*", count="exact"
+        ).eq("tenant_id", tenant_id).eq(
+            "crm_source", crm_source
+        ).is_("won", False).limit(0).execute()
+        total_open_count = total_open.count or 0
+
+        if total_open_count >= 5:
+            stale_pct = (stale_count / total_open_count) * 100
+            if stale_pct > 30:
+                severity = "critical" if stale_pct > 60 else "warning"
+                fired.append(AlertResult(
+                    alert_type="stale_deals",
+                    severity=severity,
+                    title=f"{stale_count} deals haven't been touched in 30+ days",
+                    summary=(
+                        f"{stale_pct:.0f}% of your open deals ({stale_count} of {total_open_count}) "
+                        f"haven't been modified in over 30 days. These may need follow-up."
+                    ),
+                    evidence={
+                        "stale_count": stale_count,
+                        "total_open": total_open_count,
+                        "stale_pct": round(stale_pct, 1),
+                    },
+                    entity="deals",
+                ))
+    except Exception as e:
+        logger.debug("Adhoc stale deals check: %s", e)
+
+    try:
+        # 2. Missing data — null rate on value, stage, assigned_to
+        total_result = supabase.table("crm_deals").select(
+            "*", count="exact"
+        ).eq("tenant_id", tenant_id).eq("crm_source", crm_source).limit(0).execute()
+        total = total_result.count or 0
+
+        if total >= 5:
+            for field in ("value", "stage", "assigned_to"):
+                null_result = supabase.table("crm_deals").select(
+                    "*", count="exact"
+                ).eq("tenant_id", tenant_id).eq(
+                    "crm_source", crm_source
+                ).is_(field, "null").limit(0).execute()
+                null_count = null_result.count or 0
+                null_pct = (null_count / total) * 100
+                if null_pct > 30:
+                    fired.append(AlertResult(
+                        alert_type="missing_data",
+                        severity="warning",
+                        title=f"{null_pct:.0f}% of deals are missing '{field}'",
+                        summary=(
+                            f"{null_count} of {total} deals have no {field} set. "
+                            f"This reduces the accuracy of your analytics."
+                        ),
+                        evidence={
+                            "field": field,
+                            "null_count": null_count,
+                            "total": total,
+                            "null_pct": round(null_pct, 1),
+                        },
+                        entity="deals",
+                    ))
+    except Exception as e:
+        logger.debug("Adhoc missing data check: %s", e)
+
+    try:
+        # 3. Pipeline concentration — single rep > 60% of pipeline value
+        result = supabase.table("crm_deals").select(
+            "assigned_to,value"
+        ).eq("tenant_id", tenant_id).eq(
+            "crm_source", crm_source
+        ).is_("won", False).not_.is_("value", "null").limit(5000).execute()
+
+        rows = result.data or []
+        if len(rows) >= 5:
+            totals: dict[str, float] = {}
+            grand_total = 0.0
+            for r in rows:
+                rep = r.get("assigned_to") or "Unknown"
+                try:
+                    v = float(r.get("value", 0))
+                    totals[rep] = totals.get(rep, 0) + v
+                    grand_total += v
+                except (TypeError, ValueError):
+                    pass
+
+            unique_reps = set(k for k in totals if k != "Unknown")
+            if grand_total > 0 and len(unique_reps) > 1:
+                max_rep_raw = max(totals, key=totals.get)
+                max_val = totals[max_rep_raw]
+                max_pct = (max_val / grand_total) * 100
+
+                if max_pct > 60:
+                    # Resolve rep name
+                    try:
+                        rep_map = await build_rep_name_map(supabase, tenant_id, crm_source)
+                        max_rep = resolve_rep_name(max_rep_raw, rep_map)
+                    except Exception:
+                        max_rep = max_rep_raw
+
+                    fired.append(AlertResult(
+                        alert_type="concentration",
+                        severity="critical" if max_pct > 80 else "warning",
+                        title=f"{max_pct:.0f}% of pipeline from {max_rep}",
+                        summary=(
+                            f"{max_rep} accounts for {max_pct:.0f}% of your total pipeline value "
+                            f"(${max_val:,.0f} of ${grand_total:,.0f}). "
+                            f"This creates risk if this rep leaves or underperforms."
+                        ),
+                        evidence={
+                            "top_rep": max_rep,
+                            "top_value": round(max_val, 2),
+                            "total_value": round(grand_total, 2),
+                            "concentration_pct": round(max_pct, 1),
+                        },
+                        entity="deals",
+                    ))
+    except Exception as e:
+        logger.debug("Adhoc concentration check: %s", e)
+
+    try:
+        # 4. Win rate — fire if < 20%
+        won_result = supabase.table("crm_deals").select(
+            "*", count="exact"
+        ).eq("tenant_id", tenant_id).eq(
+            "crm_source", crm_source
+        ).is_("won", True).limit(0).execute()
+        won_count = won_result.count or 0
+
+        # Total closed = won + explicitly closed/lost (approximate via non-null closed_at or won field)
+        total_closed_result = supabase.table("crm_deals").select(
+            "*", count="exact"
+        ).eq("tenant_id", tenant_id).eq(
+            "crm_source", crm_source
+        ).not_.is_("closed_at", "null").limit(0).execute()
+        total_closed = total_closed_result.count or 0
+
+        if total_closed >= 10:
+            win_rate = (won_count / total_closed) * 100
+            if win_rate < 20:
+                fired.append(AlertResult(
+                    alert_type="low_win_rate",
+                    severity="critical" if win_rate < 10 else "warning",
+                    title=f"Win rate is only {win_rate:.0f}%",
+                    summary=(
+                        f"Only {won_count} of {total_closed} closed deals were won ({win_rate:.0f}%). "
+                        f"Consider reviewing your qualification criteria or sales process."
+                    ),
+                    evidence={
+                        "won_count": won_count,
+                        "total_closed": total_closed,
+                        "win_rate_pct": round(win_rate, 1),
+                    },
+                    entity="deals",
+                ))
+    except Exception as e:
+        logger.debug("Adhoc win rate check: %s", e)
+
+    logger.info("Adhoc health check for %s: %d alerts fired", tenant_id, len(fired))
+    return fired
 
 
 # ── Helpers ──────────────────────────────────────────────────────────

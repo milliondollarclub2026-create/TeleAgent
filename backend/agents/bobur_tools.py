@@ -72,10 +72,33 @@ async def build_rep_name_map(supabase, tenant_id: str, crm_source: str) -> dict[
 
 
 def resolve_rep_name(value: str, rep_map: dict[str, str]) -> str:
-    """Look up a rep ID in the name map, return display name or original value."""
+    """Look up a rep ID in the name map, return display name or original value.
+    Falls back to 'Rep #X' if the resolved value is still a raw numeric ID."""
     if not value:
         return value
-    return rep_map.get(str(value).strip(), value)
+    resolved = rep_map.get(str(value).strip(), value)
+    if resolved == value and str(resolved).strip().isdigit():
+        return f"Rep #{resolved}"
+    return resolved
+
+
+async def _load_lost_stage_values(supabase, tenant_id: str, crm_source: str) -> list[str]:
+    """Load lost_stage_values from revenue_models table."""
+    try:
+        result = (
+            supabase.table("revenue_models")
+            .select("lost_stage_values")
+            .eq("tenant_id", tenant_id)
+            .eq("crm_source", crm_source)
+            .not_.is_("confirmed_at", "null")
+            .limit(1)
+            .execute()
+        )
+        if result.data and result.data[0].get("lost_stage_values"):
+            return result.data[0]["lost_stage_values"]
+    except Exception as e:
+        logger.debug("_load_lost_stage_values: %s", e)
+    return []
 
 
 TIMEFRAME_LABEL = {
@@ -401,14 +424,22 @@ async def list_deals(
     assigned_to: Optional[str] = None,
     limit: int = 10,
     sort_by: str = "value",
+    status: Optional[str] = None,
+    min_value: Optional[float] = None,
+    max_value: Optional[float] = None,
 ) -> dict:
     """
     Query crm_deals with optional filters.
 
+    Parameters
+    ----------
+    status : "won" | "lost" | "open" | None
+    min_value / max_value : filter by deal value range
+
     Returns
     -------
     {
-        deals: list[dict],    # title, stage, value, assigned_to, created_at, days_in_stage
+        deals: list[dict],    # title, stage, value, assigned_to, created_at, days_in_stage, won
         total: int,
         filters_applied: dict,
         truncated: bool,
@@ -419,7 +450,7 @@ async def list_deals(
     try:
         query = (
             supabase.table("crm_deals")
-            .select("id,source_id,title,stage,value,assigned_to,created_at,updated_at")
+            .select("id,source_id,title,stage,value,assigned_to,won,created_at,updated_at")
             .eq("tenant_id", tenant_id)
             .eq("crm_source", crm_source)
         )
@@ -427,6 +458,29 @@ async def list_deals(
             query = query.ilike("stage", f"%{stage}%")
         if assigned_to:
             query = query.ilike("assigned_to", f"%{assigned_to}%")
+
+        # Status filtering
+        if status == "won":
+            query = query.is_("won", True)
+        elif status == "lost":
+            lost_stages = await _load_lost_stage_values(supabase, tenant_id, crm_source)
+            if lost_stages:
+                query = query.in_("stage", lost_stages)
+            else:
+                # Fallback: won=false is a rough proxy for lost
+                query = query.is_("won", False)
+        elif status == "open":
+            query = query.neq("won", True)
+            lost_stages = await _load_lost_stage_values(supabase, tenant_id, crm_source)
+            if lost_stages:
+                for ls in lost_stages:
+                    query = query.neq("stage", ls)
+
+        # Value range filtering
+        if min_value is not None:
+            query = query.gte("value", min_value)
+        if max_value is not None:
+            query = query.lte("value", max_value)
 
         # Sort
         order_desc = sort_by in ("value", "days_in_stage")
@@ -460,6 +514,7 @@ async def list_deals(
                 "stage": r.get("stage") or "",
                 "value": r.get("value"),
                 "assigned_to": r.get("assigned_to") or "",
+                "won": r.get("won"),
                 "created_at": r.get("created_at", ""),
                 "days_in_stage": days_in_stage,
                 "source_id": r.get("source_id") or r.get("id"),
@@ -475,6 +530,12 @@ async def list_deals(
             filters_applied["min_days_in_stage"] = min_days_in_stage
         if assigned_to:
             filters_applied["assigned_to"] = assigned_to
+        if status:
+            filters_applied["status"] = status
+        if min_value is not None:
+            filters_applied["min_value"] = min_value
+        if max_value is not None:
+            filters_applied["max_value"] = max_value
 
         return {
             "deals": deals,
