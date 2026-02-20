@@ -450,7 +450,7 @@ async def list_deals(
     try:
         query = (
             supabase.table("crm_deals")
-            .select("id,source_id,title,stage,value,assigned_to,won,created_at,updated_at")
+            .select("id,external_id,title,stage,value,assigned_to,won,created_at,modified_at")
             .eq("tenant_id", tenant_id)
             .eq("crm_source", crm_source)
         )
@@ -494,12 +494,12 @@ async def list_deals(
         truncated = len(rows) > CAP
         rows = rows[:CAP]
 
-        # Compute days_in_stage from updated_at
+        # Compute days_in_stage from modified_at
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
         deals = []
         for r in rows:
-            updated_str = r.get("updated_at") or r.get("created_at") or ""
+            updated_str = r.get("modified_at") or r.get("created_at") or ""
             days_in_stage = None
             if updated_str:
                 try:
@@ -517,7 +517,7 @@ async def list_deals(
                 "won": r.get("won"),
                 "created_at": r.get("created_at", ""),
                 "days_in_stage": days_in_stage,
-                "source_id": r.get("source_id") or r.get("id"),
+                "source_id": r.get("external_id") or r.get("id"),
             })
 
         effective_limit = min(limit, CAP)
@@ -564,22 +564,22 @@ async def list_deals(
 _ENTITY_TABLE_CONFIG = {
     "contacts": {
         "table": "crm_contacts",
-        "select": "id,source_id,name,phone,email,company,created_at",
+        "select": "id,external_id,name,phone,email,company,created_at",
         "sort_col": "created_at",
     },
     "companies": {
         "table": "crm_companies",
-        "select": "id,source_id,name,industry,employee_count,revenue,created_at",
+        "select": "id,external_id,name,industry,employee_count,revenue,created_at",
         "sort_col": "created_at",
     },
     "leads": {
         "table": "crm_leads",
-        "select": "id,source_id,title,status,source,contact_name,contact_email,value,created_at",
+        "select": "id,external_id,title,status,source,contact_name,contact_email,value,created_at",
         "sort_col": "created_at",
     },
     "activities": {
         "table": "crm_activities",
-        "select": "id,source_id,type,subject,employee_name,completed,started_at",
+        "select": "id,external_id,type,subject,employee_name,completed,started_at",
         "sort_col": "started_at",
     },
 }
