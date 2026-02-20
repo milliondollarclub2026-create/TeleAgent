@@ -259,11 +259,17 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config })
       const allComplete =
         data?.statuses?.length > 0 && data.statuses.every(s => s.status === 'complete');
       if (dealsComplete || allComplete) {
-        // Show brief success state before starting analysis
+        // Show brief success state before starting analysis.
+        // NOTE: We clear the interval and DON'T check `cancelled` in the
+        // timeout because the step change to 'sync-complete' triggers the
+        // effect cleanup which sets cancelled=true. The timeout must fire
+        // regardless to advance past the sync-complete screen.
+        clearInterval(interval);
         setStep('sync-complete');
         setTimeout(() => {
-          if (!cancelled) startAnalysis();
+          startAnalysis();
         }, 2000);
+        return; // Stop polling
       }
     };
 

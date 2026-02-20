@@ -141,8 +141,8 @@ def _validate_table_name(table: str):
     if table not in ALLOWED_REST_TABLES:
         raise ValueError(f"Invalid table name: {table}")
 
-def db_rest_select(table: str, query_params: dict = None):
-    """Direct REST API select to avoid HTTP/2 issues."""
+def _db_rest_select_sync(table: str, query_params: dict = None):
+    """Synchronous REST select — use db_rest_select() in async contexts."""
     _validate_table_name(table)
     url = f"{supabase_url}/rest/v1/{table}"
     params = query_params or {}
@@ -151,22 +151,34 @@ def db_rest_select(table: str, query_params: dict = None):
     response.raise_for_status()
     return response.json()
 
-def db_rest_insert(table: str, data: dict):
-    """Direct REST API insert to avoid HTTP/2 issues."""
+def _db_rest_insert_sync(table: str, data: dict):
+    """Synchronous REST insert — use db_rest_insert() in async contexts."""
     _validate_table_name(table)
     url = f"{supabase_url}/rest/v1/{table}"
     response = _rest_client.post(url, json=data)
     response.raise_for_status()
     return response.json()
 
-def db_rest_update(table: str, data: dict, eq_column: str, eq_value: str):
-    """Direct REST API update to avoid HTTP/2 issues."""
+def _db_rest_update_sync(table: str, data: dict, eq_column: str, eq_value: str):
+    """Synchronous REST update — use db_rest_update() in async contexts."""
     _validate_table_name(table)
     from urllib.parse import quote
     url = f"{supabase_url}/rest/v1/{table}?{eq_column}=eq.{quote(str(eq_value), safe='')}"
     response = _rest_client.patch(url, json=data)
     response.raise_for_status()
     return response.json()
+
+async def db_rest_select(table: str, query_params: dict = None):
+    """Non-blocking REST select — runs in thread pool to avoid blocking the event loop."""
+    return await asyncio.to_thread(_db_rest_select_sync, table, query_params)
+
+async def db_rest_insert(table: str, data: dict):
+    """Non-blocking REST insert — runs in thread pool to avoid blocking the event loop."""
+    return await asyncio.to_thread(_db_rest_insert_sync, table, data)
+
+async def db_rest_update(table: str, data: dict, eq_column: str, eq_value: str):
+    """Non-blocking REST update — runs in thread pool to avoid blocking the event loop."""
+    return await asyncio.to_thread(_db_rest_update_sync, table, data, eq_column, eq_value)
 
 # Initialize Resend for email
 # Strip env vars to remove accidental newlines
@@ -944,7 +956,7 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict:
         cache_expiry = _user_exists_cache.get(user_id)
         if cache_expiry is None or now > cache_expiry:
             try:
-                rows = db_rest_select('users', {'id': f'eq.{user_id}', 'select': 'id'})
+                rows = await db_rest_select('users', {'id': f'eq.{user_id}', 'select': 'id'})
                 if not rows:
                     raise HTTPException(status_code=401, detail="User account no longer exists")
                 _user_exists_cache[user_id] = now + _USER_EXISTS_TTL
@@ -989,7 +1001,7 @@ async def register(request: RegisterRequest, req: Request = None):
     validate_password_strength(request.password)
     try:
         # Check if user already exists (using direct REST API - HTTP/1.1)
-        existing = db_rest_select('users', {'email': f'eq.{request.email}'})
+        existing = await db_rest_select('users', {'email': f'eq.{request.email}'})
         if existing:
             raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -1004,7 +1016,7 @@ async def register(request: RegisterRequest, req: Request = None):
 
         # Create tenant (using direct REST API - HTTP/1.1)
         tenant = {"id": tenant_id, "name": safe_business_name, "timezone": "Asia/Tashkent", "created_at": now_iso()}
-        db_rest_insert('tenants', tenant)
+        await db_rest_insert('tenants', tenant)
 
         # Token expires in 24 hours for email confirmation
         token_expires = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
@@ -1022,7 +1034,7 @@ async def register(request: RegisterRequest, req: Request = None):
             "token_expires_at": token_expires,
             "created_at": now_iso()
         }
-        db_rest_insert('users', user)
+        await db_rest_insert('users', user)
 
         # Create default config (using direct REST API - HTTP/1.1)
         config = {
@@ -1030,7 +1042,7 @@ async def register(request: RegisterRequest, req: Request = None):
             "agent_tone": "professional", "primary_language": "uz", "vertical": "default"
         }
         try:
-            db_rest_insert('tenant_configs', config)
+            await db_rest_insert('tenant_configs', config)
         except Exception as e:
             logger.warning(f"Could not create tenant config: {e}")
 
@@ -1070,7 +1082,7 @@ async def confirm_email(token: str = None, type: str = None, access_token: str =
         # Validate token format (URL-safe base64 from secrets.token_urlsafe)
         if not re.match(r'^[A-Za-z0-9_\-]+$', token):
             raise HTTPException(status_code=400, detail="Invalid or expired confirmation token")
-        result = db_rest_select('users', {'confirmation_token': f'eq.{token}'})
+        result = await db_rest_select('users', {'confirmation_token': f'eq.{token}'})
         if not result:
             raise HTTPException(status_code=400, detail="Invalid or expired confirmation token")
 
@@ -1085,7 +1097,7 @@ async def confirm_email(token: str = None, type: str = None, access_token: str =
             if datetime.now(timezone.utc) > expires_dt:
                 raise HTTPException(status_code=400, detail="Confirmation token has expired. Please request a new confirmation email.")
 
-        db_rest_update('users', {
+        await db_rest_update('users', {
             "email_confirmed": True,
             "confirmation_token": None,
             "token_expires_at": None,
@@ -1104,7 +1116,7 @@ async def resend_confirmation(email: EmailStr, req: Request = None):
         check_auth_rate_limit(req)
     try:
         # Find user using direct REST API (HTTP/1.1)
-        result = db_rest_select('users', {'email': f'eq.{email}'})
+        result = await db_rest_select('users', {'email': f'eq.{email}'})
         if result and not result[0].get('email_confirmed'):
             user = result[0]
             confirmation_token = secrets.token_urlsafe(32)
@@ -1112,7 +1124,7 @@ async def resend_confirmation(email: EmailStr, req: Request = None):
             token_expires = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
 
             # Update token with expiration using direct REST API
-            db_rest_update('users', {
+            await db_rest_update('users', {
                 "confirmation_token": confirmation_token,
                 "token_expires_at": token_expires
             }, 'id', user['id'])
@@ -1132,7 +1144,7 @@ async def forgot_password(email: EmailStr, req: Request = None):
     if req:
         check_auth_rate_limit(req)
     try:
-        result = db_rest_select('users', {'email': f'eq.{email}'})
+        result = await db_rest_select('users', {'email': f'eq.{email}'})
         if result:
             user = result[0]
             reset_token = secrets.token_urlsafe(32)
@@ -1140,7 +1152,7 @@ async def forgot_password(email: EmailStr, req: Request = None):
             token_expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
 
             # Store reset token in separate field (doesn't interfere with email confirmation)
-            db_rest_update('users', {
+            await db_rest_update('users', {
                 "password_reset_token": reset_token,
                 "password_reset_expires_at": token_expires
             }, 'id', user['id'])
@@ -1168,7 +1180,7 @@ async def reset_password(request: ResetPasswordRequest):
             raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
         # First check token existence and expiration
-        result = db_rest_select('users', {'password_reset_token': f'eq.{request.token}'})
+        result = await db_rest_select('users', {'password_reset_token': f'eq.{request.token}'})
         if not result:
             raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
@@ -1187,11 +1199,11 @@ async def reset_password(request: ResetPasswordRequest):
         _validate_table_name('users')
         from urllib.parse import quote
         atomic_url = f"{supabase_url}/rest/v1/users?password_reset_token=eq.{quote(request.token, safe='')}"
-        atomic_resp = _rest_client.patch(atomic_url, json={
+        atomic_resp = await asyncio.to_thread(lambda: _rest_client.patch(atomic_url, json={
             "password_hash": new_hash,
             "password_reset_token": None,
             "password_reset_expires_at": None
-        })
+        }))
         atomic_resp.raise_for_status()
         updated_rows = atomic_resp.json()
         if not updated_rows:
@@ -1215,7 +1227,7 @@ async def login(request: LoginRequest, req: Request = None):
     if req:
         check_auth_rate_limit(req)
     # Use direct REST API (HTTP/1.1) instead of supabase-py client
-    result = db_rest_select('users', {'email': f'eq.{request.email}'})
+    result = await db_rest_select('users', {'email': f'eq.{request.email}'})
     if not result:
         if req:
             record_auth_failure(req)
@@ -1230,7 +1242,7 @@ async def login(request: LoginRequest, req: Request = None):
     # Transparent bcrypt migration: re-hash old SHA256 passwords on successful login
     if _needs_password_rehash(user["password_hash"]):
         try:
-            db_rest_update('users', {"password_hash": hash_password(request.password)}, 'id', user['id'])
+            await db_rest_update('users', {"password_hash": hash_password(request.password)}, 'id', user['id'])
             logger.info(f"Upgraded password hash to bcrypt for user {user['id'][:8]}***")
         except Exception as e:
             logger.warning(f"Could not upgrade password hash: {e}")
@@ -1246,7 +1258,7 @@ async def login(request: LoginRequest, req: Request = None):
     if req:
         reset_auth_failures(req)
 
-    tenant_result = db_rest_select('tenants', {'id': f'eq.{user["tenant_id"]}'})
+    tenant_result = await db_rest_select('tenants', {'id': f'eq.{user["tenant_id"]}'})
     tenant = tenant_result[0] if tenant_result else None
 
     token = create_access_token(user["id"], user["tenant_id"], user["email"])
@@ -1289,12 +1301,12 @@ async def logout(authorization: Optional[str] = Header(None)):
 
 @api_router.get("/auth/me")
 async def get_me(current_user: Dict = Depends(get_current_user)):
-    result = db_rest_select('users', {'id': f'eq.{current_user["user_id"]}'})
+    result = await db_rest_select('users', {'id': f'eq.{current_user["user_id"]}'})
     if not result:
         raise HTTPException(status_code=404, detail="User not found")
 
     user = result[0]
-    tenant_result = db_rest_select('tenants', {'id': f'eq.{user["tenant_id"]}'})
+    tenant_result = await db_rest_select('tenants', {'id': f'eq.{user["tenant_id"]}'})
     tenant = tenant_result[0] if tenant_result else None
 
     return {"id": user["id"], "email": user["email"], "name": user.get("name"), "tenant_id": user["tenant_id"], "business_name": tenant["name"] if tenant else None, "email_confirmed": user.get("email_confirmed", False)}
@@ -1503,7 +1515,7 @@ async def delete_account(request: AccountDeleteRequest, current_user: Dict = Dep
     tenant_id = current_user["tenant_id"]
 
     # Verify password before proceeding with deletion
-    user_result = db_rest_select('users', {'id': f'eq.{user_id}'})
+    user_result = await db_rest_select('users', {'id': f'eq.{user_id}'})
     if not user_result:
         raise HTTPException(status_code=404, detail="User not found")
     if not verify_password(request.password, user_result[0].get("password_hash", "")):
