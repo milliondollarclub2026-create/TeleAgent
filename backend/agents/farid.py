@@ -63,6 +63,12 @@ RULES:
 5. currency: detect from sample values or default to "USD".
 6. suggested_goals: 2-5 goals from: pipeline_health, forecast_accuracy, rep_performance,
    lead_conversion, deal_velocity, revenue_tracking, activity_monitoring.
+6b. GOAL SELECTION INTELLIGENCE — use data volume, not just schema existence:
+   - Do NOT suggest rep_performance if owner_field has ≤1 distinct values (single-rep CRM).
+   - Do NOT suggest lead_conversion if lead entity has <5 records.
+   - Prefer pipeline_health when deal count is high (>20).
+   - Prefer forecast_accuracy only when closed/won deals exist (check stage values).
+   - Include the distinct count / fill rate reasoning in each goal's "reason" field.
 7. data_quality_score: 0.0 (terrible) to 1.0 (excellent) based on fill rates and distinct counts.
    Low fill rates (<50%) or very low distinct counts lower the score.
 8. Only include entities that actually have data (record_count > 0).

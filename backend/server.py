@@ -3563,10 +3563,122 @@ def _map_categories_to_goals(selected_categories: list) -> list:
     return goals
 
 
-def _enrich_suggested_goals(schema, catalog_trust: list, proposal: dict) -> list:
+def _compute_data_confidence(goal_id: str, crm_ctx: dict) -> float:
+    """Confidence based on whether the data actually supports meaningful analysis."""
+    counts = crm_ctx.get("counts", {})
+    pipeline = crm_ctx.get("pipeline", {})
+    reps = crm_ctx.get("reps", [])
+
+    if goal_id == "pipeline_health":
+        deal_count = counts.get("deals", 0)
+        if deal_count >= 50: return 0.9
+        if deal_count >= 20: return 0.7
+        if deal_count >= 5: return 0.5
+        return 0.3
+
+    if goal_id == "forecast_accuracy":
+        won = pipeline.get("won_count", 0)
+        lost = pipeline.get("lost_count", 0)
+        closed = won + lost
+        if closed >= 20: return 0.85
+        if closed >= 10: return 0.65
+        if closed >= 3: return 0.45
+        return 0.2
+
+    if goal_id == "rep_performance":
+        if len(reps) >= 5: return 0.9
+        if len(reps) >= 3: return 0.7
+        if len(reps) == 2: return 0.5
+        return 0.0
+
+    if goal_id == "conversion_improvement":
+        won = pipeline.get("won_count", 0)
+        stages = len(pipeline.get("by_stage", []))
+        if won >= 10 and stages >= 3: return 0.85
+        if won >= 5: return 0.6
+        return 0.35
+
+    if goal_id == "lead_flow_health":
+        lead_count = counts.get("leads", 0)
+        sources = len(crm_ctx.get("leads", {}).get("by_source", []))
+        if lead_count >= 50 and sources >= 3: return 0.85
+        if lead_count >= 20: return 0.65
+        return 0.4
+
+    if goal_id == "deal_velocity":
+        deal_count = counts.get("deals", 0)
+        stages = len(pipeline.get("by_stage", []))
+        if deal_count >= 30 and stages >= 3: return 0.85
+        if deal_count >= 10: return 0.6
+        return 0.35
+
+    if goal_id == "activity_monitoring":
+        activities = crm_ctx.get("activities", {})
+        total = activities.get("total", 0)
+        if total >= 100: return 0.85
+        if total >= 30: return 0.6
+        return 0.35
+
+    return 0.5  # fallback
+
+
+def _data_description(goal_id: str, crm_ctx: dict) -> str | None:
+    """Generate data-specific goal descriptions. Returns None to keep default."""
+    counts = crm_ctx.get("counts", {})
+    pipeline = crm_ctx.get("pipeline", {})
+    reps = crm_ctx.get("reps", [])
+
+    if goal_id == "pipeline_health":
+        total = pipeline.get("total_deals", counts.get("deals", 0))
+        value = pipeline.get("total_value", 0)
+        stages = len(pipeline.get("by_stage", []))
+        if total and stages:
+            return f"Track {total} deals (${value:,.0f}) across {stages} stages — spot stalls and bottlenecks."
+
+    if goal_id == "forecast_accuracy":
+        wr = pipeline.get("win_rate")
+        won = pipeline.get("won_count", 0)
+        if wr is not None and won > 0:
+            return f"Current win rate: {wr}% ({won} won deals). Predict revenue with deal velocity and cycle analysis."
+
+    if goal_id == "rep_performance":
+        rep_count = len(reps)
+        if rep_count >= 2:
+            return f"Compare performance across {rep_count} sales reps — deals, revenue, and activity."
+
+    if goal_id == "conversion_improvement":
+        stages = len(pipeline.get("by_stage", []))
+        won = pipeline.get("won_count", 0)
+        lost = pipeline.get("lost_count", 0)
+        if stages >= 2 and (won + lost) > 0:
+            return f"Analyze conversion across {stages} pipeline stages ({won} won, {lost} lost)."
+
+    if goal_id == "lead_flow_health":
+        lead_count = counts.get("leads", 0)
+        sources = len(crm_ctx.get("leads", {}).get("by_source", []))
+        if lead_count > 0:
+            src_part = f" from {sources} sources" if sources > 1 else ""
+            return f"Monitor {lead_count} leads{src_part} — track inflow, quality, and response time."
+
+    if goal_id == "deal_velocity":
+        total = pipeline.get("total_deals", counts.get("deals", 0))
+        if total > 0:
+            return f"Measure how fast {total} deals move through your pipeline — identify slow stages."
+
+    if goal_id == "activity_monitoring":
+        activities = crm_ctx.get("activities", {})
+        total = activities.get("total", 0)
+        if total > 0:
+            return f"Track {total} activities — calls, emails, meetings — and rep engagement."
+
+    return None
+
+
+def _enrich_suggested_goals(schema, catalog_trust: list, proposal: dict, crm_ctx: dict | None = None) -> list:
     """
     Build enriched goal list from SchemaProfile.suggested_goals + metric catalog trust.
     Falls back to _REVENUE_GOALS if schema has no suggested_goals.
+    Uses crm_ctx (when available) for data-aware confidence and descriptions.
     """
     suggested = schema.suggested_goals if schema else []
     if not suggested:
@@ -3574,6 +3686,11 @@ def _enrich_suggested_goals(schema, catalog_trust: list, proposal: dict) -> list
         return _revenue_goals_from_catalog(catalog_trust, proposal)
 
     metric_info = {m["key"]: m for m in catalog_trust}
+    has_ctx = bool(crm_ctx and crm_ctx.get("counts"))
+
+    # Pre-compute suppression signals from crm_ctx
+    rep_count = len(crm_ctx.get("reps", [])) if has_ctx else None
+    lead_count = crm_ctx.get("counts", {}).get("leads", 0) if has_ctx else None
 
     # Map suggested_goals from Farid to the frontend format
     # Match them against _REVENUE_GOALS definitions for required_metrics
@@ -3581,15 +3698,24 @@ def _enrich_suggested_goals(schema, catalog_trust: list, proposal: dict) -> list
     goals = []
     for sg in suggested:
         goal_id = sg.get("id", "")
+
+        # Suppress irrelevant goals based on actual data
+        if has_ctx:
+            if goal_id == "rep_performance" and rep_count is not None and rep_count <= 1:
+                continue
+            if goal_id == "lead_flow_health" and lead_count is not None and lead_count == 0:
+                continue
+
         goal_def = goal_defs_by_id.get(goal_id)
         if not goal_def:
             # Schema suggested a goal not in our definitions — create a minimal entry
+            trust = _compute_data_confidence(goal_id, crm_ctx) if has_ctx else 0.5
             goals.append({
                 "id": goal_id,
                 "name": sg.get("label", goal_id.replace("_", " ").title()),
                 "description": sg.get("reason", ""),
                 "available": True,
-                "trust_score": 0.5,
+                "trust_score": trust,
                 "trust_warning": None,
                 "model_note": None,
                 "requires_revenue_model": False,
@@ -3604,23 +3730,38 @@ def _enrich_suggested_goals(schema, catalog_trust: list, proposal: dict) -> list
             if metric_info.get(m, {}).get("available", False)
         ]
         available = len(available_metrics) > 0
-        trusts = [
-            metric_info.get(m, {}).get("data_trust_score", 0.0)
-            for m in available_metrics
-        ]
-        trust_score = round(sum(trusts) / len(trusts), 2) if trusts else 0.0
+
+        # Use data-aware confidence when crm_ctx is available
+        if has_ctx:
+            trust_score = _compute_data_confidence(goal_id, crm_ctx)
+        else:
+            trusts = [
+                metric_info.get(m, {}).get("data_trust_score", 0.0)
+                for m in available_metrics
+            ]
+            trust_score = round(sum(trusts) / len(trusts), 2) if trusts else 0.0
+
         trust_warning = None
         if available and trust_score < 0.4:
             trust_warning = f"Data quality is low ({trust_score:.0%} confidence). Metrics may be inaccurate."
         elif available and trust_score < 0.7:
             trust_warning = f"Data quality is moderate ({trust_score:.0%} confidence)."
+
         model_note = None
         if goal_def.get("requires_revenue_model") and proposal.get("requires_confirmation"):
             model_note = "Requires confirming won/lost stage mapping before metrics are computed."
+
+        # Use data-specific description when crm_ctx is available
+        description = sg.get("reason", goal_def["description"])
+        if has_ctx:
+            data_desc = _data_description(goal_id, crm_ctx)
+            if data_desc:
+                description = data_desc
+
         goals.append({
             "id": goal_id,
             "name": sg.get("label", goal_def["name"]),
-            "description": sg.get("reason", goal_def["description"]),
+            "description": description,
             "available": available,
             "trust_score": trust_score,
             "trust_warning": trust_warning,
@@ -3715,19 +3856,6 @@ def _revenue_refinement_questions(proposal: dict, selected_goals: list) -> list:
                 "options": [{"label": s, "value": s} for s in stage_order],
                 "default": stage_order,
             })
-
-    # Time horizon — always present
-    questions.append({
-        "id": "time_horizon",
-        "type": "radio",
-        "question": "What time period should your dashboard focus on?",
-        "options": [
-            {"label": "Last 30 days — recent activity", "value": "30d"},
-            {"label": "Last 90 days — quarterly view", "value": "90d"},
-            {"label": "Last 12 months — annual overview", "value": "365d"},
-        ],
-        "default": "30d",
-    })
 
     # Rep scope — only when rep_performance is selected
     if "rep_performance" in selected_goals:
@@ -3947,16 +4075,36 @@ async def dashboard_onboarding_start(current_user: Dict = Depends(get_current_us
                 logger.warning("Schema discovery failed during onboarding, using legacy path: %s", e)
                 return None
 
-        schema_profile, proposal, catalog_trust = await _asyncio.gather(
+        async def _safe_compute_context():
+            """Load existing crm_context or compute fresh for data-aware goals."""
+            try:
+                existing = await _aio.to_thread(
+                    lambda: supabase.table("dashboard_configs")
+                    .select("crm_context")
+                    .eq("tenant_id", tenant_id)
+                    .execute()
+                )
+                if existing.data and existing.data[0].get("crm_context"):
+                    ctx = existing.data[0]["crm_context"]
+                    if ctx and ctx.get("counts"):
+                        return ctx
+                from agents.crm_context import compute_crm_context
+                return await compute_crm_context(supabase, tenant_id, crm_source)
+            except Exception as e:
+                logger.warning("CRM context computation failed, goals will use legacy scoring: %s", e)
+                return None
+
+        schema_profile, proposal, catalog_trust, crm_ctx = await _asyncio.gather(
             _safe_discover_schema(),
             build_proposal(supabase, tenant_id, crm_source),
             get_catalog_with_trust(supabase, tenant_id, crm_source),
+            _safe_compute_context(),
         )
         proposal_dict = _asdict(proposal)
 
         # Use schema-driven goals if available, else legacy _REVENUE_GOALS
         if schema_profile and schema_profile.suggested_goals:
-            goals = _enrich_suggested_goals(schema_profile, catalog_trust, proposal_dict)
+            goals = _enrich_suggested_goals(schema_profile, catalog_trust, proposal_dict, crm_ctx)
         else:
             goals = _revenue_goals_from_catalog(catalog_trust, proposal_dict)
 

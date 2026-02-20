@@ -3,14 +3,14 @@
 
 // Modern, clean color palette - distinct colors for visual clarity
 export const CHART_COLORS = [
-  '#6366f1', // indigo-500 (primary - modern, professional)
-  '#f59e0b', // amber-500 (warm contrast)
-  '#06b6d4', // cyan-500 (fresh, clean)
-  '#ec4899', // pink-500 (vibrant accent)
-  '#8b5cf6', // violet-500 (premium feel)
-  '#14b8a6', // teal-500 (calming)
-  '#f97316', // orange-500 (energetic)
-  '#3b82f6', // blue-500 (trustworthy)
+  '#059669', // emerald-600 — brand primary, always first
+  '#4f46e5', // indigo-600 — rich, professional
+  '#0891b2', // cyan-600 — clean, distinct from emerald
+  '#7c3aed', // violet-600 — premium accent
+  '#d97706', // amber-600 — warm contrast
+  '#475569', // slate-600 — neutral anchor
+  '#0d9488', // teal-600 — nature tones
+  '#c026d3', // fuchsia-600 — rare accent
 ];
 
 export const CHART_CONFIG = {
