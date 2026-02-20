@@ -22,6 +22,62 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
+# ---------------------------------------------------------------------------
+# Rep name resolution utilities
+# ---------------------------------------------------------------------------
+
+async def build_rep_name_map(supabase, tenant_id: str, crm_source: str) -> dict[str, str]:
+    """
+    Build a mapping of CRM user IDs → display names from crm_users or
+    crm_activities (employee_name). Returns e.g. {"1": "John Smith", "3": "Alice Jones"}.
+    """
+    name_map: dict[str, str] = {}
+    try:
+        # Primary: crm_users table (if populated by sync)
+        result = supabase.table("crm_users").select(
+            "external_id,name"
+        ).eq("tenant_id", tenant_id).eq(
+            "crm_source", crm_source
+        ).limit(500).execute()
+
+        for row in (result.data or []):
+            uid = str(row.get("external_id", "")).strip()
+            name = (row.get("name") or "").strip()
+            if uid and name:
+                name_map[uid] = name
+    except Exception:
+        pass  # Table may not exist yet
+
+    if name_map:
+        return name_map
+
+    # Fallback: extract distinct employee names from crm_activities
+    try:
+        result = supabase.table("crm_activities").select(
+            "employee_id,employee_name"
+        ).eq("tenant_id", tenant_id).eq(
+            "crm_source", crm_source
+        ).not_.is_("employee_name", "null").limit(1000).execute()
+
+        for row in (result.data or []):
+            uid = str(row.get("employee_id", "")).strip()
+            name = (row.get("employee_name") or "").strip()
+            if uid and name:
+                name_map[uid] = name
+    except Exception:
+        pass
+
+    return name_map
+
+
+def resolve_rep_name(value: str, rep_map: dict[str, str]) -> str:
+    """Look up a rep ID in the name map, return display name or original value."""
+    if not value:
+        return value
+    return rep_map.get(str(value).strip(), value)
+
+
 TIMEFRAME_LABEL = {
     "7d":  "last 7 days",
     "30d": "last 30 days",
@@ -432,6 +488,128 @@ async def list_deals(
         logger.warning("list_deals: %s", e)
         return {
             "deals": [],
+            "total": 0,
+            "filters_applied": {},
+            "truncated": False,
+            "error": str(e),
+        }
+
+
+# ---------------------------------------------------------------------------
+# Tool 7 — List records from any entity (contacts, companies, leads, activities)
+# ---------------------------------------------------------------------------
+
+# Entity table configs: table_name → (select_fields, display_fields, sort_col)
+_ENTITY_TABLE_CONFIG = {
+    "contacts": {
+        "table": "crm_contacts",
+        "select": "id,source_id,name,phone,email,company,created_at",
+        "sort_col": "created_at",
+    },
+    "companies": {
+        "table": "crm_companies",
+        "select": "id,source_id,name,industry,employee_count,revenue,created_at",
+        "sort_col": "created_at",
+    },
+    "leads": {
+        "table": "crm_leads",
+        "select": "id,source_id,title,status,source,contact_name,contact_email,value,created_at",
+        "sort_col": "created_at",
+    },
+    "activities": {
+        "table": "crm_activities",
+        "select": "id,source_id,type,subject,employee_name,completed,started_at",
+        "sort_col": "started_at",
+    },
+}
+
+
+async def list_entity_records(
+    supabase,
+    tenant_id: str,
+    crm_source: str,
+    entity: str,
+    search_term: Optional[str] = None,
+    filter_field: Optional[str] = None,
+    filter_value: Optional[str] = None,
+    limit: int = 10,
+) -> dict:
+    """
+    Query any CRM entity table with optional filters.
+
+    Returns
+    -------
+    {
+        records: list[dict],
+        entity: str,
+        total: int,
+        filters_applied: dict,
+        truncated: bool,
+        error: str | None,
+    }
+    """
+    CAP = 15
+    config = _ENTITY_TABLE_CONFIG.get(entity)
+    if not config:
+        return {
+            "records": [],
+            "entity": entity,
+            "total": 0,
+            "filters_applied": {},
+            "truncated": False,
+            "error": f"Unknown entity '{entity}'. Supported: {list(_ENTITY_TABLE_CONFIG.keys())}",
+        }
+
+    try:
+        query = (
+            supabase.table(config["table"])
+            .select(config["select"])
+            .eq("tenant_id", tenant_id)
+            .eq("crm_source", crm_source)
+        )
+
+        # Apply text search filter if provided
+        if search_term:
+            # Search in name/title/subject depending on entity
+            search_col = {
+                "contacts": "name",
+                "companies": "name",
+                "leads": "title",
+                "activities": "subject",
+            }.get(entity, "name")
+            query = query.ilike(search_col, f"%{search_term}%")
+
+        # Apply explicit field filter
+        if filter_field and filter_value:
+            query = query.ilike(filter_field, f"%{filter_value}%")
+
+        query = query.order(config["sort_col"], desc=True)
+        result = query.limit(CAP + 1).execute()
+        rows = result.data or []
+
+        truncated = len(rows) > CAP
+        rows = rows[:min(limit, CAP)]
+
+        filters_applied = {}
+        if search_term:
+            filters_applied["search"] = search_term
+        if filter_field:
+            filters_applied[filter_field] = filter_value
+
+        return {
+            "records": rows,
+            "entity": entity,
+            "total": len(rows),
+            "filters_applied": filters_applied,
+            "truncated": truncated,
+            "error": None,
+        }
+
+    except Exception as e:
+        logger.warning("list_entity_records(%s): %s", entity, e)
+        return {
+            "records": [],
+            "entity": entity,
             "total": 0,
             "filters_applied": {},
             "truncated": False,

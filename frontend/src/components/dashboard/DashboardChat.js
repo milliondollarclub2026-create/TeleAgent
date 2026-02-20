@@ -42,23 +42,23 @@ const thinkingMessages = [
 // Markdown components (reused from CRMChatPage)
 const markdownComponents = {
   table: ({ children }) => (
-    <div className="overflow-x-auto my-4 border border-slate-300 rounded-lg shadow-sm">
+    <div className="overflow-x-auto my-4 border border-slate-100 rounded-lg">
       <table className="min-w-full text-[13px]">{children}</table>
     </div>
   ),
   thead: ({ children }) => (
-    <thead className="bg-slate-100">{children}</thead>
+    <thead className="bg-slate-50">{children}</thead>
   ),
   th: ({ children }) => (
-    <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-600 uppercase tracking-wider border-b-2 border-slate-300">
+    <th className="px-4 py-2.5 text-left text-[11px] font-medium text-slate-500 border-b border-slate-100">
       {children}
     </th>
   ),
   td: ({ children }) => (
-    <td className="px-4 py-2.5 border-b border-slate-200 text-slate-700">{children}</td>
+    <td className="px-4 py-2.5 border-b border-slate-50 text-slate-700">{children}</td>
   ),
   tr: ({ children }) => (
-    <tr className="hover:bg-slate-50 transition-colors">{children}</tr>
+    <tr className="hover:bg-slate-50/50 transition-colors">{children}</tr>
   ),
   h1: ({ children }) => <h1 className="text-xl font-bold text-slate-900 mt-6 mb-3">{children}</h1>,
   h2: ({ children }) => <h2 className="text-lg font-bold text-slate-900 mt-5 mb-2">{children}</h2>,
@@ -499,7 +499,7 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
                 <button
                   key={i}
                   onClick={() => sendMessage(action.text)}
-                  className="group px-4 py-2.5 bg-white border border-slate-200/80 rounded-full text-[13px] text-slate-600 font-medium transition-all duration-200 ease-out hover:border-slate-300 hover:bg-white hover:text-slate-900 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)] hover:-translate-y-px active:translate-y-0 active:shadow-none"
+                  className="group px-4 py-2.5 bg-white border border-slate-200 rounded-full text-[13px] text-slate-600 font-medium transition-colors duration-150 hover:border-slate-300 hover:text-slate-900 hover:bg-slate-50"
                   style={{ animationDelay: `${300 + i * 75}ms` }}
                 >
                   {action.text}
@@ -623,16 +623,16 @@ function RecordTable({ chart }) {
   return (
     <div className="rounded-xl border border-slate-200 overflow-hidden text-[13px]">
       {title && (
-        <div className="px-4 py-2.5 border-b border-slate-100 bg-slate-50">
-          <span className="font-semibold text-slate-700 text-xs">{title}</span>
+        <div className="px-4 py-2.5 border-b border-slate-100">
+          <span className="font-medium text-slate-700 text-xs">{title}</span>
         </div>
       )}
       <div className="overflow-x-auto">
         <table className="min-w-full">
-          <thead className="bg-slate-50 border-b border-slate-200">
+          <thead className="border-b border-slate-100">
             <tr>
               {cols.map((col) => (
-                <th key={col.key || col.label} className="px-3 py-2 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                <th key={col.key || col.label} className="px-3 py-2 text-left text-[11px] font-medium text-slate-500 whitespace-nowrap">
                   {col.label}
                 </th>
               ))}

@@ -31,6 +31,7 @@ from agents import (
     AlertResult,
     Recommendation,
 )
+from agents.bobur_tools import build_rep_name_map, resolve_rep_name
 
 logger = logging.getLogger(__name__)
 
@@ -506,27 +507,89 @@ async def _check_pipeline_health(supabase, tenant_id, crm_source) -> list[Insigh
 
 
 async def _check_source_effectiveness(supabase, tenant_id, crm_source) -> list[InsightResult]:
-    result = (
-        supabase.table("crm_leads").select("source")
+    # Fetch leads with source info
+    lead_result = (
+        supabase.table("crm_leads").select("source,contact_name,contact_email")
         .eq("tenant_id", tenant_id).eq("crm_source", crm_source)
         .not_.is_("source", "null").limit(2000).execute()
     )
-    rows = result.data or []
-    if not rows:
+    leads = lead_result.data or []
+    if not leads:
         return []
-    source_counts = {}
-    for r in rows:
+
+    # Count leads per source
+    source_lead_counts: dict[str, int] = {}
+    # Build contact lookup for matching leads → deals
+    lead_contacts: dict[str, set] = {}  # source → set of (name or email)
+    for r in leads:
         src = r.get("source") or "Unknown"
-        source_counts[src] = source_counts.get(src, 0) + 1
+        source_lead_counts[src] = source_lead_counts.get(src, 0) + 1
+        # Track contact identifiers for matching
+        name = (r.get("contact_name") or "").strip().lower()
+        email = (r.get("contact_email") or "").strip().lower()
+        if src not in lead_contacts:
+            lead_contacts[src] = set()
+        if name:
+            lead_contacts[src].add(name)
+        if email:
+            lead_contacts[src].add(email)
+
+    # Only analyze sources with enough leads
+    significant_sources = {s: c for s, c in source_lead_counts.items() if c >= 5}
+    if not significant_sources:
+        return []
+
+    # Fetch won deals to check conversion
+    deal_result = (
+        supabase.table("crm_deals").select("title,won")
+        .eq("tenant_id", tenant_id).eq("crm_source", crm_source)
+        .limit(2000).execute()
+    )
+    deals = deal_result.data or []
+    total_deals = len(deals)
+    won_deals = [d for d in deals if d.get("won") is True]
+
+    # If we have deals data, compute rough conversion rates per source
+    # by matching lead count proportions against overall win rate
+    overall_win_rate = (len(won_deals) / total_deals * 100) if total_deals > 0 else 0
+    total_leads = sum(source_lead_counts.values())
+
     insights = []
-    for src, count in source_counts.items():
-        if count >= 20:
+
+    # Sort sources by lead count descending
+    sorted_sources = sorted(significant_sources.items(), key=lambda x: x[1], reverse=True)
+
+    for src, lead_count in sorted_sources[:4]:
+        share_pct = (lead_count / total_leads * 100) if total_leads > 0 else 0
+
+        if share_pct >= 25 and lead_count >= 20:
+            # High-volume source — flag for review
             insights.append(InsightResult(
                 severity="info",
-                title=f"Review Source: {src}",
-                description=f"Source '{src}' has generated {count} leads. Review conversion effectiveness.",
-                suggested_action=f"Analyze whether '{src}' leads are converting to deals.",
+                title=f"Top Source: {src}",
+                description=(
+                    f"Source '{src}' generates {lead_count} leads ({share_pct:.0f}% of total). "
+                    f"Overall deal win rate is {overall_win_rate:.1f}%."
+                ),
+                suggested_action=(
+                    f"Track '{src}' leads through to closed deals to measure true ROI. "
+                    "Consider increasing investment if conversion is above average."
+                ),
             ))
+        elif lead_count >= 10 and share_pct < 10:
+            # Low-share source — might be underperforming
+            insights.append(InsightResult(
+                severity="info",
+                title=f"Low-Share Source: {src}",
+                description=(
+                    f"Source '{src}' contributes only {lead_count} leads ({share_pct:.0f}% of total)."
+                ),
+                suggested_action=(
+                    f"Evaluate whether '{src}' leads have higher quality/conversion to justify the investment, "
+                    "or consider reallocating budget to top-performing sources."
+                ),
+            ))
+
     return insights[:2]
 
 
@@ -539,9 +602,14 @@ async def _check_team_imbalance(supabase, tenant_id, crm_source) -> list[Insight
     rows = result.data or []
     if len(rows) < 5:
         return []
+
+    # Resolve rep IDs to names
+    rep_map = await build_rep_name_map(supabase, tenant_id, crm_source)
+
     rep_counts = {}
     for r in rows:
-        rep = r.get("assigned_to", "Unassigned")
+        rep_raw = r.get("assigned_to", "Unassigned")
+        rep = resolve_rep_name(rep_raw, rep_map)
         rep_counts[rep] = rep_counts.get(rep, 0) + 1
     if len(rep_counts) < 2:
         return []

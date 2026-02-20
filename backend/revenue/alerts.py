@@ -20,6 +20,7 @@ from typing import Optional
 
 from agents import AlertResult, DynamicMetricResult
 from agents.anvar import load_allowed_fields, DEFAULT_ALLOWED_FIELDS
+from agents.bobur_tools import build_rep_name_map, resolve_rep_name
 
 logger = logging.getLogger(__name__)
 
@@ -201,8 +202,8 @@ async def _evaluate_stagnation(
         ).eq("crm_source", crm_source).limit(0).execute()
 
         total = total_result.count or 0
-        if total == 0:
-            return None
+        if total < 5:
+            return None  # Not enough data to trigger stagnation alert
 
         stale_pct = (stale_count / total) * 100
 
@@ -259,6 +260,7 @@ async def _evaluate_concentration(
 ) -> Optional[AlertResult]:
     """
     Check if a disproportionate amount is concentrated in one owner/dimension.
+    Resolves rep IDs to names when dimension is assigned_to.
     """
     if not metric_key or metric_key not in metric_map:
         return None
@@ -303,9 +305,18 @@ async def _evaluate_concentration(
             return None
 
         # Find max concentration
-        max_dim = max(totals, key=totals.get)
-        max_val = totals[max_dim]
+        max_dim_raw = max(totals, key=totals.get)
+        max_val = totals[max_dim_raw]
         max_pct = (max_val / grand_total) * 100
+
+        # Resolve rep ID to name if dimension is assigned_to
+        max_dim = max_dim_raw
+        if dimension_field == "assigned_to":
+            try:
+                rep_map = await build_rep_name_map(supabase, tenant_id, crm_source)
+                max_dim = resolve_rep_name(max_dim_raw, rep_map)
+            except Exception:
+                pass
 
         warning_threshold = severity_rules.get("warning", {}).get("threshold_pct", 60)
         critical_threshold = severity_rules.get("critical", {}).get("threshold_pct", 80)

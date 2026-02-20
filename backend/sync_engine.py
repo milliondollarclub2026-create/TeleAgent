@@ -481,6 +481,20 @@ async def _recompute_revenue_background(supabase, tenant_id: str, crm_source: st
     except Exception as e:
         logger.warning("_recompute_revenue_background import failed: %s", e)
 
+    # Compute and store CRM context for Bobur's context-aware chat
+    try:
+        from agents.crm_context import compute_crm_context
+        context = await compute_crm_context(supabase, tenant_id, crm_source)
+        supabase.table("dashboard_configs").update(
+            {"crm_context": context}
+        ).eq("tenant_id", tenant_id).execute()
+        logger.info(
+            "CRM context refreshed after sync (tenant=%s, crm=%s)",
+            tenant_id, crm_source,
+        )
+    except Exception as e:
+        logger.warning("CRM context compute failed (tenant=%s): %s", tenant_id, e)
+
 
 async def trigger_full_sync_background(supabase, tenant_id: str, crm_type: str):
     """Fire-and-forget wrapper for trigger_full_sync. Tracked so it can be cancelled."""

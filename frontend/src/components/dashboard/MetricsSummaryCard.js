@@ -15,9 +15,9 @@ function formatTimeAgo(isoString) {
 }
 
 function confidenceLabel(trust) {
-  if (trust >= 0.7) return { label: `High (${Math.round(trust * 100)}%)`, color: 'text-emerald-700 bg-emerald-50' };
-  if (trust >= 0.4) return { label: `Moderate (${Math.round(trust * 100)}%)`, color: 'text-amber-700 bg-amber-50' };
-  return { label: `Low (${Math.round(trust * 100)}%)`, color: 'text-red-700 bg-red-50' };
+  if (trust >= 0.7) return { label: `High (${Math.round(trust * 100)}%)`, color: 'text-emerald-600' };
+  if (trust >= 0.4) return { label: `Moderate (${Math.round(trust * 100)}%)`, color: 'text-amber-600' };
+  return { label: `Low (${Math.round(trust * 100)}%)`, color: 'text-red-600' };
 }
 
 function formatMetricValue(value, displayFormat, currency) {
@@ -43,7 +43,7 @@ function formatMetricValue(value, displayFormat, currency) {
 function MetricCell({ label, value, subValue, subPositive }) {
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
-      <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide truncate">{label}</p>
+      <p className="text-[11px] font-medium text-slate-500 truncate">{label}</p>
       <div className="flex items-baseline gap-1.5">
         <span className="text-[17px] font-semibold text-slate-900 tabular-nums">{value ?? '—'}</span>
         {subValue != null && (
@@ -149,8 +149,8 @@ export default function MetricsSummaryCard({ getRevenueOverview }) {
           <div className="sm:px-6">
             {loading ? <SkeletonCell /> : (
               <div className="flex flex-col gap-0.5">
-                <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Confidence</p>
-                <span className={`self-start text-[12px] font-semibold px-2 py-0.5 rounded-full ${conf.color}`}>
+                <p className="text-[11px] font-medium text-slate-500">Confidence</p>
+                <span className={`text-[15px] font-semibold ${conf.color}`}>
                   {conf.label}
                 </span>
               </div>
@@ -161,7 +161,7 @@ export default function MetricsSummaryCard({ getRevenueOverview }) {
           <div className="sm:pl-6">
             {loading ? <SkeletonCell /> : (
               <div className="flex flex-col gap-0.5">
-                <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Alerts</p>
+                <p className="text-[11px] font-medium text-slate-500">Alerts</p>
                 {alertCount > 0 ? (
                   <div className="flex items-center gap-1">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" strokeWidth={1.75} />

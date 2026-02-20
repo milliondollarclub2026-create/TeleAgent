@@ -295,12 +295,15 @@ class BitrixAdapter(CRMAdapter):
         name_parts = [raw.get("NAME", ""), raw.get("LAST_NAME", "")]
         contact_name = " ".join(p for p in name_parts if p).strip() or None
 
+        assigned_id = str(raw.get("ASSIGNED_BY_ID", "")).strip() or None
+        assigned_name = self._user_cache.get(assigned_id, assigned_id) if assigned_id else None
+
         return {
             "external_id": str(raw.get("ID", "")),
             "title": raw.get("TITLE"),
             "status": raw.get("STATUS_ID"),
             "source": raw.get("SOURCE_ID"),
-            "assigned_to": str(raw.get("ASSIGNED_BY_ID", "")) or None,
+            "assigned_to": assigned_name,
             "contact_name": contact_name,
             "contact_phone": self._extract_phone(raw),
             "contact_email": self._extract_email(raw),
@@ -314,13 +317,16 @@ class BitrixAdapter(CRMAdapter):
         stage = raw.get("STAGE_ID", "")
         won = (stage == "WON" or stage.endswith(":WON")) if stage else None
 
+        assigned_id = str(raw.get("ASSIGNED_BY_ID", "")).strip() or None
+        assigned_name = self._user_cache.get(assigned_id, assigned_id) if assigned_id else None
+
         return {
             "external_id": str(raw.get("ID", "")),
             "title": raw.get("TITLE"),
             "stage": stage,
             "value": float(raw["OPPORTUNITY"]) if raw.get("OPPORTUNITY") else None,
             "currency": raw.get("CURRENCY_ID", "USD"),
-            "assigned_to": str(raw.get("ASSIGNED_BY_ID", "")) or None,
+            "assigned_to": assigned_name,
             "contact_id": str(raw.get("CONTACT_ID", "")) or None,
             "company_id": str(raw.get("COMPANY_ID", "")) or None,
             "won": won,
