@@ -4161,11 +4161,20 @@ async def dashboard_onboarding_refine(
             widgets = _generate_goal_widgets(selected_goals, time_range_days, crm_source)
 
         # Insert widgets into dashboard_widgets
+        # Strip fields that don't exist in the table schema to avoid 400 errors
+        _WIDGET_VALID_COLUMNS = {
+            "tenant_id", "crm_source", "chart_type", "title", "description",
+            "data_source", "x_field", "y_field", "aggregation", "group_by",
+            "filter_field", "filter_value", "time_range_days", "sort_order",
+            "item_limit", "position", "size", "is_standard", "source",
+        }
         if widgets:
+            clean_widgets = []
             for w in widgets:
                 w["tenant_id"] = tenant_id
+                clean_widgets.append({k: v for k, v in w.items() if k in _WIDGET_VALID_COLUMNS})
             await _aio.to_thread(
-                lambda: supabase.table("dashboard_widgets").insert(widgets).execute()
+                lambda: supabase.table("dashboard_widgets").insert(clean_widgets).execute()
             )
 
         # Mark onboarding complete; persist final goal list + model confirmation timestamp
