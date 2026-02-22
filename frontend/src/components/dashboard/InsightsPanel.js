@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, AlertCircle, Lightbulb, Info, ArrowRight, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Lightbulb, Info, ArrowRight, ShieldCheck, X, TrendingDown, TrendingUp } from 'lucide-react';
 
 const severityConfig = {
   critical: {
@@ -120,6 +120,16 @@ export default function InsightsPanel({ insights, loading, onDismissAlert }) {
                     )}
                   </div>
                   <p className="text-sm text-slate-600 leading-relaxed mt-1">{insight.description}</p>
+                  {insight.impact && (
+                    <div className="flex items-center gap-1.5 mt-2 text-[13px] font-medium text-slate-700">
+                      {severity === 'warning' || severity === 'critical' ? (
+                        <TrendingDown className="w-3.5 h-3.5 text-red-500 flex-shrink-0" strokeWidth={2} />
+                      ) : (
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" strokeWidth={2} />
+                      )}
+                      {insight.impact}
+                    </div>
+                  )}
                   {insight.suggested_action && (
                     <p className="text-[13px] text-emerald-700 font-medium mt-2 flex items-center gap-1">
                       <ArrowRight className="w-3.5 h-3.5 flex-shrink-0" strokeWidth={2} />

@@ -421,6 +421,7 @@ function CRMDashboardPageInner() {
               onDrillDown={handleDrillDown}
               onReorderWidgets={handleReorderWidgets}
               onResizeWidget={handleResizeWidget}
+              api={api}
             />
           }
           chat={

@@ -20,7 +20,7 @@ export default function ExportMenu({ dashboardRef, widgets, dateRange }) {
         title: 'LeadRelay Dashboard Report',
         dateRange: dateRange?.label || 'Last 30 days',
         timestamp: new Date().toLocaleString(),
-      });
+      }, widgets || []);
     } catch (err) {
       console.error('PDF export failed:', err);
     } finally {

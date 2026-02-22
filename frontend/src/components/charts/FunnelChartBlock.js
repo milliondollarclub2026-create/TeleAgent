@@ -2,6 +2,7 @@ import React from 'react';
 import {
   CHART_STYLES,
   CHART_CONFIG,
+  CHART_COLORS,
   formatNumber,
   formatPercent,
 } from './chartTheme';
@@ -28,7 +29,7 @@ export default function FunnelChartBlock({ chart, chartIndex = 0, interactive = 
   }
 
   const maxValue = Math.max(...data.map(d => d.value), 1);
-  const baseColor = '#1e293b'; // slate-800
+  const baseColor = CHART_COLORS[0];
 
   const stages = data.map((item, index) => {
     const widthPercent = maxValue > 0 ? (item.value / maxValue) * 100 : 0;

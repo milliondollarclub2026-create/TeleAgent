@@ -367,6 +367,7 @@ async def _check_lead_velocity(supabase, tenant_id, crm_source) -> list[InsightR
                 severity="warning",
                 title="Lead Velocity Drop",
                 description=f"New leads this week ({this_count}) dropped {abs(change_pct):.0f}% compared to last week ({last_count}).",
+                impact=f"Leads down {abs(change_pct):.0f}% week-over-week ({this_count} vs {last_count})",
                 suggested_action="Review lead sources and marketing campaigns for any recent changes.",
             )]
         elif change_pct >= 30:
@@ -374,6 +375,7 @@ async def _check_lead_velocity(supabase, tenant_id, crm_source) -> list[InsightR
                 severity="info",
                 title="Lead Surge",
                 description=f"New leads this week ({this_count}) increased {change_pct:.0f}% vs last week ({last_count}).",
+                impact=f"Leads up {change_pct:.0f}% week-over-week ({this_count} vs {last_count})",
                 suggested_action="Ensure your team has capacity to handle the increased volume.",
             )]
     return []
@@ -393,6 +395,7 @@ async def _check_stagnant_deals(supabase, tenant_id, crm_source) -> list[Insight
             severity="warning",
             title="Stagnant Deals",
             description=f"{count} deals haven't been updated in over 30 days and are still open.",
+            impact=f"{count} deals at risk of going cold",
             suggested_action="Review these deals and either advance them or mark as lost.",
         )]
     return []
@@ -436,6 +439,7 @@ async def _check_conversion_trend(supabase, tenant_id, crm_source) -> list[Insig
             severity="warning",
             title="Conversion Rate Declining",
             description=f"Conversion rate dropped from {last_rate:.1f}% last month to {this_rate:.1f}% this month.",
+            impact=f"Conversion down {abs(this_rate - last_rate):.1f}pp ({this_rate:.1f}% vs {last_rate:.1f}%)",
             suggested_action="Analyze lost deals for common objections or process bottlenecks.",
         )]
     elif last_rate > 0 and this_rate > last_rate * 1.2:
@@ -443,6 +447,7 @@ async def _check_conversion_trend(supabase, tenant_id, crm_source) -> list[Insig
             severity="info",
             title="Conversion Rate Improving",
             description=f"Conversion rate improved from {last_rate:.1f}% to {this_rate:.1f}%.",
+            impact=f"Conversion up {abs(this_rate - last_rate):.1f}pp ({this_rate:.1f}% vs {last_rate:.1f}%)",
         )]
     return []
 
@@ -468,10 +473,12 @@ async def _check_activity_drop(supabase, tenant_id, crm_source) -> list[InsightR
     last_count = last_week.count or 0
 
     if last_count > 5 and this_count < last_count * 0.5:
+        drop_pct = ((1 - this_count/last_count)*100)
         return [InsightResult(
             severity="warning",
             title="Activity Drop",
-            description=f"Team activities this week ({this_count}) are {((1 - this_count/last_count)*100):.0f}% lower than last week ({last_count}).",
+            description=f"Team activities this week ({this_count}) are {drop_pct:.0f}% lower than last week ({last_count}).",
+            impact=f"Activities down {drop_pct:.0f}% week-over-week",
             suggested_action="Check if team members are logging activities or if there's a process issue.",
         )]
     return []

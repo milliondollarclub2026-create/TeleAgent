@@ -11,6 +11,7 @@ import {
 import {
   CHART_STYLES,
   CHART_CONFIG,
+  CHART_COLORS,
   TOOLTIP_STYLE,
   AXIS_STYLE,
   GRID_STYLE,
@@ -40,7 +41,7 @@ export default function BarChartBlock({ chart, chartIndex = 0, interactive = fal
     );
   }
 
-  const barColor = '#1e293b'; // slate-800 — single color for all bars
+  const barColor = CHART_COLORS[0];
 
   const chartData = data.map((item) => ({
     name: item.label,

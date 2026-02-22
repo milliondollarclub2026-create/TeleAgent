@@ -147,8 +147,14 @@ async def execute_chart_query(
             filter_val = str(config.filter_value)[:200]
             query = query.eq(config.filter_field, filter_val)
 
-        # Apply time range
-        if config.time_range_days:
+        # Apply time range — absolute dates take priority over relative days
+        if config.from_date or config.to_date:
+            time_field = _get_time_field(config.data_source)
+            if config.from_date:
+                query = query.gte(time_field, config.from_date)
+            if config.to_date:
+                query = query.lte(time_field, config.to_date)
+        elif config.time_range_days:
             time_field = _get_time_field(config.data_source)
             cutoff = datetime.now(timezone.utc) - timedelta(days=config.time_range_days)
             query = query.gte(time_field, cutoff.isoformat())

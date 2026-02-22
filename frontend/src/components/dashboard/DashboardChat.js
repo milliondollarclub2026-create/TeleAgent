@@ -262,14 +262,24 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
 
   // Replace widget handler (wraps onReplaceWidget with chart data)
   const handleReplaceOnDashboard = async (chart) => {
-    if (onReplaceWidget) {
+    if (!onReplaceWidget) return { error: null };
+    try {
       const chartType = chart.type || chart.chart_type || 'bar';
+      let xField = chart.x_field || chart.group_by || chart.label_field || null;
+      if (!xField && ['kpi', 'metric', 'number'].includes(chartType)) {
+        xField = 'id';
+      }
+      if (!xField) {
+        const defaults = { crm_leads: 'status', crm_deals: 'stage', crm_contacts: 'company', crm_companies: 'industry', crm_activities: 'type' };
+        xField = defaults[chart.data_source || modifyingWidget?.data_source] || 'status';
+      }
+
       const { error } = await onReplaceWidget({
         title: chart.title || modifyingWidget?.title || 'Chart',
         chart_type: chartType,
         data_source: chart.data_source || modifyingWidget?.data_source || 'crm_leads',
         crm_source: chart.crm_source || 'bitrix24',
-        x_field: chart.x_field || null,
+        x_field: xField,
         y_field: chart.y_field || 'count',
         aggregation: chart.aggregation || 'count',
         filter_field: chart.filter_field || null,
@@ -279,9 +289,12 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
         item_limit: chart.item_limit || 10,
         size: ['line', 'funnel'].includes(chartType) ? 'large' : 'medium',
       });
+      if (error) toast.error('Failed to replace widget');
       return { error };
+    } catch (err) {
+      toast.error('Failed to replace widget');
+      return { error: err.message };
     }
-    return { error: null };
   };
 
   // Clear chat history
@@ -296,14 +309,26 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
 
   // Add chart to dashboard
   const handleAddToDashboard = async (chart) => {
-    if (onAddWidget) {
+    if (!onAddWidget) return { error: null };
+    try {
       const chartType = chart.type || chart.chart_type || 'bar';
+      // Robust x_field extraction — KPI types don't need a real x_field
+      let xField = chart.x_field || chart.group_by || chart.label_field || null;
+      if (!xField && ['kpi', 'metric', 'number'].includes(chartType)) {
+        xField = 'id';
+      }
+      if (!xField) {
+        // Infer from data_source defaults
+        const defaults = { crm_leads: 'status', crm_deals: 'stage', crm_contacts: 'company', crm_companies: 'industry', crm_activities: 'type' };
+        xField = defaults[chart.data_source] || 'status';
+      }
+
       const { error } = await onAddWidget({
         title: chart.title || 'Chart',
         chart_type: chartType,
         data_source: chart.data_source || 'crm_leads',
         crm_source: chart.crm_source || 'bitrix24',
-        x_field: chart.x_field || null,
+        x_field: xField,
         y_field: chart.y_field || 'count',
         aggregation: chart.aggregation || 'count',
         filter_field: chart.filter_field || null,
@@ -315,10 +340,14 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
       });
       if (!error) {
         toast.success('Added to dashboard');
+      } else {
+        toast.error('Failed to add widget');
       }
       return { error };
+    } catch (err) {
+      toast.error('Failed to add widget');
+      return { error: err.message };
     }
-    return { error: null };
   };
 
   // --- History loading skeleton ---

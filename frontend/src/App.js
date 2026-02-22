@@ -45,6 +45,7 @@ import PricingPage from "./pages/PricingPage";
 import PricingHubPage from "./pages/PricingHubPage";
 import AnalyticsPricingPage from "./pages/AnalyticsPricingPage";
 import SecurityPage from "./pages/SecurityPage";
+import SharedDashboardPage from "./pages/SharedDashboardPage";
 
 // Protected route wrapper - redirects to landing if not authenticated
 function ProtectedRoute({ children }) {
@@ -92,7 +93,8 @@ function AppRoutes() {
       <Route path="/pricing/sales" element={<PricingPage />} />
       <Route path="/pricing/analytics" element={<AnalyticsPricingPage />} />
       <Route path="/security" element={<SecurityPage />} />
-      
+      <Route path="/shared/:token" element={<SharedDashboardPage />} />
+
       {/* Protected routes */}
       <Route path="/app" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/app/agents" replace />} />

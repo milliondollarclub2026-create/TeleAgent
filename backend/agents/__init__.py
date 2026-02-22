@@ -26,6 +26,8 @@ class ChartConfig(BaseModel):
     filter_field: Optional[str] = None
     filter_value: Optional[str] = None
     time_range_days: Optional[int] = None
+    from_date: Optional[str] = None   # Absolute range start, ISO "YYYY-MM-DD"
+    to_date: Optional[str] = None     # Absolute range end, ISO "YYYY-MM-DD"
     sort_order: str = "desc"
     item_limit: int = 10
 
@@ -71,6 +73,7 @@ class InsightResult(BaseModel):
     severity: str            # "info", "warning", "critical"
     title: str
     description: str
+    impact: Optional[str] = None          # Business impact (e.g. "Revenue down 12%")
     suggested_action: Optional[str] = None
 
 

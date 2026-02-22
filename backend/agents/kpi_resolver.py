@@ -116,6 +116,8 @@ async def resolve_kpi(
     crm_source: str,
     pattern: str,
     time_range_days: Optional[int] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
 ) -> Optional[ChartResult]:
     """
     Resolve a KPI pattern to a ChartResult.
@@ -136,7 +138,7 @@ async def resolve_kpi(
     currency = await _get_tenant_currency(supabase, tenant_id, crm_source)
 
     # Fall back to legacy patterns
-    return await _resolve_legacy(supabase, tenant_id, crm_source, pattern, time_range_days, currency)
+    return await _resolve_legacy(supabase, tenant_id, crm_source, pattern, time_range_days, currency, from_date=from_date, to_date=to_date)
 
 
 async def _resolve_dynamic(
@@ -224,6 +226,8 @@ async def _resolve_legacy(
     pattern: str,
     time_range_days: Optional[int],
     currency: str = "$",
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
 ) -> Optional[ChartResult]:
     """Legacy KPI resolution using hardcoded KPI_PATTERNS."""
     config = KPI_PATTERNS.get(pattern)
@@ -253,9 +257,10 @@ async def _resolve_legacy(
         if config.get("closing_soon"):
             return await _resolve_closing_soon(supabase, tenant_id, crm_source, title)
 
-        # Current value
+        # Current value — absolute dates take priority
         current_value = await _query_aggregate(
-            supabase, tenant_id, crm_source, table, agg, field, filters, days, time_field
+            supabase, tenant_id, crm_source, table, agg, field, filters, days, time_field,
+            from_date=from_date, to_date=to_date,
         )
 
         # Previous period for comparison
@@ -294,7 +299,8 @@ async def _resolve_legacy(
 
 async def _query_aggregate(
     supabase, tenant_id, crm_source, table, agg, field, filters,
-    time_range_days=None, time_field="created_at", offset_days=None
+    time_range_days=None, time_field="created_at", offset_days=None,
+    from_date=None, to_date=None,
 ):
     """Execute an aggregate query against a crm_* table."""
     try:
@@ -309,8 +315,13 @@ async def _query_aggregate(
             elif op_val.startswith("eq."):
                 query = query.eq(col, op_val[3:])
 
-        # Time range
-        if time_range_days:
+        # Absolute date range takes priority over relative days
+        if from_date or to_date:
+            if from_date:
+                query = query.gte(time_field, from_date)
+            if to_date:
+                query = query.lte(time_field, to_date)
+        elif time_range_days:
             from datetime import datetime, timezone, timedelta
             if offset_days:
                 end_date = datetime.now(timezone.utc) - timedelta(days=offset_days)

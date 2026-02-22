@@ -6,6 +6,7 @@ import DataUsageBar from './DataUsageBar';
 import MetricsSummaryCard from './MetricsSummaryCard';
 import DateRangeSelector from './DateRangeSelector';
 import ExportMenu from './ExportMenu';
+import ShareDialog from './ShareDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +38,7 @@ export default function DashboardView({
   onDrillDown,
   onReorderWidgets,
   onResizeWidget,
+  api,
 }) {
   const dashboardRef = useRef(null);
 
@@ -60,6 +62,9 @@ export default function DashboardView({
 
             {/* Export */}
             <ExportMenu dashboardRef={dashboardRef} widgets={widgets} dateRange={dateRange} />
+
+            {/* Share */}
+            {api && <ShareDialog api={api} />}
 
             {/* Reconfigure */}
             <AlertDialog>

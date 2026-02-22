@@ -4104,6 +4104,8 @@ async def dashboard_widgets_get(
                             crm_source=crm_source,
                             pattern=kpi_pattern,
                             time_range_days=wc.get("time_range_days"),
+                            from_date=from_date,
+                            to_date=to_date,
                         )
                     except Exception as e:
                         logger.warning(f"KPI resolve failed for widget {wc.get('id')}, falling back: {e}")
@@ -4136,6 +4138,8 @@ async def dashboard_widgets_get(
                         filter_field=wc.get("filter_field"),
                         filter_value=wc.get("filter_value"),
                         time_range_days=wc.get("time_range_days"),
+                        from_date=from_date,
+                        to_date=to_date,
                         sort_order=wc.get("sort_order", "desc"),
                         item_limit=wc.get("item_limit", 10),
                     )
@@ -4168,6 +4172,8 @@ async def dashboard_widgets_get(
                     filter_field=wc.get("filter_field"),
                     filter_value=wc.get("filter_value"),
                     time_range_days=wc.get("time_range_days"),
+                    from_date=from_date,
+                    to_date=to_date,
                     sort_order=wc.get("sort_order", "desc"),
                     item_limit=wc.get("item_limit", 10),
                 )
@@ -4392,6 +4398,213 @@ async def dashboard_insights(current_user: Dict = Depends(get_current_user)):
     except Exception as e:
         logger.error(f"Insight check failed: {e}")
         return {"insights": []}
+
+
+# ── Dashboard Sharing ──
+
+@api_router.post("/dashboard/shares")
+async def create_dashboard_share(
+    request: Request,
+    current_user: Dict = Depends(get_current_user),
+):
+    """Create a shareable dashboard link with expiry."""
+    tenant_id = current_user["tenant_id"]
+    body = await request.json()
+    label = (body.get("label") or "")[:255]
+    expires_days = int(body.get("expires_days", 30))
+    expires_days = max(1, min(expires_days, 365))
+
+    from datetime import datetime, timezone, timedelta
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=expires_days)
+
+    result = supabase.table("dashboard_shares").insert({
+        "tenant_id": tenant_id,
+        "token": token,
+        "label": label or None,
+        "expires_at": expires_at.isoformat(),
+        "created_by": current_user.get("user_id"),
+    }).execute()
+
+    share = result.data[0] if result.data else {}
+    share_url = f"{FRONTEND_URL}/shared/{token}"
+
+    return {
+        "id": share.get("id"),
+        "token": token,
+        "url": share_url,
+        "label": label or None,
+        "expires_at": expires_at.isoformat(),
+    }
+
+
+@api_router.get("/dashboard/shares")
+async def list_dashboard_shares(current_user: Dict = Depends(get_current_user)):
+    """List active (non-revoked, non-expired) share links."""
+    tenant_id = current_user["tenant_id"]
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+
+    result = (
+        supabase.table("dashboard_shares")
+        .select("id,token,label,expires_at,created_at,revoked_at")
+        .eq("tenant_id", tenant_id)
+        .is_("revoked_at", "null")
+        .gte("expires_at", now)
+        .order("created_at", desc=True)
+        .limit(50)
+        .execute()
+    )
+    shares = result.data or []
+    for s in shares:
+        s["url"] = f"{FRONTEND_URL}/shared/{s['token']}"
+    return {"shares": shares}
+
+
+@api_router.delete("/dashboard/shares/{share_id}")
+async def revoke_dashboard_share(
+    share_id: str,
+    current_user: Dict = Depends(get_current_user),
+):
+    """Revoke a share link (soft delete via revoked_at)."""
+    tenant_id = current_user["tenant_id"]
+    from datetime import datetime, timezone
+
+    supabase.table("dashboard_shares").update({
+        "revoked_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", share_id).eq("tenant_id", tenant_id).execute()
+
+    return {"success": True}
+
+
+@api_router.get("/shared/{token}")
+async def get_shared_dashboard(token: str):
+    """Public endpoint — view shared dashboard (no auth required)."""
+    from datetime import datetime, timezone
+
+    # Look up share
+    result = (
+        supabase.table("dashboard_shares")
+        .select("*")
+        .eq("token", token)
+        .is_("revoked_at", "null")
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Share link not found or has been revoked")
+
+    share = result.data[0]
+    expires_at = datetime.fromisoformat(share["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=410, detail="Share link has expired")
+
+    tenant_id = share["tenant_id"]
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        return {"widgets": [], "title": "Dashboard"}
+
+    # Load widgets (same logic as dashboard_widgets_get but without auth)
+    widget_result = (
+        supabase.table("dashboard_widgets")
+        .select("*")
+        .eq("tenant_id", tenant_id)
+        .is_("deleted_at", "null")
+        .order("position")
+        .limit(50)
+        .execute()
+    )
+    widget_configs = widget_result.data or []
+
+    widgets = []
+    for wc in widget_configs:
+        try:
+            chart_type = wc.get("chart_type", "bar")
+            if chart_type in ("kpi", "metric"):
+                kpi_pattern = _match_kpi_pattern(wc)
+                kpi_result = None
+                if kpi_pattern:
+                    try:
+                        kpi_result = await kpi_resolve(
+                            supabase=supabase, tenant_id=tenant_id,
+                            crm_source=crm_source, pattern=kpi_pattern,
+                            time_range_days=wc.get("time_range_days"),
+                        )
+                    except Exception:
+                        pass
+                if kpi_result:
+                    widgets.append({
+                        "id": wc["id"], "chart_type": chart_type,
+                        "title": wc["title"], "size": wc.get("size", "medium"),
+                        "position": wc.get("position", 0),
+                        "value": kpi_result.value, "change": kpi_result.change,
+                        "changeDirection": kpi_result.changeDirection,
+                        "data": kpi_result.data or [],
+                    })
+                else:
+                    config = ChartConfig(
+                        chart_type=chart_type, title=wc.get("title", "Untitled"),
+                        data_source=wc.get("data_source", "crm_leads"),
+                        x_field=wc.get("x_field", "status"),
+                        y_field=wc.get("y_field", "count"),
+                        aggregation=wc.get("aggregation", "count"),
+                        time_range_days=wc.get("time_range_days"),
+                        sort_order=wc.get("sort_order", "desc"),
+                        item_limit=wc.get("item_limit", 10),
+                    )
+                    chart_result = await anvar_execute_query(supabase, tenant_id, crm_source, config)
+                    first_item = (chart_result.data[0] if chart_result and chart_result.data else {})
+                    widgets.append({
+                        "id": wc["id"], "chart_type": chart_type,
+                        "title": wc["title"], "size": wc.get("size", "medium"),
+                        "position": wc.get("position", 0),
+                        "value": first_item.get("value", 0) if isinstance(first_item, dict) else 0,
+                        "data": chart_result.data if chart_result else [],
+                    })
+            else:
+                config = ChartConfig(
+                    chart_type=chart_type, title=wc.get("title", "Untitled"),
+                    data_source=wc.get("data_source", "crm_leads"),
+                    x_field=wc.get("x_field", "status"),
+                    y_field=wc.get("y_field", "count"),
+                    aggregation=wc.get("aggregation", "count"),
+                    time_range_days=wc.get("time_range_days"),
+                    sort_order=wc.get("sort_order", "desc"),
+                    item_limit=wc.get("item_limit", 10),
+                )
+                chart_result = await anvar_execute_query(supabase, tenant_id, crm_source, config)
+                widgets.append({
+                    "id": wc["id"], "chart_type": chart_type,
+                    "title": wc["title"], "size": wc.get("size", "medium"),
+                    "position": wc.get("position", 0),
+                    "data": chart_result.data if chart_result else [],
+                })
+        except Exception as e:
+            logger.warning(f"Shared dashboard: widget {wc.get('id')} failed: {e}")
+            widgets.append({
+                "id": wc["id"], "chart_type": wc.get("chart_type", "bar"),
+                "title": wc.get("title", "Untitled"),
+                "size": wc.get("size", "medium"), "position": wc.get("position", 0),
+                "data": [], "error": "Failed to load data",
+            })
+
+    # Get dashboard title from config
+    config_result = (
+        supabase.table("dashboard_configs")
+        .select("selected_goals")
+        .eq("tenant_id", tenant_id)
+        .limit(1)
+        .execute()
+    )
+    dashboard_title = "LeadRelay Dashboard"
+    if share.get("label"):
+        dashboard_title = share["label"]
+
+    return {
+        "widgets": widgets,
+        "title": dashboard_title,
+        "expires_at": share["expires_at"],
+    }
 
 
 # ── Chat ──

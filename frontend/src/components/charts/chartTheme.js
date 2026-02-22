@@ -1,16 +1,16 @@
 // Locked chart styling constants - AI picks chart type, styling is fixed
 // Follows Emerald Graphite theme for premium consistency
 
-// Monochrome slate palette — professional, no rainbow
+// Emerald-anchored palette — brand-forward, distinct, professional
 export const CHART_COLORS = [
-  '#1e293b', // slate-800 — primary
-  '#334155', // slate-700
-  '#475569', // slate-600
-  '#64748b', // slate-500
-  '#94a3b8', // slate-400
-  '#cbd5e1', // slate-300
-  '#e2e8f0', // slate-200
-  '#f1f5f9', // slate-100
+  '#059669', // emerald-600 — brand primary
+  '#475569', // slate-600 — neutral anchor
+  '#0891b2', // cyan-600 — cool complement
+  '#d97706', // amber-600 — warm accent
+  '#6366f1', // indigo-500 — cool accent
+  '#0d9488', // teal-600 — brand adjacent
+  '#8b5cf6', // violet-500 — contrast
+  '#64748b', // slate-500 — fallback neutral
 ];
 
 export const CHART_CONFIG = {

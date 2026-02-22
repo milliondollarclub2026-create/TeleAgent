@@ -131,6 +131,19 @@ export default function useDashboardApi() {
     apiCallWithToast('patch', `/api/dashboard/analytics/alerts/${alertId}/dismiss`, {}, 'Failed to dismiss alert'),
   [apiCallWithToast]);
 
+  // --- Sharing ---
+  const createShare = useCallback((data) =>
+    apiCallWithToast('post', '/api/dashboard/shares', data, 'Failed to create share link'),
+  [apiCallWithToast]);
+
+  const listShares = useCallback(() =>
+    apiCall('get', '/api/dashboard/shares'),
+  [apiCall]);
+
+  const revokeShare = useCallback((shareId) =>
+    apiCallWithToast('delete', `/api/dashboard/shares/${shareId}`, null, 'Failed to revoke share link'),
+  [apiCallWithToast]);
+
   // --- Chat Suggestions ---
   const getChatSuggestions = useCallback(() =>
     apiCall('get', '/api/dashboard/chat/suggestions'),
@@ -209,7 +222,11 @@ export default function useDashboardApi() {
     getRevenueOverview,
     recomputeRevenue,
     dismissRevenueAlert,
+    // Sharing
+    createShare,
+    listShares,
+    revokeShare,
     // Chat Suggestions
     getChatSuggestions,
-  }), [startOnboarding, selectCategories, submitRefinement, reconfigure, connectCRM, getConfig, getWidgets, addWidget, updateWidget, deleteWidget, reorderWidgets, resizeWidget, getInsights, getExportData, getDemoWidgets, sendChatMessage, getChatHistory, clearChatHistory, getDataUsage, getSyncStatus, triggerSync, getIntegrationsStatus, getRevenueAlerts, getRevenueOverview, recomputeRevenue, dismissRevenueAlert, getChatSuggestions]);
+  }), [startOnboarding, selectCategories, submitRefinement, reconfigure, connectCRM, getConfig, getWidgets, addWidget, updateWidget, deleteWidget, reorderWidgets, resizeWidget, getInsights, getExportData, getDemoWidgets, sendChatMessage, getChatHistory, clearChatHistory, getDataUsage, getSyncStatus, triggerSync, getIntegrationsStatus, getRevenueAlerts, getRevenueOverview, recomputeRevenue, dismissRevenueAlert, createShare, listShares, revokeShare, getChatSuggestions]);
 }
