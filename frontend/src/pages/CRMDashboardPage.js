@@ -11,6 +11,7 @@ import DashboardTour from '../components/dashboard/DashboardTour';
 import SplitPaneLayout from '../components/dashboard/SplitPaneLayout';
 import { getDefaultDateRange } from '../components/dashboard/DateRangeSelector';
 import { AlertTriangle, Sparkles, ArrowRight } from 'lucide-react';
+import { useSidebar } from '../components/Sidebar';
 
 // Error boundary to catch rendering crashes
 class DashboardErrorBoundary extends React.Component {
@@ -59,6 +60,7 @@ function CRMDashboardPageInner() {
   const { hiredPrebuilt, user } = useAuth();
   const navigate = useNavigate();
   const api = useDashboardApi();
+  const { setCollapsed } = useSidebar();
 
   // Guard: redirect to agents if Bobur not hired (null = still loading, skip check)
   useEffect(() => {
@@ -66,6 +68,12 @@ function CRMDashboardPageInner() {
       navigate('/app/agents', { replace: true });
     }
   }, [hiredPrebuilt, navigate]);
+
+  // Auto-collapse sidebar on the CRM dashboard for a cleaner layout
+  useEffect(() => {
+    setCollapsed(true);
+    return () => setCollapsed(false);
+  }, [setCollapsed]);
 
   const [config, setConfig] = useState(undefined); // undefined = loading, null = no config
   const [configLoading, setConfigLoading] = useState(true);

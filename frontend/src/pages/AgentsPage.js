@@ -220,31 +220,31 @@ const boburTeamMembers = [
   {
     name: 'Farid',
     role: 'The Schema Analyst',
-    description: 'Maps your CRM structure — stages, fields, and pipelines',
+    description: 'Maps your CRM structure, including stages, fields, and pipelines',
     orbColors: ['#8b5cf6', '#7c3aed', '#a78bfa'],
   },
   {
     name: 'Dima',
     role: 'The Chart Builder',
-    description: 'Turns data into clear, actionable charts and visualizations',
+    description: 'Creates clear, visual charts from your CRM data',
     orbColors: ['#06b6d4', '#0891b2', '#22d3ee'],
   },
   {
     name: 'Anvar',
     role: 'The Data Engineer',
-    description: 'Queries and computes metrics from your raw CRM records',
+    description: 'Computes metrics and runs calculations on your CRM records',
     orbColors: ['#10b981', '#059669', '#34d399'],
   },
   {
     name: 'Nilufar',
     role: 'The Insights Analyst',
-    description: 'Spots trends, anomalies, and generates recommendations',
+    description: 'Identifies trends, unusual patterns, and recommends actions',
     orbColors: ['#ec4899', '#db2777', '#f472b6'],
   },
   {
     name: 'Karim',
     role: 'The Sync Engine',
-    description: 'Keeps your CRM data fresh with real-time ETL sync',
+    description: 'Keeps your CRM data fresh with automatic syncing',
     orbColors: ['#94a3b8', '#64748b', '#cbd5e1'],
   },
 ];

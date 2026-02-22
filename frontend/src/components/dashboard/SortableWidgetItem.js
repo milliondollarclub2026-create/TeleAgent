@@ -85,7 +85,7 @@ export default function SortableWidgetItem({
             {!isKPI && onModify && (
               <button
                 onClick={() => onModify(widget)}
-                className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
+                className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-gray-100 hover:border-slate-300 transition-colors"
                 title="Modify widget"
               >
                 <Pencil className="w-3 h-3 text-slate-400" strokeWidth={2} />
@@ -96,7 +96,7 @@ export default function SortableWidgetItem({
             {onDelete && (
               <button
                 onClick={() => onDelete(widget)}
-                className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
+                className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-gray-100 hover:border-slate-300 transition-colors"
                 title="Remove widget"
               >
                 <X className="w-3.5 h-3.5 text-slate-400" strokeWidth={2} />
@@ -112,7 +112,7 @@ export default function SortableWidgetItem({
           {!isKPI && onModify && (
             <button
               onClick={() => onModify(widget)}
-              className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
+              className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-gray-100 hover:border-slate-300 transition-colors"
               title="Modify widget"
             >
               <Pencil className="w-3 h-3 text-slate-400" strokeWidth={2} />
@@ -121,7 +121,7 @@ export default function SortableWidgetItem({
           {onDelete && (
             <button
               onClick={() => onDelete(widget)}
-              className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
+              className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-gray-100 hover:border-slate-300 transition-colors"
               title="Remove widget"
             >
               <X className="w-3.5 h-3.5 text-slate-400" strokeWidth={2} />

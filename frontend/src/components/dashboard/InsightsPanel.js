@@ -3,29 +3,29 @@ import { AlertTriangle, AlertCircle, Lightbulb, Info, ArrowRight, ShieldCheck, X
 
 const severityConfig = {
   critical: {
-    border: 'border-l-4 border-l-red-500',
-    bg: 'bg-red-50/50',
+    border: 'border-l-4 border-l-amber-400',
+    bg: 'bg-white',
     Icon: AlertTriangle,
-    iconColor: 'text-red-500',
-    badge: 'bg-red-100 text-red-700',
+    iconColor: 'text-amber-500',
+    badge: 'bg-amber-100 text-amber-700',
   },
   warning: {
     border: 'border-l-4 border-l-amber-400',
-    bg: 'bg-amber-50/30',
+    bg: 'bg-white',
     Icon: AlertCircle,
     iconColor: 'text-amber-500',
     badge: 'bg-amber-100 text-amber-700',
   },
   opportunity: {
-    border: 'border-l-4 border-l-emerald-400',
-    bg: 'bg-emerald-50/30',
+    border: 'border-l-4 border-l-slate-300',
+    bg: 'bg-white',
     Icon: Lightbulb,
-    iconColor: 'text-emerald-600',
-    badge: 'bg-emerald-100 text-emerald-700',
+    iconColor: 'text-slate-500',
+    badge: 'bg-slate-100 text-slate-600',
   },
   info: {
     border: 'border-l-4 border-l-slate-300',
-    bg: 'bg-slate-50/50',
+    bg: 'bg-white',
     Icon: Info,
     iconColor: 'text-slate-400',
     badge: 'bg-slate-100 text-slate-600',
@@ -65,7 +65,7 @@ export default function InsightsPanel({ insights, loading, onDismissAlert }) {
           <ShieldCheck className="w-5 h-5 text-emerald-500 flex-shrink-0" strokeWidth={1.75} />
           <div>
             <p className="text-sm font-medium text-slate-900">All clear</p>
-            <p className="text-xs text-slate-500">No anomalies detected — your data looks healthy.</p>
+            <p className="text-xs text-slate-500">No issues detected. Your data looks healthy.</p>
           </div>
         </div>
       </div>

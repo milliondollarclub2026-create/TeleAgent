@@ -132,8 +132,11 @@ async def resolve_kpi(
     if dynamic_result is not None:
         return dynamic_result
 
+    # Look up tenant currency for legacy fallback
+    currency = await _get_tenant_currency(supabase, tenant_id, crm_source)
+
     # Fall back to legacy patterns
-    return await _resolve_legacy(supabase, tenant_id, crm_source, pattern, time_range_days)
+    return await _resolve_legacy(supabase, tenant_id, crm_source, pattern, time_range_days, currency)
 
 
 async def _resolve_dynamic(
@@ -220,6 +223,7 @@ async def _resolve_legacy(
     crm_source: str,
     pattern: str,
     time_range_days: Optional[int],
+    currency: str = "$",
 ) -> Optional[ChartResult]:
     """Legacy KPI resolution using hardcoded KPI_PATTERNS."""
     config = KPI_PATTERNS.get(pattern)
@@ -273,7 +277,7 @@ async def _resolve_legacy(
             else:
                 change_direction = "flat"
 
-        display_value = _format_value(current_value, fmt)
+        display_value = _format_value(current_value, fmt, currency)
 
         return ChartResult(
             type="kpi",
@@ -395,19 +399,64 @@ async def _resolve_closing_soon(supabase, tenant_id, crm_source, title):
         return None
 
 
+# ── Currency Helpers ─────────────────────────────────────────────────
+
+# Map common Bitrix24 CURRENCY_ID codes to display symbols
+_CURRENCY_SYMBOLS = {
+    "USD": "$", "EUR": "€", "GBP": "£", "AED": "AED ", "RUB": "₽",
+    "UZS": "UZS ", "QAR": "QAR ", "AUD": "A$", "CAD": "C$", "JPY": "¥",
+    "CNY": "¥", "INR": "₹", "TRY": "₺", "SAR": "SAR ", "KWD": "KWD ",
+}
+
+
+async def _get_tenant_currency(supabase, tenant_id: str, crm_source: str) -> str:
+    """Look up currency from dashboard_configs.crm_context or crm_deals data."""
+    try:
+        # First check dashboard_configs for crm_context.currency
+        result = supabase.table("dashboard_configs").select(
+            "crm_context"
+        ).eq("tenant_id", tenant_id).limit(1).execute()
+
+        if result.data:
+            ctx = result.data[0].get("crm_context") or {}
+            if isinstance(ctx, str):
+                ctx = json.loads(ctx)
+            currency_id = ctx.get("currency") or ctx.get("currency_id")
+            if currency_id:
+                return _CURRENCY_SYMBOLS.get(currency_id, currency_id + " ")
+
+        # Fallback: check the most common currency in crm_deals
+        deal_result = supabase.table("crm_deals").select(
+            "currency"
+        ).eq("tenant_id", tenant_id).eq(
+            "crm_source", crm_source
+        ).not_.is_("currency", "null").limit(1).execute()
+
+        if deal_result.data:
+            currency_id = deal_result.data[0].get("currency")
+            if currency_id:
+                return _CURRENCY_SYMBOLS.get(currency_id, currency_id + " ")
+
+    except Exception as e:
+        logger.debug(f"Currency lookup failed for tenant {tenant_id}: {e}")
+
+    return "$"
+
+
 # ── Formatting Helpers ───────────────────────────────────────────────
 
-def _format_value(value, fmt):
+def _format_value(value, fmt, currency="$"):
     """Format a numeric value for display (legacy)."""
     if value is None:
         return 0
+    sym = currency or "$"
     if fmt == "currency":
         if value >= 1_000_000:
-            return f"${value/1_000_000:,.1f}M"
+            return f"{sym}{value/1_000_000:,.1f}M"
         elif value >= 1_000:
-            return f"${value:,.0f}"
+            return f"{sym}{value:,.0f}"
         else:
-            return f"${value:,.2f}"
+            return f"{sym}{value:,.2f}"
     if fmt == "percent":
         return f"{value:.1f}%"
     if isinstance(value, float):

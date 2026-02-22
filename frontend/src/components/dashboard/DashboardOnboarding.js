@@ -11,10 +11,10 @@ const BOBUR_ORB_COLORS = ['#f97316', '#ea580c', '#f59e0b'];
 
 // Step 4 progress labels
 const DEFAULT_GENERATION_STEPS = [
-  'Analyzing your data model',
-  'Mapping goal metrics',
-  'Generating chart configurations',
-  'Computing baseline insights',
+  'Reviewing your data',
+  'Setting up metrics',
+  'Building your charts',
+  'Preparing initial insights',
   'Finalizing dashboard',
 ];
 
@@ -49,7 +49,7 @@ function TrustBadge({ score, available }) {
 }
 
 // Inline goal card
-function GoalCard({ goal, selected, onToggle }) {
+function GoalCard({ goal, selected, onToggle, isRecommended }) {
   const disabled = !goal.available;
   return (
     <button
@@ -83,6 +83,11 @@ function GoalCard({ goal, selected, onToggle }) {
           <div className="flex items-center gap-2 mb-1">
             <span className="text-sm font-medium text-slate-900">{goal.name}</span>
             <TrustBadge score={goal.trust_score} available={goal.available} />
+            {isRecommended && goal.available && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600">
+                Recommended
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 leading-relaxed">{goal.description}</p>
 
@@ -179,15 +184,18 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
 
   // Reveal screen state
   const [revealData, setRevealData] = useState(null);
+  const [analysisMessages, setAnalysisMessages] = useState([]);
 
   // --- Step 1: Auto-start analysis ---
   const startAnalysis = useCallback(async () => {
     setStep(1);
     setLoading(true);
+    setAnalysisMessages([]);
+
     const { data, error } = await api.startOnboarding();
-    setLoading(false);
 
     if (error) {
+      setLoading(false);
       if (
         error.toLowerCase().includes('no active crm') ||
         error.toLowerCase().includes('not connected') ||
@@ -198,7 +206,6 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
         return;
       }
       if (error.toLowerCase().includes('sync') || error.toLowerCase().includes('pending')) {
-        // Trigger sync start in case it hasn't been started yet
         api.triggerSync().catch(() => {});
         setStep('syncing');
         return;
@@ -207,13 +214,53 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
     }
 
     if (data?.goals) {
+      // Build progressive discovery messages from the response
+      const messages = [];
+      const ctx = data.crm_context || data.crm_profile || {};
+      if (ctx.total_deals) {
+        const currency = ctx.currency || '';
+        const valueStr = ctx.total_value
+          ? ` worth ${currency}${(ctx.total_value / 1_000_000).toFixed(1)}M`
+          : '';
+        messages.push(`Found ${ctx.total_deals.toLocaleString()} deals${valueStr}`);
+      }
+      if (ctx.pipeline_stages || ctx.stages_count) {
+        const count = ctx.pipeline_stages || ctx.stages_count;
+        messages.push(`Detected ${count} pipeline stages`);
+      }
+      messages.push('Identifying revenue patterns');
+
+      // Show messages progressively with minimum 3s total
+      const showMessages = async () => {
+        for (let i = 0; i < messages.length; i++) {
+          setAnalysisMessages(prev => [...prev, messages[i]]);
+          await new Promise(r => setTimeout(r, 1000));
+        }
+        // Ensure minimum 3s total display
+        const elapsed = messages.length * 1000;
+        if (elapsed < 3000) {
+          await new Promise(r => setTimeout(r, 3000 - elapsed));
+        }
+      };
+
+      await showMessages();
+      setLoading(false);
+
       setGoals(data.goals);
-      // Pre-select all available goals
-      const preSelected = data.goals.filter(g => g.available).map(g => g.id);
+      // Recommend goals based on available data instead of pre-selecting all
+      const recommended = data.goals
+        .filter(g => g.available && (g.recommended || g.trust_score >= 0.5))
+        .map(g => g.id);
+      // If no explicit recommendations, pick the top 2-3 available
+      const preSelected = recommended.length > 0
+        ? recommended
+        : data.goals.filter(g => g.available).slice(0, 3).map(g => g.id);
       setSelectedGoals(preSelected);
       setOverallTrust(data.overall_trust ?? null);
       setRequiresConfirmation(data.requires_confirmation ?? false);
       setStep(2);
+    } else {
+      setLoading(false);
     }
   }, [api]);
 
@@ -230,10 +277,16 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
       savedGoals
     ) {
       setGoals(savedGoals);
-      const preSelected = savedGoals.filter(g => g.available).map(g => g.id);
-      // If user had already made a selection, restore it
+      // If user had already made a selection, restore it; otherwise recommend top goals
       const saved = config?.selected_categories;
-      setSelectedGoals(saved && saved.length > 0 ? saved : preSelected);
+      if (saved && saved.length > 0) {
+        setSelectedGoals(saved);
+      } else {
+        const recommended = savedGoals
+          .filter(g => g.available && (g.recommended || g.trust_score >= 0.5))
+          .map(g => g.id);
+        setSelectedGoals(recommended.length > 0 ? recommended : savedGoals.filter(g => g.available).slice(0, 3).map(g => g.id));
+      }
       setOverallTrust(config?.crm_profile?.overall_trust ?? null);
       setStep(2);
       return;
@@ -521,7 +574,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
         <AiOrb size={56} colors={BOBUR_ORB_COLORS} state="thinking" className="mb-6" />
         <h2 className="text-lg font-semibold text-slate-900 mb-2">Syncing your CRM data</h2>
         <p className="text-sm text-slate-500 text-center max-w-sm mb-5">
-          Pulling records from your CRM — speed depends on your dataset size.
+          Pulling records from your CRM. Speed depends on your dataset size.
         </p>
 
         <div className="w-full max-w-sm space-y-2.5 mb-5">
@@ -627,10 +680,24 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
       <div className="h-full flex flex-col items-center justify-center px-4">
         <AiOrb size={64} colors={BOBUR_ORB_COLORS} state="thinking" className="mb-6" />
         <h2 className="text-lg font-semibold text-slate-900 mb-2">Analyzing your data</h2>
-        <p className="text-sm text-slate-500 text-center max-w-sm">
-          Bobur is mapping your CRM stages, metrics, and pipeline structure to find
-          the best analytics goals for your business.
+        <p className="text-sm text-slate-500 text-center max-w-sm mb-5">
+          Bobur is reviewing your CRM to find the best metrics and goals for your business.
         </p>
+        {analysisMessages.length > 0 && (
+          <div className="w-full max-w-xs space-y-2.5">
+            {analysisMessages.map((msg, idx) => (
+              <div
+                key={idx}
+                className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-1 duration-300"
+              >
+                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-3 h-3 text-emerald-600" strokeWidth={3} />
+                </div>
+                <span className="text-sm text-slate-700">{msg}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -671,6 +738,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
               goal={goal}
               selected={selectedGoals.includes(goal.id)}
               onToggle={toggleGoal}
+              isRecommended={goal.recommended || (goal.available && goal.trust_score >= 0.5)}
             />
           ))}
         </div>
@@ -707,7 +775,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
           <h2 className="text-lg font-semibold text-slate-900">A few quick clarifications</h2>
         </div>
         <p className="text-sm text-slate-500 mb-6 ml-11">
-          Help Bobur understand your pipeline so your metrics are accurate.
+          A few details to make sure your metrics are accurate.
         </p>
 
         <div className="space-y-5 mb-8">

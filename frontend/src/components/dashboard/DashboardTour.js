@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, BarChart3, MessageSquare, Calendar, Target } from 'lucide-react';
 
 const TOUR_STEPS = [
@@ -87,6 +87,16 @@ export default function DashboardTour({ tenantId, onComplete }) {
     }
   };
 
+  // Escape key dismisses tour
+  useEffect(() => {
+    if (dismissed) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') finish();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [dismissed, finish]);
+
   if (dismissed) return null;
 
   const step = TOUR_STEPS[currentStep];
@@ -105,21 +115,31 @@ export default function DashboardTour({ tenantId, onComplete }) {
       )`
     : 'none';
 
-  // Position popover below or above the target
+  // Position popover below or above the target, with right-side awareness
+  const popoverWidth = 300;
   let popoverStyle = {};
   if (targetRect) {
     const spaceBelow = window.innerHeight - targetRect.bottom;
+    let top;
     if (spaceBelow > 180) {
-      popoverStyle = {
-        top: targetRect.bottom + pad + 12,
-        left: Math.max(16, Math.min(targetRect.left, window.innerWidth - 320)),
-      };
+      top = targetRect.bottom + pad + 12;
     } else {
-      popoverStyle = {
-        top: targetRect.top - pad - 180,
-        left: Math.max(16, Math.min(targetRect.left, window.innerWidth - 320)),
-      };
+      top = targetRect.top - pad - 180;
     }
+
+    let left;
+    // If target is in the right 40% of the screen, position popover to its left
+    if (targetRect.left > window.innerWidth * 0.6) {
+      left = Math.max(16, targetRect.left - popoverWidth - 16);
+    } else {
+      left = Math.max(16, Math.min(targetRect.left, window.innerWidth - popoverWidth - 16));
+    }
+
+    // Final safety clamp — never exceed viewport
+    top = Math.max(16, Math.min(top, window.innerHeight - 200));
+    left = Math.max(16, Math.min(left, window.innerWidth - popoverWidth - 16));
+
+    popoverStyle = { top, left };
   } else {
     popoverStyle = { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
   }
@@ -157,9 +177,19 @@ export default function DashboardTour({ tenantId, onComplete }) {
         </div>
 
         <div className="flex items-center justify-between mt-4">
-          <span className="text-[11px] text-slate-400 font-medium">
-            {currentStep + 1} of {TOUR_STEPS.length}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-slate-400 font-medium">
+              {currentStep + 1} of {TOUR_STEPS.length}
+            </span>
+            {currentStep < TOUR_STEPS.length - 1 && (
+              <button
+                onClick={finish}
+                className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                Skip tour
+              </button>
+            )}
+          </div>
           <button
             onClick={handleNext}
             className="px-4 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"

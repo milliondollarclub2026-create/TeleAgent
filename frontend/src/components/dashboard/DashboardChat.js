@@ -10,8 +10,8 @@ import { chartHasValidData } from '../../utils/chartUtils';
 // Bobur's orb colors (orange/amber - matches Bitrix24)
 const BOBUR_ORB_COLORS = ['#f97316', '#ea580c', '#f59e0b'];
 
-const DEFAULT_INTRO = "Hi! I'm Bobur, your Analytics Team Lead. Ask me anything about your CRM data, and I can analyze leads, visualize pipelines, or build charts for your dashboard.";
-const DEMO_INTRO = "Hi! I'm Bobur, your Analytics Team Lead. You're exploring with sample data — feel free to ask questions and see how I work. Connect your CRM anytime to use real data.";
+const DEFAULT_INTRO = "Hi! I'm Bobur, your Analytics Team Lead. Ask me anything about your CRM data. I can analyze leads, create charts, or build reports for your dashboard.";
+const DEMO_INTRO = "Hi! I'm Bobur, your Analytics Team Lead. You're exploring with sample data. Feel free to ask questions and see how I work. Connect your CRM anytime to use real data.";
 
 const DEFAULT_SUGGESTIONS = [
   { text: "Show me a conversion chart" },
@@ -21,23 +21,15 @@ const DEFAULT_SUGGESTIONS = [
 ];
 
 const thinkingMessages = [
-  "Thinking",
+  "Analyzing your data",
   "Connecting to CRM",
-  "Fetching your data",
-  "Analyzing leads",
-  "Reviewing pipelines",
-  "Processing metrics",
-  "Examining patterns",
-  "Gathering insights",
-  "Calculating trends",
-  "Crunching numbers",
-  "Cross-referencing data",
-  "Building visualizations",
-  "Preparing charts",
-  "Connecting the dots",
-  "Summarizing findings",
-  "Finalizing response",
-  "Almost there",
+  "Fetching records",
+  "Processing request",
+  "Reviewing results",
+  "Computing metrics",
+  "Generating insights",
+  "Preparing response",
+  "Finalizing results",
 ];
 
 // Markdown components (reused from CRMChatPage)
@@ -579,7 +571,7 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
 // Record table renderer for deal_query / record_query results
 // Supports dynamic columns via chart.columns, falls back to hardcoded deal columns
 function RecordTable({ chart }) {
-  const { deals = [], title, truncated, crm_source, columns } = chart;
+  const { deals = [], title, truncated, crm_source, columns, currency } = chart;
 
   // Default deal columns (backward compat)
   const defaultColumns = [
@@ -591,12 +583,16 @@ function RecordTable({ chart }) {
   ];
   const cols = columns?.length > 0 ? columns : defaultColumns;
 
+  // Resolve currency symbol
+  const CURRENCY_MAP = { USD: '$', EUR: '€', GBP: '£', AUD: 'A$', CAD: 'C$', JPY: '¥', INR: '₹' };
+  const sym = currency ? (CURRENCY_MAP[currency] || currency + ' ') : '$';
+
   const formatValue = (val) => {
     if (val === null || val === undefined) return '—';
     if (typeof val === 'string') return val;
-    if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(1)}M`;
-    if (val >= 1_000) return `$${(val / 1_000).toFixed(0)}K`;
-    return `$${val}`;
+    if (val >= 1_000_000) return `${sym}${(val / 1_000_000).toFixed(1)}M`;
+    if (val >= 1_000) return `${sym}${(val / 1_000).toFixed(0)}K`;
+    return `${sym}${val}`;
   };
 
   const formatCell = (val, format) => {
@@ -679,7 +675,7 @@ function RecordTable({ chart }) {
       </div>
       {truncated && (
         <div className="px-4 py-2 border-t border-slate-100 bg-slate-50">
-          <span className="text-[11px] text-slate-400">Showing {deals.length} deals — more exist. Refine your query to narrow results.</span>
+          <span className="text-[11px] text-slate-400">Showing {deals.length} deals. More results exist, refine your query to narrow them down.</span>
         </div>
       )}
     </div>

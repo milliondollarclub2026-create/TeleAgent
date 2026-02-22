@@ -36,12 +36,15 @@ import {
 export const SidebarContext = createContext();
 export const useSidebar = () => useContext(SidebarContext);
 
-const baseNavItems = [
+const alwaysVisibleNavItems = [
   { path: '/app/agents', icon: Bot, label: 'AI Employees' },
+  { path: '/app/connections', icon: Plug, label: 'Connections' },
+];
+
+const salesNavItems = [
   { path: '/app/leads', icon: Users, label: 'All Leads' },
   { path: '/app/dialogue', icon: MessagesSquare, label: 'Dialogue' },
   { path: '/app/global-knowledge', icon: Globe, label: 'Shared Knowledge' },
-  { path: '/app/connections', icon: Plug, label: 'Connections' },
 ];
 
 const agentNavItems = [
@@ -74,13 +77,17 @@ const Sidebar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { collapsed, toggleSidebar } = useSidebar();
 
-  // Build nav items dynamically — CRM Dashboard only visible when Bobur is hired
+  // Build nav items dynamically based on hired prebuilt agents
+  const hasSales = hiredPrebuilt?.includes('prebuilt-sales');
+  const hasAnalytics = hiredPrebuilt?.includes('prebuilt-analytics');
+
   const mainNavItems = [
-    ...baseNavItems.slice(0, 3), // AI Employees, All Leads, Dialogue
-    ...(hiredPrebuilt?.includes('prebuilt-analytics')
+    alwaysVisibleNavItems[0], // AI Employees
+    ...(hasSales ? salesNavItems : []),
+    ...(hasAnalytics
       ? [{ path: '/app/crm-dashboard', icon: BarChart3, label: 'CRM Dashboard' }]
       : []),
-    ...baseNavItems.slice(3), // Shared Knowledge, Connections
+    alwaysVisibleNavItems[1], // Connections
   ];
 
   // Check if we're viewing a specific agent
