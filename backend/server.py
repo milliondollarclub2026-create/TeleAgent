@@ -3688,6 +3688,14 @@ def _enrich_suggested_goals(schema, catalog_trust: list, proposal: dict, crm_ctx
     metric_info = {m["key"]: m for m in catalog_trust}
     has_ctx = bool(crm_ctx and crm_ctx.get("counts"))
 
+    # Alias mapping: old Farid IDs → current _REVENUE_GOALS IDs
+    _FARID_GOAL_ALIASES = {
+        "lead_conversion": "conversion_improvement",
+        "deal_velocity": "pipeline_health",
+        "revenue_tracking": "forecast_accuracy",
+        "activity_monitoring": "rep_performance",
+    }
+
     # Pre-compute suppression signals from crm_ctx
     rep_count = len(crm_ctx.get("reps", [])) if has_ctx else None
     lead_count = crm_ctx.get("counts", {}).get("leads", 0) if has_ctx else None
@@ -3695,9 +3703,13 @@ def _enrich_suggested_goals(schema, catalog_trust: list, proposal: dict, crm_ctx
     # Map suggested_goals from Farid to the frontend format
     # Match them against _REVENUE_GOALS definitions for required_metrics
     goal_defs_by_id = {g["id"]: g for g in _REVENUE_GOALS}
+    seen_ids = set()
     goals = []
     for sg in suggested:
-        goal_id = sg.get("id", "")
+        goal_id = _FARID_GOAL_ALIASES.get(sg.get("id", ""), sg.get("id", ""))
+        if goal_id in seen_ids:
+            continue  # skip duplicates after aliasing
+        seen_ids.add(goal_id)
 
         # Suppress irrelevant goals based on actual data
         if has_ctx:
@@ -3730,6 +3742,23 @@ def _enrich_suggested_goals(schema, catalog_trust: list, proposal: dict, crm_ctx
             if metric_info.get(m, {}).get("available", False)
         ]
         available = len(available_metrics) > 0
+
+        # Soft-availability: if catalog says unavailable but CRM has relevant data
+        if not available and has_ctx:
+            try:
+                from revenue.metric_catalog import METRIC_CATALOG as _MC
+                primary_tables = set()
+                for m_key in goal_def["required_metrics"]:
+                    m_def = _MC.get(m_key)
+                    if m_def:
+                        primary_tables.update(m_def.required_tables)
+                counts = crm_ctx.get("counts", {})
+                table_mapping = {"crm_deals": "deals", "crm_leads": "leads", "crm_activities": "activities", "crm_contacts": "contacts", "crm_companies": "companies"}
+                has_some_data = any(counts.get(table_mapping.get(t, t), 0) > 0 for t in primary_tables)
+                if has_some_data:
+                    available = True
+            except Exception:
+                pass  # Fall through — keep available=False
 
         # Use data-aware confidence when crm_ctx is available
         if has_ctx:
@@ -4131,11 +4160,17 @@ async def dashboard_onboarding_start(current_user: Dict = Depends(get_current_us
                 "owner_field": schema_profile.owner_field,
             })
 
+        # Persist crm_context if freshly computed
+        crm_context_data = {}
+        if crm_ctx and crm_ctx.get("counts"):
+            crm_context_data = {"crm_context": crm_ctx}
+
         # Upsert into dashboard_configs
         config_data = {
             "tenant_id": tenant_id,
             "onboarding_state": "categories",
             "crm_profile": crm_profile_data,
+            **crm_context_data,
         }
         await _aio.to_thread(
             lambda: supabase.table("dashboard_configs").upsert(
@@ -4143,11 +4178,25 @@ async def dashboard_onboarding_start(current_user: Dict = Depends(get_current_us
             ).execute()
         )
 
+        # Build crm_context summary for frontend
+        crm_summary = {}
+        if crm_ctx and crm_ctx.get("counts"):
+            _counts = crm_ctx["counts"]
+            _pipeline = crm_ctx.get("pipeline", {})
+            crm_summary = {
+                "total_deals": _counts.get("deals", 0),
+                "total_value": _pipeline.get("total_value", 0),
+                "stages_count": len(_pipeline.get("by_stage", [])),
+                "total_leads": _counts.get("leads", 0),
+                "currency": schema_profile.currency if schema_profile else "",
+            }
+
         return {
             "success": True,
             "goals": goals,
             "overall_trust": overall_trust,
             "requires_confirmation": proposal.requires_confirmation,
+            "crm_context": crm_summary,
         }
 
     except HTTPException:

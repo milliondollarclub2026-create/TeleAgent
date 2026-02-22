@@ -61,8 +61,8 @@ RULES:
 3. field_roles: identify status_field, amount_field, owner_field, date_field for each entity.
 4. stage_field/amount_field/owner_field are the PRIMARY ones across all entities (usually from deals).
 5. currency: detect from sample values or default to "USD".
-6. suggested_goals: 2-5 goals from: pipeline_health, forecast_accuracy, rep_performance,
-   lead_conversion, deal_velocity, revenue_tracking, activity_monitoring.
+6. suggested_goals: 2-5 goals from: pipeline_health, forecast_accuracy, conversion_improvement,
+   rep_performance, lead_flow_health.
 6b. GOAL SELECTION INTELLIGENCE — use data volume, not just schema existence:
    - Do NOT suggest rep_performance if owner_field has ≤1 distinct values (single-rep CRM).
    - Do NOT suggest lead_conversion if lead entity has <5 records.

@@ -22,8 +22,8 @@ const DEFAULT_GENERATION_STEPS = [
 function TrustBadge({ score, available }) {
   if (!available) {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-400">
-        No data
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-600">
+        Limited data
       </span>
     );
   }
@@ -50,16 +50,12 @@ function TrustBadge({ score, available }) {
 
 // Inline goal card
 function GoalCard({ goal, selected, onToggle, isRecommended }) {
-  const disabled = !goal.available;
   return (
     <button
       type="button"
-      onClick={() => !disabled && onToggle(goal.id)}
-      disabled={disabled}
+      onClick={() => onToggle(goal.id)}
       className={`w-full text-left p-4 rounded-xl border transition-all duration-150 ${
-        disabled
-          ? 'opacity-50 cursor-not-allowed border-slate-200 bg-white'
-          : selected
+        selected
           ? 'border-emerald-500 bg-emerald-50/30 cursor-pointer'
           : 'border-slate-200 bg-white hover:border-slate-300 cursor-pointer'
       }`}
@@ -68,12 +64,12 @@ function GoalCard({ goal, selected, onToggle, isRecommended }) {
         {/* Selection indicator */}
         <div
           className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-            selected && !disabled
+            selected
               ? 'border-emerald-600 bg-emerald-600'
               : 'border-slate-300'
           }`}
         >
-          {selected && !disabled && (
+          {selected && (
             <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
           )}
         </div>
@@ -83,7 +79,7 @@ function GoalCard({ goal, selected, onToggle, isRecommended }) {
           <div className="flex items-center gap-2 mb-1">
             <span className="text-sm font-medium text-slate-900">{goal.name}</span>
             <TrustBadge score={goal.trust_score} available={goal.available} />
-            {isRecommended && goal.available && (
+            {isRecommended && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600">
                 Recommended
               </span>
@@ -92,7 +88,7 @@ function GoalCard({ goal, selected, onToggle, isRecommended }) {
           <p className="text-xs text-slate-500 leading-relaxed">{goal.description}</p>
 
           {/* Model confirmation note */}
-          {goal.model_note && goal.available && (
+          {goal.model_note && (
             <div className="flex items-start gap-1.5 mt-2">
               <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0 mt-0.5" strokeWidth={2} />
               <p className="text-[11px] text-amber-700">{goal.model_note}</p>
@@ -550,8 +546,8 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
   if (step === 'connect-success') {
     return (
       <div className="h-full flex flex-col items-center justify-center px-4">
-        <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mb-5 animate-in zoom-in duration-300">
-          <Check className="w-7 h-7 text-emerald-600" strokeWidth={2.5} />
+        <div className="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center mb-5 animate-in zoom-in duration-300">
+          <Check className="w-7 h-7 text-white" strokeWidth={2.5} />
         </div>
         <h2 className="text-lg font-semibold text-slate-900 mb-2">Connected!</h2>
         <p className="text-sm text-slate-500 text-center max-w-sm">
@@ -587,8 +583,8 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
               return (
                 <div key={entity} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                      <Check className="w-3 h-3 text-emerald-600" strokeWidth={3} />
+                    <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
                     </div>
                     <span className="capitalize text-slate-700">{entity}</span>
                   </div>
@@ -662,8 +658,8 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
     );
     return (
       <div className="h-full flex flex-col items-center justify-center px-4">
-        <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mb-5 animate-in zoom-in duration-300">
-          <Check className="w-7 h-7 text-emerald-600" strokeWidth={2.5} />
+        <div className="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center mb-5 animate-in zoom-in duration-300">
+          <Check className="w-7 h-7 text-white" strokeWidth={2.5} />
         </div>
         <h2 className="text-lg font-semibold text-slate-900 mb-2">Sync complete</h2>
         <p className="text-sm text-slate-500 text-center max-w-sm">
@@ -690,8 +686,8 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
                 key={idx}
                 className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-1 duration-300"
               >
-                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <Check className="w-3 h-3 text-emerald-600" strokeWidth={3} />
+                <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-3 h-3 text-white" strokeWidth={3} />
                 </div>
                 <span className="text-sm text-slate-700">{msg}</span>
               </div>
@@ -916,8 +912,8 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
               }`}
             >
               {idx < genProgress ? (
-                <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <Check className="w-3 h-3 text-emerald-600" strokeWidth={3} />
+                <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-white" strokeWidth={3} />
                 </div>
               ) : idx === genProgress ? (
                 <div className="w-5 h-5 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
