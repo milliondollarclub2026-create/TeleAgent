@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
   MessageSquare,
@@ -61,9 +62,9 @@ export default function PricingPage() {
   const featureDetails = [
     {
       icon: Users,
-      title: '3 Specialized AI Agents',
+      title: '2 Specialized AI Agents',
       description:
-        'Jasur leads sales, Nilufar handles onboarding, and Bobur keeps your CRM in sync. Each team lead is trained on your business.',
+        'Jasur leads sales across Telegram and Instagram, and Bobur keeps your CRM analytics in sync. Each specialist is trained on your business.',
     },
     {
       icon: MessageSquare,
@@ -113,7 +114,7 @@ export default function PricingPage() {
     {
       question: 'How does per-agent pricing work?',
       answer:
-        'Each AI agent costs $15/month. You choose which agents to hire based on your needs. Hire all three and you get a $5/month bundle discount, bringing the total to $40/month for your full AI team.',
+        'Each AI agent costs $15/month. Hire both agents and get a $5/month bundle discount, bringing the total to $25/month for your full AI team.',
     },
     {
       question: 'What do I get with each agent?',
@@ -250,8 +251,25 @@ export default function PricingPage() {
         </div>
       </nav>
 
+      {/* Back link + Sales header */}
+      <div className="pt-28 pb-4 max-w-5xl mx-auto px-6 md:px-12">
+        <Link
+          to="/pricing"
+          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 font-medium mb-6 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" strokeWidth={2} />
+          Back to all plans
+        </Link>
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-2">
+          Sales Team Pricing
+        </h1>
+        <p className="text-slate-500 text-lg">
+          Hire Jasur and his team to handle your sales conversations
+        </p>
+      </div>
+
       {/* Pricing Configurator */}
-      <div className="pt-20">
+      <div>
         <PricingSection onGetStarted={handleCTA} />
       </div>
 
@@ -345,7 +363,7 @@ export default function PricingPage() {
             Ready to hire your <span className="text-emerald-600">AI team</span>?
           </h2>
           <p className="text-slate-500 text-lg md:text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
-            Three AI employees. Trained on your business. Working every channel, every hour. Start your
+            Two AI specialists. Trained on your business. Working every channel, every hour. Start your
             free trial today.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">

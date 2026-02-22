@@ -15,13 +15,6 @@ const agents = [
     orbColors: ['#10b981', '#059669', '#14b8a6'],
   },
   {
-    id: 'nilufar',
-    name: 'Nilufar',
-    role: 'Onboarding Team Lead',
-    desc: 'Streamlines hiring with application forms, assessments, and auto-screening.',
-    orbColors: ['#6366f1', '#8b5cf6', '#3b82f6'],
-  },
-  {
     id: 'bobur',
     name: 'Bobur',
     role: 'Analytics Team Lead',
@@ -43,15 +36,15 @@ const billingOptions = [
 ];
 
 export default function PricingSection({ onGetStarted }) {
-  const [selectedAgents, setSelectedAgents] = useState(['jasur', 'nilufar', 'bobur']);
+  const [selectedAgents, setSelectedAgents] = useState(['jasur', 'bobur']);
   const [selectedChannel, setSelectedChannel] = useState('telegram');
   const [selectedBilling, setSelectedBilling] = useState('monthly');
-  const [displayPrice, setDisplayPrice] = useState(40);
-  const targetPriceRef = useRef(40);
+  const [displayPrice, setDisplayPrice] = useState(25);
+  const targetPriceRef = useRef(25);
 
   // Calculations
   const agentCount = selectedAgents.length;
-  const isFullTeam = agentCount === 3;
+  const isFullTeam = agentCount === 2;
   const rawAgentCost = agentCount * AGENT_PRICE;
   const agentCost = isFullTeam ? rawAgentCost - BUNDLE_DISCOUNT : rawAgentCost;
   const channel = channelOptions.find((c) => c.id === selectedChannel);
@@ -224,12 +217,12 @@ export default function PricingSection({ onGetStarted }) {
                   onClick={hireAll}
                   className="w-full mt-3 flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-semibold hover:bg-emerald-100 transition-colors duration-200"
                 >
-                  Hire all 3 and save ${BUNDLE_DISCOUNT}/month
+                  Hire both and save ${BUNDLE_DISCOUNT}/month
                 </button>
               ) : (
                 <div className="mt-3 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium">
                   <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
-                  Full team hired. ${BUNDLE_DISCOUNT}/month bundle discount applied.
+                  Both agents hired. ${BUNDLE_DISCOUNT}/month bundle discount applied.
                 </div>
               )}
             </div>

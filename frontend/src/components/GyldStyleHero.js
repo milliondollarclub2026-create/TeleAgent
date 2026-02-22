@@ -82,9 +82,9 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
           <div className="inline-flex items-center gap-6 sm:gap-10">
             <div className="text-center">
               <div className="text-2xl sm:text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">
-                <AnimatedCounter end={3} duration={800} delay={500} />
+                <AnimatedCounter end={2} duration={800} delay={500} />
               </div>
-              <div className="text-xs sm:text-sm text-slate-400 font-medium mt-1">AI Employees</div>
+              <div className="text-xs sm:text-sm text-slate-400 font-medium mt-1">AI Specialists</div>
             </div>
 
             <div className="w-px h-10 bg-slate-200" />

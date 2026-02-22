@@ -13,7 +13,7 @@ const faqData = [
     id: 'faq-1',
     question: 'How does the AI sales agent work?',
     answer:
-      "LeadRelay gives you a team of AI employees, each specialized for a different role. Your Sales Team Lead handles customer conversations and qualifies leads across Telegram and Instagram. Your Knowledge Specialist answers product questions from your uploaded materials. Your Analytics Team Lead gives you conversational access to your CRM data. Each one is trained on your specific business information and speaks 20+ languages.",
+      "LeadRelay gives you two AI specialists, each focused on a key area. Jasur, your Sales Team Lead, handles customer conversations and qualifies leads across Telegram and Instagram — answering product questions from your uploaded materials in 20+ languages. Bobur, your Analytics Team Lead, connects to your CRM and gives you conversational access to pipeline data, dashboards, and AI-powered insights. Both are trained on your specific business.",
   },
   {
     id: 'faq-2',
@@ -49,7 +49,7 @@ const faqData = [
     id: 'faq-5',
     question: 'How does billing work?',
     answer:
-      '$15 per month per agent. Hire the full team of three and get a $5/month bundle discount. Telegram is included at no extra cost; add Instagram for $10\u2013$25/month depending on your setup. No setup fees, no annual contracts. Cancel from your dashboard at any time.',
+      'Sales Team: $15 per month per agent. Hire both agents and get a $5/month bundle discount. Telegram is included; add Instagram for $10\u2013$25/month. Analytics Team: free tier available, with Pro ($49/mo) and Business ($149/mo) plans for advanced features. No setup fees, no annual contracts. Cancel from your dashboard at any time.',
   },
   {
     id: 'faq-6',

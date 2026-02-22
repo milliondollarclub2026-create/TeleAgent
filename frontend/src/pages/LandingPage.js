@@ -22,8 +22,8 @@ import {
 } from 'lucide-react';
 import GyldStyleHero from '../components/GyldStyleHero';
 import FAQSection from '../components/FAQSection';
-import PricingSection from '../components/PricingSection';
 import AiOrb from '../components/Orb/AiOrb';
+import { toast } from 'sonner';
 
 // ============================================================================
 // CRM ANALYTICS SECTION - Dashboard mockup with animated data
@@ -62,7 +62,6 @@ function CRMAnalyticsSection() {
     { name: 'Bobur', role: 'Revenue Analyst', colors: ['#f97316', '#ea580c', '#f59e0b'] },
     { name: 'Dima', role: 'Charts', colors: ['#8b5cf6', '#7c3aed', '#a78bfa'] },
     { name: 'Anvar', role: 'Data', colors: ['#10b981', '#059669', '#34d399'] },
-    { name: 'Nilufar', role: 'Insights', colors: ['#ec4899', '#db2777', '#f472b6'] },
   ];
 
   return (
@@ -423,36 +422,28 @@ export default function LandingPage() {
               <span className="text-emerald-600">AI sales team</span>
             </h2>
             <p className="text-slate-500 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-              Three team leads, each backed by specialist agents. Trained on your business. Always on.
+              Two AI specialists. Trained on your business. Always on.
             </p>
           </div>
 
-          {/* Agent Cards - 3 equal columns */}
-          <div className="grid md:grid-cols-3 gap-5 mb-5 scroll-reveal" style={{ transitionDelay: '100ms' }}>
+          {/* Agent Cards - 2 equal columns */}
+          <div className="grid md:grid-cols-2 gap-5 mb-5 scroll-reveal" style={{ transitionDelay: '100ms' }}>
             {[
               {
                 name: 'Jasur',
                 role: 'Sales Team Lead',
                 roleColor: 'text-emerald-600',
                 orbColors: ['#10b981', '#059669', '#14b8a6'],
-                desc: 'Leads your sales team across Telegram and Instagram. Qualifies leads, collects contact information, and never lets a sales opportunity slip. Fluent in 20+ languages.',
-                tags: ['Telegram', 'Instagram', 'Lead Gen', 'Multilingual'],
-              },
-              {
-                name: 'Nilufar',
-                role: 'Onboarding Team Lead',
-                roleColor: 'text-indigo-600',
-                orbColors: ['#6366f1', '#8b5cf6', '#3b82f6'],
-                desc: 'Leads your onboarding team by creating detailed application forms with personality assessments and screening tests. Finds the best candidates for your sales department automatically.',
-                tags: ['Telegram', 'HR Forms', 'Screening'],
+                desc: 'Your AI sales closer. Handles customer conversations across Telegram and Instagram 24/7 — qualifying leads, answering product questions from your knowledge base, and collecting contact info. Fluent in 20+ languages.',
+                tags: ['Telegram', 'Instagram', 'Lead Gen', 'Multilingual', 'Knowledge Base'],
               },
               {
                 name: 'Bobur',
                 role: 'Analytics Team Lead',
                 roleColor: 'text-orange-600',
                 orbColors: ['#f97316', '#ea580c', '#f59e0b'],
-                desc: 'Your AI Revenue Analyst. Monitors pipeline health, tracks win rates, detects stalling deals, and alerts you to revenue risks — before they become problems.',
-                tags: ['Revenue Analyst', 'Live Alerts', 'CRM Chat', 'Pipeline Intelligence'],
+                desc: 'Your AI Revenue Analyst. Connects to your CRM, monitors pipeline health, tracks win rates, detects stalling deals, and surfaces AI-powered insights — all through a conversational dashboard.',
+                tags: ['Revenue Analyst', 'Live Alerts', 'CRM Chat', 'Pipeline Intelligence', 'AI Insights'],
               },
             ].map((agent) => (
               <div
@@ -512,6 +503,38 @@ export default function LandingPage() {
               <p className="text-slate-500 leading-relaxed">
                 Your CRM Dashboard shows live KPIs, conversion funnels, and revenue trends across all connected CRMs. AI-powered insights detect anomalies and surface opportunities automatically.
               </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================================================================ */}
+      {/* VIDEO DEMO PLACEHOLDER                                           */}
+      {/* ================================================================ */}
+      <section className="py-24 bg-white">
+        <div className="max-w-4xl mx-auto px-6 md:px-12">
+          <div className="text-center mb-12 scroll-reveal">
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-4">
+              See LeadRelay in Action
+            </h2>
+            <p className="text-slate-500 text-lg max-w-xl mx-auto">
+              See how Jasur and Bobur work together to close more deals
+            </p>
+          </div>
+          <div className="scroll-reveal" style={{ transitionDelay: '100ms' }}>
+            <div className="relative w-full rounded-2xl overflow-hidden border border-slate-200 shadow-sm bg-slate-900" style={{ aspectRatio: '16/9' }}>
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/40 to-transparent" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-10">
+                <button
+                  onClick={() => toast('Demo video coming soon', { description: 'We\'re putting the finishing touches on our product walkthrough.' })}
+                  className="group w-20 h-20 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-white/20 transition-all duration-300 hover:scale-105"
+                >
+                  <svg className="w-8 h-8 text-white ml-1" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </button>
+                <span className="text-white/90 text-sm font-medium">Watch 2-min demo</span>
+              </div>
             </div>
           </div>
         </div>
@@ -601,8 +624,68 @@ export default function LandingPage() {
       {/* CRM Analytics Section */}
       <CRMAnalyticsSection />
 
-      {/* Pricing */}
-      <PricingSection onGetStarted={handleCTA} />
+      {/* Pricing Teaser */}
+      <section id="pricing" className="py-24 bg-[#F5F7F6]">
+        <div className="max-w-4xl mx-auto px-6 md:px-12">
+          <div className="text-center mb-12 scroll-reveal">
+            <h2 className="text-4xl md:text-5xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-4">
+              Simple, transparent <span className="text-emerald-600">pricing</span>
+            </h2>
+            <p className="text-lg text-slate-500 max-w-xl mx-auto">
+              Two teams, each with plans that fit your stage. Start free or go all-in.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6 scroll-reveal" style={{ transitionDelay: '100ms' }}>
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300">
+              <div className="flex items-center gap-3 mb-4">
+                <AiOrb size={36} colors={['#10b981', '#059669', '#14b8a6']} />
+                <div>
+                  <h3 className="font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Sales Team</h3>
+                  <span className="text-xs text-slate-400">Powered by Jasur</span>
+                </div>
+              </div>
+              <p className="text-slate-500 text-sm mb-4 leading-relaxed">AI sales agents for Telegram & Instagram</p>
+              <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">From $15<span className="text-base font-medium text-slate-400">/mo</span></p>
+              <p className="text-xs text-slate-400 mb-6">per agent</p>
+              <Link
+                to="/pricing/sales"
+                className="inline-flex items-center gap-1.5 text-emerald-600 font-semibold text-sm hover:gap-2.5 transition-all duration-300"
+              >
+                View Sales Plans
+                <ArrowRight className="w-4 h-4" strokeWidth={2} />
+              </Link>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300">
+              <div className="flex items-center gap-3 mb-4">
+                <AiOrb size={36} colors={['#f97316', '#ea580c', '#f59e0b']} />
+                <div>
+                  <h3 className="font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Analytics Team</h3>
+                  <span className="text-xs text-slate-400">Powered by Bobur</span>
+                </div>
+              </div>
+              <p className="text-slate-500 text-sm mb-4 leading-relaxed">CRM dashboards, insights & revenue monitoring</p>
+              <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">Free<span className="text-base font-medium text-slate-400"> plan</span></p>
+              <p className="text-xs text-slate-400 mb-6">Pro from $49/mo</p>
+              <Link
+                to="/pricing/analytics"
+                className="inline-flex items-center gap-1.5 text-emerald-600 font-semibold text-sm hover:gap-2.5 transition-all duration-300"
+              >
+                View Analytics Plans
+                <ArrowRight className="w-4 h-4" strokeWidth={2} />
+              </Link>
+            </div>
+          </div>
+          <div className="text-center mt-8 scroll-reveal" style={{ transitionDelay: '200ms' }}>
+            <Link
+              to="/pricing"
+              className="group inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 font-semibold transition-all duration-300"
+            >
+              Compare all plans
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={2} />
+            </Link>
+          </div>
+        </div>
+      </section>
 
       {/* FAQ */}
       <FAQSection />
@@ -620,7 +703,7 @@ export default function LandingPage() {
           </h2>
 
           <p className="text-slate-500 text-lg md:text-xl mb-14 max-w-2xl mx-auto leading-relaxed">
-            Three AI employees. Trained on your business. Working every channel. Hire your team in ten minutes.
+            Two AI specialists. Trained on your business. Working every channel. Hire your team in ten minutes.
           </p>
 
           {/* CTA Buttons */}
@@ -634,13 +717,13 @@ export default function LandingPage() {
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform duration-300" strokeWidth={2.5} />
             </button>
 
-            <button
-              onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
+            <Link
+              to="/pricing"
               className="group text-slate-600 hover:text-slate-900 transition-all duration-300 text-lg font-medium flex items-center gap-2 py-5 px-6"
             >
               View Pricing
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={2} />
-            </button>
+            </Link>
           </div>
 
         </div>
