@@ -17,7 +17,6 @@ import {
   AXIS_STYLE,
   GRID_STYLE,
   formatNumber,
-  getRotatedPalette,
 } from './chartTheme';
 
 export default function LineChartBlock({ chart, chartIndex = 0, interactive = false, onDrillDown }) {
@@ -46,8 +45,7 @@ export default function LineChartBlock({ chart, chartIndex = 0, interactive = fa
     value: item.value,
   }));
 
-  const colors = getRotatedPalette(chartIndex);
-  const primaryColor = colors[0];
+  const primaryColor = '#374151'; // charcoal — neutral enterprise default
 
   const handleClick = (point) => {
     if (interactive && onDrillDown && point?.activePayload?.[0]) {

@@ -211,7 +211,7 @@ export default function DashboardGrid({
       )}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* KPIs */}
           {kpis.length > 0 && (
             <SortableContext items={kpis.map(w => w.id)} strategy={rectSortingStrategy}>

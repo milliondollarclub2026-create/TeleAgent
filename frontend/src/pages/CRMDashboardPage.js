@@ -198,6 +198,7 @@ function CRMDashboardPageInner() {
     setRefreshing(true);
     await loadDashboardData();
     setRefreshing(false);
+    toast.success('Dashboard refreshed', { duration: 2000 });
   }, [loadDashboardData]);
 
   // --- Delete widget ---

@@ -252,7 +252,7 @@ async def _resolve_legacy(
 
         # Special aggregations
         if agg == "conversion_rate":
-            return await _resolve_conversion_rate(supabase, tenant_id, crm_source, title)
+            return await _resolve_conversion_rate(supabase, tenant_id, crm_source, title, from_date=from_date, to_date=to_date)
 
         if config.get("closing_soon"):
             return await _resolve_closing_soon(supabase, tenant_id, crm_source, title)
@@ -353,21 +353,30 @@ async def _query_aggregate(
         return None
 
 
-async def _resolve_conversion_rate(supabase, tenant_id, crm_source, title):
+async def _resolve_conversion_rate(supabase, tenant_id, crm_source, title, from_date=None, to_date=None):
     """Calculate deal conversion rate: won / total * 100."""
     try:
         total_q = (
             supabase.table("crm_deals").select("*", count="exact")
             .eq("tenant_id", tenant_id).eq("crm_source", crm_source)
-            .limit(0).execute()
         )
+        if from_date:
+            total_q = total_q.gte("created_at", from_date)
+        if to_date:
+            total_q = total_q.lte("created_at", to_date)
+        total_q = total_q.limit(0).execute()
         total = total_q.count or 0
 
         won_q = (
             supabase.table("crm_deals").select("*", count="exact")
             .eq("tenant_id", tenant_id).eq("crm_source", crm_source)
-            .is_("won", True).limit(0).execute()
+            .is_("won", True)
         )
+        if from_date:
+            won_q = won_q.gte("created_at", from_date)
+        if to_date:
+            won_q = won_q.lte("created_at", to_date)
+        won_q = won_q.limit(0).execute()
         won = won_q.count or 0
 
         rate = (won / total * 100) if total > 0 else 0

@@ -44,7 +44,7 @@ export default function DashboardView({
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto px-4 py-5 space-y-5">
+      <div className="mx-auto px-4 py-5 space-y-6">
         {/* Top actions bar */}
         <div className="flex items-center justify-between flex-wrap gap-2" data-tour="top-actions">
           <div className="flex items-center gap-3">
@@ -108,11 +108,11 @@ export default function DashboardView({
         </div>
 
         {/* Exportable content area */}
-        <div ref={dashboardRef} className="space-y-5">
+        <div ref={dashboardRef} className="space-y-6">
           {/* Analytics summary */}
           {getRevenueOverview && (
             <div data-tour="kpi-row">
-              <MetricsSummaryCard getRevenueOverview={getRevenueOverview} />
+              <MetricsSummaryCard getRevenueOverview={getRevenueOverview} dateRange={dateRange} />
             </div>
           )}
 

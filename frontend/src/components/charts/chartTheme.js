@@ -1,17 +1,20 @@
 // Locked chart styling constants - AI picks chart type, styling is fixed
 // Follows Emerald Graphite theme for premium consistency
 
-// Emerald-anchored palette — brand-forward, distinct, professional
+// Neutral-first palette — enterprise-grade, restrained. Emerald reserved for highlights only.
 export const CHART_COLORS = [
-  '#059669', // emerald-600 — brand primary
-  '#475569', // slate-600 — neutral anchor
-  '#0891b2', // cyan-600 — cool complement
-  '#d97706', // amber-600 — warm accent
-  '#6366f1', // indigo-500 — cool accent
-  '#0d9488', // teal-600 — brand adjacent
-  '#8b5cf6', // violet-500 — contrast
-  '#64748b', // slate-500 — fallback neutral
+  '#374151', // gray-700 — default primary (neutral charcoal)
+  '#6B7280', // gray-500 — secondary
+  '#9CA3AF', // gray-400 — tertiary
+  '#4B5563', // gray-600 — alternate
+  '#D1D5DB', // gray-300 — light
+  '#1F2937', // gray-800 — dark accent
+  '#059669', // emerald-600 — positive/highlight only
+  '#475569', // slate-600 — fallback
 ];
+
+export const HIGHLIGHT_COLOR = '#059669'; // emerald — top performer, positive
+export const NEGATIVE_COLOR = '#DC2626';  // red — negative, drop-off
 
 export const CHART_CONFIG = {
   height: 280,
@@ -21,7 +24,7 @@ export const CHART_CONFIG = {
 };
 
 export const CHART_STYLES = {
-  wrapper: 'bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden',
+  wrapper: 'bg-white border border-slate-200 rounded-xl overflow-hidden',
   innerPadding: 'p-4',
   title: 'text-sm font-semibold text-slate-900 mb-3',
   noData: 'flex items-center justify-center h-48 text-sm text-slate-400',
@@ -63,8 +66,8 @@ export const AXIS_STYLE = {
 
 // Grid styling
 export const GRID_STYLE = {
-  strokeDasharray: '3 3',
-  stroke: '#e2e8f0',
+  strokeDasharray: '2 4',
+  stroke: '#F1F5F9',
   vertical: false,
 };
 

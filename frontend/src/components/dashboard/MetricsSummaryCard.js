@@ -67,7 +67,7 @@ function SkeletonCell() {
   );
 }
 
-export default function MetricsSummaryCard({ getRevenueOverview }) {
+export default function MetricsSummaryCard({ getRevenueOverview, dateRange }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -76,8 +76,11 @@ export default function MetricsSummaryCard({ getRevenueOverview }) {
     let cancelled = false;
     async function load() {
       setLoading(true);
+      setError(false);
       try {
-        const result = await getRevenueOverview('30d');
+        // Pass dateRange object when available, otherwise fall back to '30d'
+        const arg = dateRange?.from ? dateRange : '30d';
+        const result = await getRevenueOverview(arg);
         if (cancelled) return;
         if (result?.error || !result?.data) {
           setError(true);
@@ -92,7 +95,7 @@ export default function MetricsSummaryCard({ getRevenueOverview }) {
     }
     load();
     return () => { cancelled = true; };
-  }, [getRevenueOverview]);
+  }, [getRevenueOverview, dateRange]);
 
   if (error) return null;
 
@@ -181,7 +184,7 @@ export default function MetricsSummaryCard({ getRevenueOverview }) {
       {/* Footer */}
       {!loading && (
         <p className="mt-2.5 text-[11px] text-slate-400 border-t border-slate-100 pt-2">
-          Based on last 30 days
+          Based on {dateRange?.label || 'last 30 days'}
           {timeAgo && <span> · Last updated {timeAgo}</span>}
         </p>
       )}

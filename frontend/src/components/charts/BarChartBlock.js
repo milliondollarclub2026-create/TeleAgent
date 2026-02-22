@@ -2,6 +2,7 @@ import React from 'react';
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -12,6 +13,7 @@ import {
   CHART_STYLES,
   CHART_CONFIG,
   CHART_COLORS,
+  HIGHLIGHT_COLOR,
   TOOLTIP_STYLE,
   AXIS_STYLE,
   GRID_STYLE,
@@ -41,11 +43,12 @@ export default function BarChartBlock({ chart, chartIndex = 0, interactive = fal
     );
   }
 
-  const barColor = CHART_COLORS[0];
+  const maxValue = Math.max(...data.map(d => d.value));
 
   const chartData = data.map((item) => ({
     name: item.label,
     value: item.value,
+    fill: item.value === maxValue && maxValue > 0 ? HIGHLIGHT_COLOR : CHART_COLORS[0],
   }));
 
   const isHorizontal = orientation === 'horizontal';
@@ -119,14 +122,17 @@ export default function BarChartBlock({ chart, chartIndex = 0, interactive = fal
 
             <Bar
               dataKey="value"
-              fill={barColor}
               radius={[4, 4, 0, 0]}
               isAnimationActive={!mounted.current}
               animationDuration={CHART_CONFIG.animationDuration}
               animationEasing={CHART_CONFIG.animationEasing}
               onClick={handleClick}
               style={interactive ? { cursor: 'pointer' } : {}}
-            />
+            >
+              {chartData.map((entry, i) => (
+                <Cell key={i} fill={entry.fill} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>

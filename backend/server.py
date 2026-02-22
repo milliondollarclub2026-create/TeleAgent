@@ -11221,6 +11221,69 @@ async def _do_overview(tenant_id: str, timeframe: str):
         raise HTTPException(status_code=500, detail=f"Failed to fetch snapshot: {e}")
 
 
+async def _do_overview_live(tenant_id: str, from_date: Optional[str], to_date: Optional[str]):
+    """Compute KPIs live for a custom date range instead of looking up a pre-computed snapshot."""
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        raise HTTPException(status_code=400, detail="No active CRM connection found.")
+
+    try:
+        from agents.kpi_resolver import resolve_kpi
+
+        # Compute pipeline_value and conversion_rate on the fly
+        pipeline_result = await resolve_kpi(
+            supabase, tenant_id, crm_source, "pipeline_value",
+            from_date=from_date, to_date=to_date,
+        )
+        conversion_result = await resolve_kpi(
+            supabase, tenant_id, crm_source, "conversion_rate",
+            from_date=from_date, to_date=to_date,
+        )
+
+        metrics = {}
+        if pipeline_result and pipeline_result.value is not None:
+            metrics["pipeline_value"] = {
+                "title": "Pipeline Value",
+                "value": pipeline_result.value,
+                "display_format": "currency",
+            }
+        if conversion_result and conversion_result.value is not None:
+            metrics["conversion_rate"] = {
+                "title": "Win Rate",
+                "value": conversion_result.value,
+                "display_format": "percentage",
+            }
+
+        # Count open alerts
+        alert_count = 0
+        try:
+            alert_q = (
+                supabase.table("revenue_alerts")
+                .select("*", count="exact")
+                .eq("tenant_id", tenant_id)
+                .eq("crm_source", crm_source)
+                .eq("status", "open")
+                .limit(0)
+                .execute()
+            )
+            alert_count = alert_q.count or 0
+        except Exception:
+            pass
+
+        return {
+            "metrics": metrics,
+            "alert_count": alert_count,
+            "overall_trust": 0.6,
+            "snapshot": {"computed_at": None},
+            "currency": "USD",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("_do_overview_live failed")
+        raise HTTPException(status_code=500, detail=f"Failed to compute live overview: {e}")
+
+
 async def _do_alerts_list(tenant_id: str, status: str):
     """Shared handler body for revenue/analytics alerts list."""
     if status not in ("open", "dismissed", "all"):
@@ -11306,9 +11369,13 @@ async def analytics_recompute(
 @api_router.get("/dashboard/analytics/overview")
 async def analytics_overview(
     timeframe: str = "30d",
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
     current_user: Dict = Depends(get_current_user),
 ):
-    """Return the latest analytics snapshot for this tenant."""
+    """Return analytics snapshot. When from_date/to_date provided, computes live KPIs."""
+    if from_date or to_date:
+        return await _do_overview_live(current_user["tenant_id"], from_date, to_date)
     return await _do_overview(current_user["tenant_id"], timeframe)
 
 

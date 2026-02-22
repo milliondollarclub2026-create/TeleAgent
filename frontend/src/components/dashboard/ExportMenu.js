@@ -7,6 +7,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '../ui/dropdown-menu';
+import { toast } from 'sonner';
 import { generatePDF, generateCSV, captureChartImage } from '../../utils/exportUtils';
 
 export default function ExportMenu({ dashboardRef, widgets, dateRange }) {
@@ -15,14 +16,17 @@ export default function ExportMenu({ dashboardRef, widgets, dateRange }) {
   const handleExportPDF = async () => {
     if (!dashboardRef?.current) return;
     setExporting('pdf');
+    toast.loading('Generating PDF...', { id: 'export-pdf' });
     try {
       await generatePDF(dashboardRef.current, {
         title: 'LeadRelay Dashboard Report',
         dateRange: dateRange?.label || 'Last 30 days',
         timestamp: new Date().toLocaleString(),
       }, widgets || []);
+      toast.success('PDF downloaded', { id: 'export-pdf' });
     } catch (err) {
       console.error('PDF export failed:', err);
+      toast.error('PDF export failed', { id: 'export-pdf' });
     } finally {
       setExporting(null);
     }
@@ -32,8 +36,10 @@ export default function ExportMenu({ dashboardRef, widgets, dateRange }) {
     setExporting('csv');
     try {
       generateCSV(widgets);
+      toast.success('CSV downloaded');
     } catch (err) {
       console.error('CSV export failed:', err);
+      toast.error('CSV export failed');
     } finally {
       setExporting(null);
     }
@@ -44,8 +50,10 @@ export default function ExportMenu({ dashboardRef, widgets, dateRange }) {
     setExporting('image');
     try {
       await captureChartImage(dashboardRef.current);
+      toast.success('Image copied to clipboard');
     } catch (err) {
       console.error('Image capture failed:', err);
+      toast.error('Image capture failed');
     } finally {
       setExporting(null);
     }

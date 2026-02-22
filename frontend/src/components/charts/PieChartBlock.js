@@ -11,10 +11,11 @@ import {
 import {
   CHART_STYLES,
   CHART_CONFIG,
+  CHART_COLORS,
+  HIGHLIGHT_COLOR,
   TOOLTIP_STYLE,
   formatNumber,
   formatPercent,
-  getRotatedPalette,
 } from './chartTheme';
 
 // Active shape for hover expansion when interactive
@@ -63,14 +64,20 @@ export default function PieChartBlock({ chart, chartIndex = 0, interactive = fal
   }
 
   const total = data.reduce((sum, item) => sum + item.value, 0);
-  const colors = getRotatedPalette(chartIndex);
+  const maxVal = Math.max(...data.map(d => d.value));
 
-  const chartData = data.map((item, index) => ({
-    name: item.label,
-    value: item.value,
-    fill: colors[index % colors.length],
-    percentage: total > 0 ? (item.value / total) * 100 : 0,
-  }));
+  const chartData = data.map((item, index) => {
+    // Top segment gets emerald, rest get neutral grays
+    const fill = item.value === maxVal && maxVal > 0
+      ? HIGHLIGHT_COLOR
+      : CHART_COLORS[index % CHART_COLORS.length];
+    return {
+      name: item.label,
+      value: item.value,
+      fill,
+      percentage: total > 0 ? (item.value / total) * 100 : 0,
+    };
+  });
 
   const handleClick = (entry, index) => {
     if (interactive && onDrillDown) {

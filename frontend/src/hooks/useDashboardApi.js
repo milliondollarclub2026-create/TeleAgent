@@ -119,9 +119,19 @@ export default function useDashboardApi() {
     apiCall('get', '/api/dashboard/analytics/alerts', { status }),
   [apiCall]);
 
-  const getRevenueOverview = useCallback((timeframe = '30d') =>
-    apiCall('get', '/api/dashboard/analytics/overview', { timeframe }),
-  [apiCall]);
+  const getRevenueOverview = useCallback((dateRangeOrTimeframe = '30d') => {
+    if (typeof dateRangeOrTimeframe === 'object' && dateRangeOrTimeframe?.from) {
+      const params = {};
+      params.from_date = dateRangeOrTimeframe.from instanceof Date
+        ? dateRangeOrTimeframe.from.toISOString().slice(0, 10)
+        : dateRangeOrTimeframe.from;
+      params.to_date = dateRangeOrTimeframe.to instanceof Date
+        ? dateRangeOrTimeframe.to.toISOString().slice(0, 10)
+        : dateRangeOrTimeframe.to;
+      return apiCall('get', '/api/dashboard/analytics/overview', params);
+    }
+    return apiCall('get', '/api/dashboard/analytics/overview', { timeframe: dateRangeOrTimeframe });
+  }, [apiCall]);
 
   const recomputeRevenue = useCallback((timeframe = '30d') =>
     apiCallWithToast('post', `/api/dashboard/analytics/recompute?timeframe=${timeframe}`, {}, 'Recompute failed'),
