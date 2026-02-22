@@ -97,9 +97,8 @@ from agents.anvar import execute_chart_query as anvar_execute_query
 from agents.nilufar import check_insights as nilufar_check_insights
 from agents.kpi_resolver import resolve_kpi as kpi_resolve
 from agents import ChartConfig, CRMProfile
-# NOTE: farid.analyze_schema and dima.generate_dashboard_widgets are no longer called
-# in the active onboarding flow (replaced by build_proposal + _generate_goal_widgets).
-# Their modules are kept for reference but not imported here.
+# NOTE: farid.discover_and_plan() is called during onboarding via lazy import.
+# dima is used for chat-generated charts. Anvar executes widget queries.
 
 import bcrypt as _bcrypt_lib  # for password hashing upgrade
 
@@ -3445,556 +3444,22 @@ async def _get_tenant_crm_source(supabase, tenant_id: str) -> Optional[str]:
     return None
 
 
-# ── Revenue Analyst onboarding helpers ──
-
-# DEPRECATED Phase 3 — remove after 2026-04-01. Use SchemaProfile.suggested_goals instead.
-_REVENUE_GOALS = [
-    {
-        "id": "forecast_accuracy",
-        "name": "Forecast Accuracy",
-        "description": "Win rates, sales cycle length, and deal velocity to predict revenue.",
-        "required_metrics": ["win_rate", "sales_cycle_days", "deal_velocity", "avg_deal_size"],
-        "requires_revenue_model": True,
-    },
-    {
-        "id": "pipeline_health",
-        "name": "Pipeline Health",
-        "description": "Pipeline value, stall risk, and deal flow through stages.",
-        "required_metrics": ["pipeline_value", "pipeline_stall_risk", "stage_conversion", "new_deals"],
-        "requires_revenue_model": False,
-    },
-    {
-        "id": "conversion_improvement",
-        "name": "Conversion Improvement",
-        "description": "Where deals drop off and how to improve win rates across the funnel.",
-        "required_metrics": ["win_rate", "stage_conversion", "lead_to_deal_rate", "activity_to_deal_ratio"],
-        "requires_revenue_model": True,
-    },
-    {
-        "id": "rep_performance",
-        "name": "Rep Performance",
-        "description": "Activity volume, close rates, and deal sizes across your sales team.",
-        "required_metrics": ["rep_activity_count", "activity_to_deal_ratio", "avg_deal_size"],
-        "requires_revenue_model": False,
-    },
-    {
-        "id": "lead_flow_health",
-        "name": "Lead Flow Health",
-        "description": "How efficiently leads convert to deals and enter the pipeline.",
-        "required_metrics": ["lead_to_deal_rate", "new_deals", "pipeline_value", "forecast_hygiene"],
-        "requires_revenue_model": False,
-    },
-]
-
-# DEPRECATED Phase 3 — remove after 2026-04-01. Use _generate_widgets_from_metrics() instead.
-# Widget templates per goal — all fields validated against ALLOWED_FIELDS whitelist
-_GOAL_WIDGET_TEMPLATES = {
-    "forecast_accuracy": [
-        {"chart_type": "kpi", "title": "Win Rate", "description": "Percentage of deals won in the period", "data_source": "crm_deals", "x_field": "won", "aggregation": "count", "size": "small"},
-        {"chart_type": "kpi", "title": "Avg Deal Size", "description": "Average value of won deals", "data_source": "crm_deals", "x_field": "won", "y_field": "value", "aggregation": "avg", "size": "small"},
-        {"chart_type": "line", "title": "Revenue Over Time", "description": "Closed deal revenue trend", "data_source": "crm_deals", "x_field": "closed_at", "y_field": "value", "aggregation": "sum", "sort_order": "asc", "size": "large"},
-        {"chart_type": "line", "title": "Deal Velocity", "description": "New deals created over time", "data_source": "crm_deals", "x_field": "created_at", "sort_order": "asc", "size": "large"},
-    ],
-    "pipeline_health": [
-        {"chart_type": "kpi", "title": "Pipeline Value", "description": "Total value of open deals", "data_source": "crm_deals", "x_field": "stage", "y_field": "value", "aggregation": "sum", "size": "small"},
-        {"chart_type": "kpi", "title": "Open Deals", "description": "Count of deals currently in pipeline", "data_source": "crm_deals", "x_field": "stage", "aggregation": "count", "size": "small"},
-        {"chart_type": "funnel", "title": "Stage Conversion Funnel", "description": "Deal count at each pipeline stage", "data_source": "crm_deals", "x_field": "stage", "size": "large"},
-        {"chart_type": "bar", "title": "Deal Value by Stage", "description": "Revenue potential at each stage", "data_source": "crm_deals", "x_field": "stage", "y_field": "value", "aggregation": "sum", "size": "medium"},
-    ],
-    "conversion_improvement": [
-        {"chart_type": "funnel", "title": "Stage Conversion Funnel", "description": "Deal drop-off through pipeline stages", "data_source": "crm_deals", "x_field": "stage", "size": "large"},
-        {"chart_type": "funnel", "title": "Lead Pipeline", "description": "Lead distribution across statuses", "data_source": "crm_leads", "x_field": "status", "size": "large"},
-        {"chart_type": "kpi", "title": "Win Rate", "description": "Percentage of deals won", "data_source": "crm_deals", "x_field": "won", "aggregation": "count", "size": "small"},
-        {"chart_type": "pie", "title": "Activities by Type", "description": "Breakdown of sales activities", "data_source": "crm_activities", "x_field": "type", "size": "medium", "item_limit": 6},
-    ],
-    "rep_performance": [
-        {"chart_type": "bar", "title": "Revenue per Rep", "description": "Total deal value closed per team member", "data_source": "crm_deals", "x_field": "assigned_to", "y_field": "value", "aggregation": "sum", "size": "medium"},
-        {"chart_type": "bar", "title": "Deals per Rep", "description": "Deal count by team member", "data_source": "crm_deals", "x_field": "assigned_to", "size": "medium"},
-        {"chart_type": "bar", "title": "Activities by Rep", "description": "Activity volume per team member", "data_source": "crm_activities", "x_field": "employee_name", "size": "medium"},
-        {"chart_type": "bar", "title": "Leads per Rep", "description": "Lead count by assignee", "data_source": "crm_leads", "x_field": "assigned_to", "size": "medium"},
-    ],
-    "lead_flow_health": [
-        {"chart_type": "kpi", "title": "New Leads (30d)", "description": "Leads created in the last 30 days", "data_source": "crm_leads", "x_field": "status", "aggregation": "count", "time_range_days": 30, "size": "small"},
-        {"chart_type": "funnel", "title": "Lead Pipeline", "description": "Lead distribution across pipeline statuses", "data_source": "crm_leads", "x_field": "status", "size": "large"},
-        {"chart_type": "line", "title": "Lead Trend", "description": "New leads over time", "data_source": "crm_leads", "x_field": "created_at", "sort_order": "asc", "size": "large"},
-        {"chart_type": "pie", "title": "Leads by Source", "description": "Where your leads are coming from", "data_source": "crm_leads", "x_field": "source", "size": "medium", "item_limit": 8},
-    ],
-}
 
 
-# DEPRECATED Phase 3 — remove after 2026-04-01
-# ---------------------------------------------------------------------------
-# Backward-compatibility: map legacy Farid category IDs → Revenue Analyst goal IDs
-# ---------------------------------------------------------------------------
 
-_CATEGORY_TO_GOALS: dict[str, list[str]] = {
-    "lead_pipeline":      ["lead_flow_health"],
-    "deal_analytics":     ["pipeline_health", "forecast_accuracy"],
-    "activity_tracking":  ["rep_performance"],
-    "team_performance":   ["rep_performance"],
-    "revenue_metrics":    ["forecast_accuracy"],
-    "contact_management": [],  # no direct Revenue Analyst equivalent
-}
+def _apply_refinement_to_widgets(widgets: list, answers: dict, default_time_range: int) -> list:
+    """Adjust widgets based on user refinement answers."""
+    time_horizon = answers.get("time_horizon")
+    if time_horizon:
+        effective_days = {"30d": 30, "90d": 90, "365d": 365}.get(time_horizon, default_time_range)
+    else:
+        effective_days = default_time_range
 
-_VALID_GOAL_IDS: set[str] = {g["id"] for g in _REVENUE_GOALS}
+    for w in widgets:
+        # Apply time range to widgets that don't have an explicit override
+        if w.get("time_range_days") is None and w.get("chart_type") != "funnel":
+            w["time_range_days"] = effective_days
 
-
-# TODO Phase 3: Remove backward-compat shim — once all tenants have migrated
-# selected_categories → selected_goals, this function and its two call sites
-# (lines ~3729, ~4259) can be deleted.
-def _map_categories_to_goals(selected_categories: list) -> list:
-    """
-    Translate legacy Farid category IDs to Revenue Analyst goal IDs.
-    Unknown IDs (already goal IDs) pass through unchanged.
-    Deduplicates the output list.
-    """
-    goals: list[str] = []
-    seen: set[str] = set()
-    for cat in (selected_categories or []):
-        if cat in _VALID_GOAL_IDS:
-            # Already a goal ID — keep as-is
-            candidates = [cat]
-        else:
-            candidates = _CATEGORY_TO_GOALS.get(cat, [])
-        for g in candidates:
-            if g not in seen:
-                seen.add(g)
-                goals.append(g)
-    return goals
-
-
-def _compute_data_confidence(goal_id: str, crm_ctx: dict) -> float:
-    """Confidence based on whether the data actually supports meaningful analysis."""
-    counts = crm_ctx.get("counts", {})
-    pipeline = crm_ctx.get("pipeline", {})
-    reps = crm_ctx.get("reps", [])
-
-    if goal_id == "pipeline_health":
-        deal_count = counts.get("deals", 0)
-        if deal_count >= 50: return 0.9
-        if deal_count >= 20: return 0.7
-        if deal_count >= 5: return 0.5
-        return 0.3
-
-    if goal_id == "forecast_accuracy":
-        won = pipeline.get("won_count", 0)
-        lost = pipeline.get("lost_count", 0)
-        closed = won + lost
-        if closed >= 20: return 0.85
-        if closed >= 10: return 0.65
-        if closed >= 3: return 0.45
-        return 0.2
-
-    if goal_id == "rep_performance":
-        if len(reps) >= 5: return 0.9
-        if len(reps) >= 3: return 0.7
-        if len(reps) == 2: return 0.5
-        return 0.0
-
-    if goal_id == "conversion_improvement":
-        won = pipeline.get("won_count", 0)
-        stages = len(pipeline.get("by_stage", []))
-        if won >= 10 and stages >= 3: return 0.85
-        if won >= 5: return 0.6
-        return 0.35
-
-    if goal_id == "lead_flow_health":
-        lead_count = counts.get("leads", 0)
-        sources = len(crm_ctx.get("leads", {}).get("by_source", []))
-        if lead_count >= 50 and sources >= 3: return 0.85
-        if lead_count >= 20: return 0.65
-        return 0.4
-
-    if goal_id == "deal_velocity":
-        deal_count = counts.get("deals", 0)
-        stages = len(pipeline.get("by_stage", []))
-        if deal_count >= 30 and stages >= 3: return 0.85
-        if deal_count >= 10: return 0.6
-        return 0.35
-
-    if goal_id == "activity_monitoring":
-        activities = crm_ctx.get("activities", {})
-        total = activities.get("total", 0)
-        if total >= 100: return 0.85
-        if total >= 30: return 0.6
-        return 0.35
-
-    return 0.5  # fallback
-
-
-def _data_description(goal_id: str, crm_ctx: dict) -> str | None:
-    """Generate data-specific goal descriptions. Returns None to keep default."""
-    counts = crm_ctx.get("counts", {})
-    pipeline = crm_ctx.get("pipeline", {})
-    reps = crm_ctx.get("reps", [])
-
-    if goal_id == "pipeline_health":
-        total = pipeline.get("total_deals", counts.get("deals", 0))
-        value = pipeline.get("total_value", 0)
-        stages = len(pipeline.get("by_stage", []))
-        if total and stages:
-            return f"Track {total} deals (${value:,.0f}) across {stages} stages — spot stalls and bottlenecks."
-
-    if goal_id == "forecast_accuracy":
-        wr = pipeline.get("win_rate")
-        won = pipeline.get("won_count", 0)
-        if wr is not None and won > 0:
-            return f"Current win rate: {wr}% ({won} won deals). Predict revenue with deal velocity and cycle analysis."
-
-    if goal_id == "rep_performance":
-        rep_count = len(reps)
-        if rep_count >= 2:
-            return f"Compare performance across {rep_count} sales reps — deals, revenue, and activity."
-
-    if goal_id == "conversion_improvement":
-        stages = len(pipeline.get("by_stage", []))
-        won = pipeline.get("won_count", 0)
-        lost = pipeline.get("lost_count", 0)
-        if stages >= 2 and (won + lost) > 0:
-            return f"Analyze conversion across {stages} pipeline stages ({won} won, {lost} lost)."
-
-    if goal_id == "lead_flow_health":
-        lead_count = counts.get("leads", 0)
-        sources = len(crm_ctx.get("leads", {}).get("by_source", []))
-        if lead_count > 0:
-            src_part = f" from {sources} sources" if sources > 1 else ""
-            return f"Monitor {lead_count} leads{src_part} — track inflow, quality, and response time."
-
-    if goal_id == "deal_velocity":
-        total = pipeline.get("total_deals", counts.get("deals", 0))
-        if total > 0:
-            return f"Measure how fast {total} deals move through your pipeline — identify slow stages."
-
-    if goal_id == "activity_monitoring":
-        activities = crm_ctx.get("activities", {})
-        total = activities.get("total", 0)
-        if total > 0:
-            return f"Track {total} activities — calls, emails, meetings — and rep engagement."
-
-    return None
-
-
-def _enrich_suggested_goals(schema, catalog_trust: list, proposal: dict, crm_ctx: dict | None = None) -> list:
-    """
-    Build enriched goal list from SchemaProfile.suggested_goals + metric catalog trust.
-    Falls back to _REVENUE_GOALS if schema has no suggested_goals.
-    Uses crm_ctx (when available) for data-aware confidence and descriptions.
-    """
-    suggested = schema.suggested_goals if schema else []
-    if not suggested:
-        # No schema-driven goals — use legacy path
-        return _revenue_goals_from_catalog(catalog_trust, proposal)
-
-    metric_info = {m["key"]: m for m in catalog_trust}
-    has_ctx = bool(crm_ctx and crm_ctx.get("counts"))
-
-    # Alias mapping: old Farid IDs → current _REVENUE_GOALS IDs
-    _FARID_GOAL_ALIASES = {
-        "lead_conversion": "conversion_improvement",
-        "deal_velocity": "pipeline_health",
-        "revenue_tracking": "forecast_accuracy",
-        "activity_monitoring": "rep_performance",
-    }
-
-    # Pre-compute suppression signals from crm_ctx
-    rep_count = len(crm_ctx.get("reps", [])) if has_ctx else None
-    lead_count = crm_ctx.get("counts", {}).get("leads", 0) if has_ctx else None
-
-    # Map suggested_goals from Farid to the frontend format
-    # Match them against _REVENUE_GOALS definitions for required_metrics
-    goal_defs_by_id = {g["id"]: g for g in _REVENUE_GOALS}
-    seen_ids = set()
-    goals = []
-    for sg in suggested:
-        goal_id = _FARID_GOAL_ALIASES.get(sg.get("id", ""), sg.get("id", ""))
-        if goal_id in seen_ids:
-            continue  # skip duplicates after aliasing
-        seen_ids.add(goal_id)
-
-        # Suppress irrelevant goals based on actual data
-        if has_ctx:
-            if goal_id == "rep_performance" and rep_count is not None and rep_count <= 1:
-                continue
-            if goal_id == "lead_flow_health" and lead_count is not None and lead_count == 0:
-                continue
-
-        goal_def = goal_defs_by_id.get(goal_id)
-        if not goal_def:
-            # Schema suggested a goal not in our definitions — create a minimal entry
-            trust = _compute_data_confidence(goal_id, crm_ctx) if has_ctx else 0.5
-            goals.append({
-                "id": goal_id,
-                "name": sg.get("label", goal_id.replace("_", " ").title()),
-                "description": sg.get("reason", ""),
-                "available": True,
-                "trust_score": trust,
-                "trust_warning": None,
-                "model_note": None,
-                "requires_revenue_model": False,
-                "available_metric_count": 0,
-                "total_metric_count": 0,
-            })
-            continue
-
-        # Standard goal — compute availability from catalog
-        available_metrics = [
-            m for m in goal_def["required_metrics"]
-            if metric_info.get(m, {}).get("available", False)
-        ]
-        available = len(available_metrics) > 0
-
-        # Soft-availability: if catalog says unavailable but CRM has relevant data
-        if not available and has_ctx:
-            try:
-                from revenue.metric_catalog import METRIC_CATALOG as _MC
-                primary_tables = set()
-                for m_key in goal_def["required_metrics"]:
-                    m_def = _MC.get(m_key)
-                    if m_def:
-                        primary_tables.update(m_def.required_tables)
-                counts = crm_ctx.get("counts", {})
-                table_mapping = {"crm_deals": "deals", "crm_leads": "leads", "crm_activities": "activities", "crm_contacts": "contacts", "crm_companies": "companies"}
-                has_some_data = any(counts.get(table_mapping.get(t, t), 0) > 0 for t in primary_tables)
-                if has_some_data:
-                    available = True
-            except Exception:
-                pass  # Fall through — keep available=False
-
-        # Use data-aware confidence when crm_ctx is available
-        if has_ctx:
-            trust_score = _compute_data_confidence(goal_id, crm_ctx)
-        else:
-            trusts = [
-                metric_info.get(m, {}).get("data_trust_score", 0.0)
-                for m in available_metrics
-            ]
-            trust_score = round(sum(trusts) / len(trusts), 2) if trusts else 0.0
-
-        trust_warning = None
-        if available and trust_score < 0.4:
-            trust_warning = f"Data quality is low ({trust_score:.0%} confidence). Metrics may be inaccurate."
-        elif available and trust_score < 0.7:
-            trust_warning = f"Data quality is moderate ({trust_score:.0%} confidence)."
-
-        model_note = None
-        if goal_def.get("requires_revenue_model") and proposal.get("requires_confirmation"):
-            model_note = "Requires confirming won/lost stage mapping before metrics are computed."
-
-        # Use data-specific description when crm_ctx is available
-        description = sg.get("reason", goal_def["description"])
-        if has_ctx:
-            data_desc = _data_description(goal_id, crm_ctx)
-            if data_desc:
-                description = data_desc
-
-        goals.append({
-            "id": goal_id,
-            "name": sg.get("label", goal_def["name"]),
-            "description": description,
-            "available": available,
-            "trust_score": trust_score,
-            "trust_warning": trust_warning,
-            "model_note": model_note,
-            "requires_revenue_model": goal_def.get("requires_revenue_model", False),
-            "available_metric_count": len(available_metrics),
-            "total_metric_count": len(goal_def["required_metrics"]),
-        })
-
-    return goals
-
-
-# DEPRECATED Phase 3 — remove after 2026-04-01
-def _revenue_goals_from_catalog(catalog_trust: list, proposal: dict) -> list:
-    """Build enriched goal list from metric catalog trust info and revenue proposal."""
-    metric_info = {m["key"]: m for m in catalog_trust}
-    goals = []
-    for goal_def in _REVENUE_GOALS:
-        available_metrics = [
-            m for m in goal_def["required_metrics"]
-            if metric_info.get(m, {}).get("available", False)
-        ]
-        available = len(available_metrics) > 0
-        trusts = [
-            metric_info.get(m, {}).get("data_trust_score", 0.0)
-            for m in available_metrics
-        ]
-        trust_score = round(sum(trusts) / len(trusts), 2) if trusts else 0.0
-        trust_warning = None
-        if available and trust_score < 0.4:
-            trust_warning = f"Data quality is low ({trust_score:.0%} confidence). Metrics may be inaccurate."
-        elif available and trust_score < 0.7:
-            trust_warning = f"Data quality is moderate ({trust_score:.0%} confidence)."
-        model_note = None
-        if goal_def.get("requires_revenue_model") and proposal.get("requires_confirmation"):
-            model_note = "Requires confirming won/lost stage mapping before metrics are computed."
-        goals.append({
-            "id": goal_def["id"],
-            "name": goal_def["name"],
-            "description": goal_def["description"],
-            "available": available,
-            "trust_score": trust_score,
-            "trust_warning": trust_warning,
-            "model_note": model_note,
-            "requires_revenue_model": goal_def["requires_revenue_model"],
-            "available_metric_count": len(available_metrics),
-            "total_metric_count": len(goal_def["required_metrics"]),
-        })
-    return goals
-
-
-def _revenue_refinement_questions(proposal: dict, selected_goals: list) -> list:
-    """Generate dynamic refinement questions based on proposal ambiguity and selected goals."""
-    questions = []
-
-    # Won/lost stage mapping — only when ambiguous
-    if proposal.get("requires_confirmation"):
-        won_options = proposal.get("won_stage_values", [])
-        lost_options = proposal.get("lost_stage_values", [])
-        open_stages = proposal.get("open_stage_values", [])
-        all_stages = won_options + lost_options + open_stages
-        # Build option list: detected ones first, then remaining
-        won_stage_opts = [{"label": s, "value": s} for s in all_stages]
-        lost_stage_opts = [{"label": s, "value": s} for s in all_stages]
-        questions.append({
-            "id": "won_stages",
-            "type": "multiselect",
-            "question": "Which stages represent a won deal?",
-            "description": "Select all stages that mean the deal is closed/won.",
-            "options": won_stage_opts,
-            "default": won_options,
-        })
-        questions.append({
-            "id": "lost_stages",
-            "type": "multiselect",
-            "question": "Which stages represent a lost deal?",
-            "description": "Select all stages that mean the deal is lost or rejected.",
-            "options": lost_stage_opts,
-            "default": lost_options,
-        })
-
-    # Stage order — for funnel-dependent goals
-    funnel_goals = {"pipeline_health", "conversion_improvement"}
-    if funnel_goals.intersection(set(selected_goals)):
-        stage_order = proposal.get("stage_order", [])
-        if stage_order:
-            questions.append({
-                "id": "stage_order",
-                "type": "order",
-                "question": "Confirm your sales pipeline order",
-                "description": "Arrange stages from earliest to latest in your sales process.",
-                "options": [{"label": s, "value": s} for s in stage_order],
-                "default": stage_order,
-            })
-
-    # Rep scope — only when rep_performance is selected
-    if "rep_performance" in selected_goals:
-        questions.append({
-            "id": "rep_scope",
-            "type": "radio",
-            "question": "How should rep performance be measured?",
-            "options": [
-                {"label": "By deal count — number of deals per rep", "value": "deal_count"},
-                {"label": "By revenue — total deal value per rep", "value": "revenue"},
-                {"label": "By activity — calls and emails per rep", "value": "activity"},
-            ],
-            "default": "deal_count",
-        })
-
-    return questions
-
-
-def _generate_widgets_from_metrics(tenant_metrics: list, time_range_days: int, crm_source: str) -> list:
-    """
-    Generate dashboard widgets from active tenant_metrics rows.
-    Maps display_format to chart_type: currency/number/percentage/days → kpi.
-    """
-    FORMAT_TO_CHART = {
-        "currency": "kpi",
-        "number": "kpi",
-        "percentage": "kpi",
-        "days": "kpi",
-    }
-    widgets = []
-    seen_titles: set = set()
-    position = 0
-
-    for tm in tenant_metrics:
-        title = tm.get("title") or tm.get("metric_key", "Metric")
-        if title in seen_titles:
-            continue
-        seen_titles.add(title)
-
-        display_format = tm.get("display_format", "number")
-        computation = tm.get("computation") or {}
-        if isinstance(computation, str):
-            import json as _json
-            try:
-                computation = _json.loads(computation)
-            except (ValueError, TypeError):
-                computation = {}
-        data_source = tm.get("source_table") or computation.get("table", "crm_deals")
-        x_field = computation.get("field", "stage")
-        y_field = computation.get("y_field", "count")
-        aggregation = computation.get("type", "count")
-
-        chart_type = FORMAT_TO_CHART.get(display_format, "kpi")
-
-        widgets.append({
-            "crm_source": crm_source,
-            "chart_type": chart_type,
-            "title": title,
-            "description": tm.get("description", ""),
-            "data_source": data_source,
-            "x_field": x_field,
-            "y_field": y_field,
-            "aggregation": aggregation,
-            "sort_order": "desc",
-            "item_limit": 10,
-            "time_range_days": time_range_days,
-            "position": position,
-            "size": "small" if chart_type == "kpi" else "medium",
-            "is_standard": True,
-            "source": "metrics",
-            "metric_key": tm.get("metric_key"),
-        })
-        position += 1
-
-    return widgets
-
-
-# DEPRECATED Phase 3 — remove after 2026-04-01
-def _generate_goal_widgets(goals: list, time_range_days: int, crm_source: str) -> list:
-    """Generate dashboard widgets from selected revenue goals. Deduplicates by title."""
-    widgets = []
-    seen_titles: set = set()
-    position = 0
-    for goal_id in goals:
-        for w in _GOAL_WIDGET_TEMPLATES.get(goal_id, []):
-            title = w["title"]
-            if title in seen_titles:
-                continue
-            seen_titles.add(title)
-            # Template may override time_range_days (e.g. "New Leads (30d)" always = 30d)
-            effective_time = w.get("time_range_days", time_range_days)
-            widgets.append({
-                "crm_source": crm_source,
-                "chart_type": w["chart_type"],
-                "title": title,
-                "description": w.get("description", ""),
-                "data_source": w["data_source"],
-                "x_field": w["x_field"],
-                "y_field": w.get("y_field", "count"),
-                "aggregation": w.get("aggregation", "count"),
-                "sort_order": w.get("sort_order", "desc"),
-                "item_limit": w.get("item_limit", 10),
-                "time_range_days": effective_time,
-                "position": position,
-                "size": w.get("size", "medium"),
-                "is_standard": True,
-                "source": "onboarding",
-                "metric_goal": goal_id,
-            })
-            position += 1
     return widgets
 
 
@@ -4087,22 +3552,11 @@ async def dashboard_onboarding_start(current_user: Dict = Depends(get_current_us
 
     try:
         from revenue.model_builder import build_proposal
-        from revenue.metric_catalog import get_catalog_with_trust
         from dataclasses import asdict as _asdict
-
-        # Phase 3: Run schema discovery, proposal, and catalog trust in parallel
         import asyncio as _asyncio
-        from agents.farid import discover_schema
-
-        async def _safe_discover_schema():
-            try:
-                profile = await discover_schema(supabase, tenant_id, crm_source)
-                if profile and profile.business_type == "unknown" and not profile.suggested_goals:
-                    return None  # Not useful — fall back
-                return profile
-            except Exception as e:
-                logger.warning("Schema discovery failed during onboarding, using legacy path: %s", e)
-                return None
+        from agents.farid import discover_and_plan
+        from agents.farid_validator import validate_farid_output
+        from agents.anvar import load_allowed_fields
 
         async def _safe_compute_context():
             """Load existing crm_context or compute fresh for data-aware goals."""
@@ -4120,45 +3574,107 @@ async def dashboard_onboarding_start(current_user: Dict = Depends(get_current_us
                 from agents.crm_context import compute_crm_context
                 return await compute_crm_context(supabase, tenant_id, crm_source)
             except Exception as e:
-                logger.warning("CRM context computation failed, goals will use legacy scoring: %s", e)
+                logger.warning("CRM context computation failed: %s", e)
                 return None
 
-        schema_profile, proposal, catalog_trust, crm_ctx = await _asyncio.gather(
-            _safe_discover_schema(),
+        async def _load_field_registry():
+            try:
+                result = await _aio.to_thread(
+                    lambda: supabase.table("crm_field_registry").select(
+                        "entity,field_name,field_type,null_rate,distinct_count,sample_values"
+                    ).eq("tenant_id", tenant_id).eq("crm_source", crm_source).execute()
+                )
+                return result.data or []
+            except Exception as e:
+                logger.warning("Failed to load field registry: %s", e)
+                return []
+
+        # Run all data fetches in parallel
+        proposal, crm_ctx, allowed_fields, field_reg = await _asyncio.gather(
             build_proposal(supabase, tenant_id, crm_source),
-            get_catalog_with_trust(supabase, tenant_id, crm_source),
             _safe_compute_context(),
+            load_allowed_fields(supabase, tenant_id, crm_source),
+            _load_field_registry(),
         )
         proposal_dict = _asdict(proposal)
 
-        # Use schema-driven goals if available, else legacy _REVENUE_GOALS
-        if schema_profile and schema_profile.suggested_goals:
-            goals = _enrich_suggested_goals(schema_profile, catalog_trust, proposal_dict, crm_ctx)
-        else:
-            goals = _revenue_goals_from_catalog(catalog_trust, proposal_dict)
+        # Single Farid V2 call — generates custom goals, widgets, refinement questions
+        farid_raw = await discover_and_plan(
+            supabase, tenant_id, crm_source,
+            field_reg, crm_ctx, proposal_dict,
+        )
 
-        # Compute overall trust across available goals
-        available_goals = [g for g in goals if g["available"]]
-        overall_trust = round(
-            sum(g["trust_score"] for g in available_goals) / max(1, len(available_goals)), 2
-        ) if available_goals else 0.0
+        # Validate against actual field whitelist (zero LLM cost)
+        validated = validate_farid_output(farid_raw, allowed_fields, field_reg)
 
-        # Build crm_profile — include SchemaProfile data if available
-        crm_profile_data = {
-            "revenue_proposal": proposal_dict,
-            "goals": goals,
-            "overall_trust": overall_trust,
-        }
-        if schema_profile:
-            crm_profile_data.update({
-                "business_type": schema_profile.business_type,
-                "business_summary": schema_profile.business_summary,
-                "entity_labels": schema_profile.entity_labels,
-                "currency": schema_profile.currency,
-                "stage_field": schema_profile.stage_field,
-                "amount_field": schema_profile.amount_field,
-                "owner_field": schema_profile.owner_field,
+        # Inject revenue model confirmation questions if needed
+        if proposal.requires_confirmation:
+            all_stages = (
+                proposal_dict.get("won_stage_values", [])
+                + proposal_dict.get("lost_stage_values", [])
+                + proposal_dict.get("open_stage_values", [])
+            )
+            stage_opts = [{"label": s, "value": s} for s in all_stages]
+            validated["revenue_questions"] = [
+                {
+                    "id": "won_stages", "type": "multiselect",
+                    "question": "Which stages represent a won deal?",
+                    "why": "Needed to calculate win rates and revenue metrics",
+                    "options": stage_opts,
+                    "default": proposal_dict.get("won_stage_values", []),
+                },
+                {
+                    "id": "lost_stages", "type": "multiselect",
+                    "question": "Which stages represent a lost deal?",
+                    "why": "Needed to identify lost opportunities and drop-off points",
+                    "options": stage_opts,
+                    "default": proposal_dict.get("lost_stage_values", []),
+                },
+            ]
+
+        # Transform goals for frontend (same shape GoalCard expects)
+        goals_for_frontend = []
+        for g in validated["goals"]:
+            trust = g.get("data_confidence", 0.5)
+            goals_for_frontend.append({
+                "id": g["id"],
+                "name": g["name"],
+                "description": g["description"],
+                "available": True,
+                "trust_score": trust,
+                "trust_warning": (
+                    f"Data quality is low ({trust:.0%} confidence). Metrics may be inaccurate."
+                    if trust < 0.4 else
+                    f"Data quality is moderate ({trust:.0%} confidence)."
+                    if trust < 0.7 else None
+                ),
+                "why": g.get("why", ""),
+                "recommended": trust >= 0.5,
+                "widget_count": len(g.get("widgets", [])),
             })
+
+        # Compute overall trust
+        overall_trust = round(
+            sum(g["trust_score"] for g in goals_for_frontend)
+            / max(1, len(goals_for_frontend)), 2
+        ) if goals_for_frontend else 0.0
+
+        # Build crm_profile with full Farid output
+        bp = validated.get("business_profile", {})
+        fr = validated.get("field_roles", {})
+        crm_profile_data = {
+            "farid_output": validated,
+            "revenue_proposal": proposal_dict,
+            "goals": goals_for_frontend,
+            "overall_trust": overall_trust,
+            "business_type": bp.get("type", "unknown"),
+            "business_summary": bp.get("summary", ""),
+            "entity_labels": validated.get("entity_labels", {}),
+            "currency": fr.get("currency", "USD"),
+            "stage_field": fr.get("stage_field"),
+            "amount_field": fr.get("amount_field"),
+            "owner_field": fr.get("owner_field"),
+        }
 
         # Persist crm_context if freshly computed
         crm_context_data = {}
@@ -4188,12 +3704,12 @@ async def dashboard_onboarding_start(current_user: Dict = Depends(get_current_us
                 "total_value": _pipeline.get("total_value", 0),
                 "stages_count": len(_pipeline.get("by_stage", [])),
                 "total_leads": _counts.get("leads", 0),
-                "currency": schema_profile.currency if schema_profile else "",
+                "currency": fr.get("currency", ""),
             }
 
         return {
             "success": True,
-            "goals": goals,
+            "goals": goals_for_frontend,
             "overall_trust": overall_trust,
             "requires_confirmation": proposal.requires_confirmation,
             "crm_context": crm_summary,
@@ -4232,11 +3748,10 @@ async def dashboard_onboarding_select(
 
     config = config_check.data[0]
     crm_profile = config.get("crm_profile") or {}
+    farid_output = crm_profile.get("farid_output", {})
     proposal = crm_profile.get("revenue_proposal", {})
 
-    # Store selected goals in both columns:
-    # - selected_goals  → new canonical column (goal IDs from the Metric Catalog)
-    # - selected_categories → kept for backward compatibility / older clients
+    # Store selected goals
     await _aio.to_thread(
         lambda: supabase.table("dashboard_configs").update({
             "selected_categories": request.categories,
@@ -4245,8 +3760,35 @@ async def dashboard_onboarding_select(
         }).eq("tenant_id", tenant_id).execute()
     )
 
-    # Generate dynamic questions based on proposal ambiguity and chosen goals
-    questions = _revenue_refinement_questions(proposal, request.categories)
+    # Extract refinement questions from Farid output for selected goals
+    questions = []
+    seen_ids = set()
+
+    # Revenue model questions first (if confirmation needed)
+    for rq in farid_output.get("revenue_questions", []):
+        seen_ids.add(rq["id"])
+        questions.append(rq)
+
+    # Goal-specific questions (deduplicated)
+    goals_by_id = {g["id"]: g for g in farid_output.get("goals", [])}
+    for goal_id in request.categories:
+        goal = goals_by_id.get(goal_id, {})
+        for q in goal.get("refinement_questions", []):
+            if q.get("id") and q["id"] not in seen_ids:
+                seen_ids.add(q["id"])
+                questions.append(q)
+
+    # Stage order — always include if stages exist and not already asked
+    if proposal.get("stage_order") and "stage_order" not in seen_ids:
+        stage_order = proposal["stage_order"]
+        questions.append({
+            "id": "stage_order",
+            "type": "order",
+            "question": "Confirm your sales pipeline order",
+            "why": "Correct stage ordering ensures accurate funnel charts",
+            "options": [{"label": s, "value": s} for s in stage_order],
+            "default": stage_order,
+        })
 
     return {
         "success": True,
@@ -4282,13 +3824,10 @@ async def dashboard_onboarding_refine(
         raise HTTPException(status_code=400, detail="No active CRM connection found.")
 
     crm_profile = config.get("crm_profile") or {}
+    farid_output = crm_profile.get("farid_output", {})
     proposal = crm_profile.get("revenue_proposal", {})
 
-    # Prefer the new selected_goals column; fall back to legacy selected_categories
-    # (may contain old Farid category IDs) and auto-migrate them on the fly.
-    raw_selection = config.get("selected_goals") or config.get("selected_categories") or []
-    selected_goals = _map_categories_to_goals(raw_selection) if raw_selection else []
-
+    selected_goals = config.get("selected_goals") or config.get("selected_categories") or []
     answers = request.answers
 
     # Extract revenue model values from answers (fall back to proposal defaults)
@@ -4312,11 +3851,11 @@ async def dashboard_onboarding_refine(
                 }, on_conflict="tenant_id,crm_source").execute()
             )
 
-        # Phase 3: Generate tenant_metrics + alert rules from SchemaProfile
+        # Generate tenant_metrics + alert rules (still needed for KPI resolver + alerts)
         try:
             from agents import SchemaProfile
             from revenue.metric_generator import generate_and_persist
-            sp_data = crm_profile  # dict stored during onboarding_start
+            sp_data = crm_profile
             schema_profile = SchemaProfile(
                 tenant_id=tenant_id,
                 crm_source=crm_source,
@@ -4336,29 +3875,43 @@ async def dashboard_onboarding_refine(
                 len(metrics), len(alert_rules), tenant_id,
             )
         except Exception as e:
-            logger.warning("generate_and_persist failed, will use goal fallback: %s", e)
+            logger.warning("generate_and_persist failed: %s", e)
 
-        # Phase 3: Try metric-based widgets first, fall back to goal-based
+        # Collect widgets from Farid's validated output
         widgets = []
-        try:
-            tm_result = await _aio.to_thread(
-                lambda: supabase.table("tenant_metrics").select(
-                    "metric_key,title,description,display_format,computation,source_table"
-                ).eq("tenant_id", tenant_id).eq(
-                    "crm_source", crm_source
-                ).eq("active", True).execute()
-            )
-            if tm_result.data:
-                widgets = _generate_widgets_from_metrics(tm_result.data, time_range_days, crm_source)
-        except Exception as e:
-            logger.warning("Metric-based widget generation failed, using goal fallback: %s", e)
+        position = 0
+        goals_by_id = {g["id"]: g for g in farid_output.get("goals", [])}
 
-        if not widgets:
-            # DEPRECATED Phase 3 — fallback to goal-based widgets
-            widgets = _generate_goal_widgets(selected_goals, time_range_days, crm_source)
+        # 1. Baseline KPIs first
+        for kpi in farid_output.get("baseline_kpis", []):
+            kpi_w = dict(kpi)
+            kpi_w["position"] = position
+            kpi_w["is_standard"] = True
+            kpi_w["source"] = "onboarding"
+            kpi_w["crm_source"] = crm_source
+            widgets.append(kpi_w)
+            position += 1
+
+        # 2. Widgets from selected goals (deduped by title)
+        seen_titles = {w.get("title", "") for w in widgets}
+        for goal_id in selected_goals:
+            goal = goals_by_id.get(goal_id, {})
+            for w in goal.get("widgets", []):
+                title = w.get("title", "")
+                if title not in seen_titles:
+                    seen_titles.add(title)
+                    w_copy = dict(w)
+                    w_copy["position"] = position
+                    w_copy["is_standard"] = True
+                    w_copy["source"] = "onboarding"
+                    w_copy["crm_source"] = crm_source
+                    widgets.append(w_copy)
+                    position += 1
+
+        # 3. Apply refinement answers to widgets
+        widgets = _apply_refinement_to_widgets(widgets, answers, time_range_days)
 
         # Insert widgets into dashboard_widgets
-        # Strip fields that don't exist in the table schema to avoid 400 errors
         _WIDGET_VALID_COLUMNS = {
             "tenant_id", "crm_source", "chart_type", "title", "description",
             "data_source", "x_field", "y_field", "aggregation", "group_by",
@@ -4374,7 +3927,7 @@ async def dashboard_onboarding_refine(
                 lambda: supabase.table("dashboard_widgets").insert(clean_widgets).execute()
             )
 
-        # Mark onboarding complete; persist final goal list + model confirmation timestamp
+        # Mark onboarding complete
         revenue_model_confirmed = (
             datetime.now(timezone.utc).isoformat()
             if (won_stages or lost_stages)
@@ -5127,23 +4680,17 @@ async def dashboard_config_get(current_user: Dict = Depends(get_current_user)):
     config = result.data[0]
 
     # Backward-compatibility: if selected_goals is empty but selected_categories
-    # exists with legacy Farid IDs, auto-migrate and persist so the client always
-    # sees goal IDs in selected_goals.
+    # exists, copy them as-is (both legacy and new dynamic IDs work as goal IDs).
     if not config.get("selected_goals") and config.get("selected_categories"):
-        migrated = _map_categories_to_goals(config["selected_categories"])
+        migrated = config["selected_categories"]
         if migrated:
             try:
                 supabase.table("dashboard_configs").update({
                     "selected_goals": migrated,
                 }).eq("tenant_id", config["tenant_id"]).execute()
                 config["selected_goals"] = migrated
-                logger.info(
-                    "Auto-migrated selected_categories → selected_goals for tenant %s: %s",
-                    config["tenant_id"], migrated,
-                )
             except Exception as _mig_err:
                 logger.warning("Failed to persist selected_goals migration: %s", _mig_err)
-                # Return the in-memory migrated value anyway
                 config["selected_goals"] = migrated
 
     return {"config": config}

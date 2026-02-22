@@ -87,6 +87,16 @@ function GoalCard({ goal, selected, onToggle, isRecommended }) {
           </div>
           <p className="text-xs text-slate-500 leading-relaxed">{goal.description}</p>
 
+          {/* Data-driven justification */}
+          {goal.why && (
+            <p className="text-[11px] text-slate-400 mt-1 italic">{goal.why}</p>
+          )}
+
+          {/* Widget count */}
+          {goal.widget_count > 0 && (
+            <span className="text-[10px] text-slate-400 mt-1 inline-block">{goal.widget_count} widgets</span>
+          )}
+
           {/* Model confirmation note */}
           {goal.model_note && (
             <div className="flex items-start gap-1.5 mt-2">
@@ -546,7 +556,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
   if (step === 'connect-success') {
     return (
       <div className="h-full flex flex-col items-center justify-center px-4">
-        <div className="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center mb-5 animate-in zoom-in duration-300">
+        <div className="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center mb-5 animate-check-pop-lg">
           <Check className="w-7 h-7 text-white" strokeWidth={2.5} />
         </div>
         <h2 className="text-lg font-semibold text-slate-900 mb-2">Connected!</h2>
@@ -583,7 +593,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
               return (
                 <div key={entity} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                    <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0 animate-check-pop">
                       <Check className="w-3 h-3 text-white" strokeWidth={3} />
                     </div>
                     <span className="capitalize text-slate-700">{entity}</span>
@@ -658,7 +668,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
     );
     return (
       <div className="h-full flex flex-col items-center justify-center px-4">
-        <div className="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center mb-5 animate-in zoom-in duration-300">
+        <div className="w-14 h-14 rounded-full bg-emerald-600 flex items-center justify-center mb-5 animate-check-pop-lg">
           <Check className="w-7 h-7 text-white" strokeWidth={2.5} />
         </div>
         <h2 className="text-lg font-semibold text-slate-900 mb-2">Sync complete</h2>
@@ -686,7 +696,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
                 key={idx}
                 className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-1 duration-300"
               >
-                <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0 animate-check-pop">
                   <Check className="w-3 h-3 text-white" strokeWidth={3} />
                 </div>
                 <span className="text-sm text-slate-700">{msg}</span>
@@ -781,10 +791,10 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
             return (
               <div key={q.id} className="bg-white border border-slate-200 rounded-xl p-5">
                 <p className="text-sm font-medium text-slate-900 mb-1">{q.question}</p>
-                {q.description && (
-                  <p className="text-xs text-slate-400 mb-3">{q.description}</p>
+                {(q.description || q.why) && (
+                  <p className="text-xs text-slate-400 mb-3">{q.description || q.why}</p>
                 )}
-                {!q.description && <div className="mb-3" />}
+                {!q.description && !q.why && <div className="mb-3" />}
 
                 {/* Radio */}
                 {type === 'radio' && (
@@ -912,7 +922,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
               }`}
             >
               {idx < genProgress ? (
-                <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center">
+                <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center animate-check-pop">
                   <Check className="w-3 h-3 text-white" strokeWidth={3} />
                 </div>
               ) : idx === genProgress ? (

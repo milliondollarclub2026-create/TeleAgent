@@ -705,8 +705,8 @@ const KnowledgeBasePage = () => {
                     <div className="py-14 px-6 text-center">
                       {uploadComplete ? (
                         <>
-                          <div className="w-14 h-14 rounded-full border-2 border-slate-900 flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle2 className="w-7 h-7 text-emerald-500" strokeWidth={2} />
+                          <div className="w-14 h-14 rounded-full border-2 border-emerald-600 flex items-center justify-center mx-auto mb-4 animate-check-pop-lg">
+                            <CheckCircle2 className="w-7 h-7 text-emerald-600" strokeWidth={2} />
                           </div>
                           <p className="font-medium text-slate-900">Upload Complete</p>
                           <p className="text-sm text-slate-500 mt-1">Your document is ready</p>
