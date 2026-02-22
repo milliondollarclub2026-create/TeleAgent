@@ -4428,6 +4428,280 @@ async def dashboard_insights(current_user: Dict = Depends(get_current_user)):
         return {"insights": [], "opportunities": []}
 
 
+# ── Chart Drilldown ──
+
+DRILLDOWN_COLUMNS = {
+    "crm_deals": {
+        "columns": ["title", "value", "stage", "assigned_to", "won", "created_at", "closed_at"],
+        "labels": {"title": "Title", "value": "Value", "stage": "Stage", "assigned_to": "Owner", "won": "Won", "created_at": "Created", "closed_at": "Closed"},
+    },
+    "crm_leads": {
+        "columns": ["contact_name", "contact_email", "source", "status", "created_at"],
+        "labels": {"contact_name": "Name", "contact_email": "Email", "source": "Source", "status": "Status", "created_at": "Created"},
+    },
+    "crm_contacts": {
+        "columns": ["name", "email", "phone", "company", "created_at"],
+        "labels": {"name": "Name", "email": "Email", "phone": "Phone", "company": "Company", "created_at": "Created"},
+    },
+    "crm_activities": {
+        "columns": ["activity_type", "subject", "employee_name", "started_at"],
+        "labels": {"activity_type": "Type", "subject": "Subject", "employee_name": "Rep", "started_at": "Date"},
+    },
+    "crm_companies": {
+        "columns": ["name", "industry", "created_at"],
+        "labels": {"name": "Name", "industry": "Industry", "created_at": "Created"},
+    },
+}
+
+# Date-like pattern for drilldown label detection
+_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}")
+
+
+@api_router.post("/dashboard/drilldown")
+async def dashboard_drilldown(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Return raw records for a chart drilldown click."""
+    tenant_id = current_user["tenant_id"]
+    body = await request.json()
+
+    data_source = body.get("data_source", "crm_deals")
+    x_field = body.get("x_field", "stage")
+    clicked_label = body.get("clicked_label", "")
+    aggregation = body.get("aggregation", "count")
+    filter_field = body.get("filter_field")
+    filter_value = body.get("filter_value")
+    time_range_days = body.get("time_range_days")
+    chart_title = body.get("chart_title", "")
+
+    # Validate data source
+    allowed_tables = set(DRILLDOWN_COLUMNS.keys())
+    if data_source not in allowed_tables:
+        raise HTTPException(status_code=400, detail=f"Invalid data source: {data_source}")
+
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        return {"records": [], "total_count": 0, "columns": [], "title": chart_title}
+
+    table_config = DRILLDOWN_COLUMNS[data_source]
+    columns = table_config["columns"]
+    labels = table_config["labels"]
+
+    try:
+        # Build base query
+        select_cols = ",".join(columns)
+        query = supabase.table(data_source).select(select_cols, count="exact").eq("tenant_id", tenant_id).eq("crm_source", crm_source)
+
+        # Filter by clicked label
+        if clicked_label and x_field:
+            # Date-type detection: if label looks like a date, filter by date range
+            if _DATE_PATTERN.match(str(clicked_label)):
+                date_str = str(clicked_label)[:10]
+                query = query.gte(x_field, f"{date_str}T00:00:00").lt(x_field, f"{date_str}T23:59:59")
+            else:
+                query = query.eq(x_field, clicked_label)
+
+        # Optional filter
+        if filter_field and filter_value is not None:
+            query = query.eq(filter_field, filter_value)
+
+        # Time range filter
+        if time_range_days:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=int(time_range_days))).isoformat()
+            query = query.gte("created_at", cutoff)
+
+        # Count first (before limit)
+        count_query = query
+        query = query.order("created_at", desc=True).limit(50)
+        result = query.execute()
+
+        records = result.data or []
+        total_count = result.count if result.count is not None else len(records)
+
+        # Resolve rep names for assigned_to / employee_name columns
+        rep_fields = {"assigned_to", "employee_id"}
+        has_rep_field = any(f in columns for f in rep_fields)
+        if has_rep_field and records:
+            from agents.bobur_tools import build_rep_name_map, resolve_rep_name
+            rep_map = await build_rep_name_map(supabase, tenant_id, crm_source)
+            if rep_map:
+                for record in records:
+                    if "assigned_to" in record and record["assigned_to"]:
+                        record["assigned_to"] = resolve_rep_name(str(record["assigned_to"]), rep_map)
+
+        # Format column definitions
+        col_defs = [{"key": c, "label": labels.get(c, c.replace("_", " ").title())} for c in columns]
+
+        # Build title
+        display_title = f"{chart_title} — {clicked_label}" if clicked_label else chart_title
+
+        return {
+            "records": records,
+            "total_count": total_count,
+            "columns": col_defs,
+            "title": display_title,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Drilldown query failed: {e}")
+        return {"records": [], "total_count": 0, "columns": [], "title": chart_title}
+
+
+# ── Data Readiness ──
+
+@api_router.get("/dashboard/data-readiness")
+async def dashboard_data_readiness(current_user: Dict = Depends(get_current_user)):
+    """Return data readiness checklist showing which analytics features are unlockable."""
+    tenant_id = current_user["tenant_id"]
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        return {
+            "overall_score": 0,
+            "entities": {},
+            "unlocks": [
+                {"feature": "Pipeline Insights", "status": "locked", "needs": "Connect a CRM first", "progress": 0},
+            ],
+        }
+
+    try:
+        # Count records per entity
+        def _count(table):
+            try:
+                r = supabase.table(table).select("id", count="exact").eq("tenant_id", tenant_id).eq("crm_source", crm_source).limit(0).execute()
+                return r.count or 0
+            except Exception:
+                return 0
+
+        deals_count = _count("crm_deals")
+        leads_count = _count("crm_leads")
+        contacts_count = _count("crm_contacts")
+        activities_count = _count("crm_activities")
+
+        entities = {
+            "deals": {"count": deals_count},
+            "leads": {"count": leads_count},
+            "contacts": {"count": contacts_count},
+            "activities": {"count": activities_count},
+        }
+
+        # Check field availability for deals
+        if deals_count > 0:
+            try:
+                won_r = supabase.table("crm_deals").select("id", count="exact").eq("tenant_id", tenant_id).eq("crm_source", crm_source).not_.is_("won", "null").limit(0).execute()
+                entities["deals"]["has_won"] = (won_r.count or 0) > 0
+
+                owner_r = supabase.table("crm_deals").select("id", count="exact").eq("tenant_id", tenant_id).eq("crm_source", crm_source).not_.is_("assigned_to", "null").limit(0).execute()
+                owners_count = owner_r.count or 0
+                entities["deals"]["has_owners"] = owners_count > 0
+
+                closed_r = supabase.table("crm_deals").select("id", count="exact").eq("tenant_id", tenant_id).eq("crm_source", crm_source).not_.is_("closed_at", "null").limit(0).execute()
+                entities["deals"]["has_closed"] = (closed_r.count or 0) > 0
+
+                value_r = supabase.table("crm_deals").select("id", count="exact").eq("tenant_id", tenant_id).eq("crm_source", crm_source).not_.is_("value", "null").limit(0).execute()
+                entities["deals"]["has_values"] = (value_r.count or 0) > 0
+
+                # Count distinct owners
+                distinct_owners_r = supabase.table("crm_deals").select("assigned_to").eq("tenant_id", tenant_id).eq("crm_source", crm_source).not_.is_("assigned_to", "null").limit(500).execute()
+                distinct_owners = len(set(r["assigned_to"] for r in (distinct_owners_r.data or []) if r.get("assigned_to")))
+                entities["deals"]["distinct_owners"] = distinct_owners
+            except Exception as e:
+                logger.warning(f"Data readiness deal field check failed: {e}")
+
+        # Check lead sources
+        if leads_count > 0:
+            try:
+                source_r = supabase.table("crm_leads").select("source").eq("tenant_id", tenant_id).eq("crm_source", crm_source).not_.is_("source", "null").limit(500).execute()
+                sources = {}
+                for r in (source_r.data or []):
+                    s = r.get("source", "")
+                    if s:
+                        sources[s] = sources.get(s, 0) + 1
+                entities["leads"]["has_sources"] = len(sources) >= 2
+                entities["leads"]["sources_with_5plus"] = sum(1 for c in sources.values() if c >= 5)
+            except Exception as e:
+                logger.warning(f"Data readiness lead source check failed: {e}")
+
+        # Build unlocks checklist
+        unlocks = []
+
+        # 1. Pipeline Insights: ≥5 open deals
+        open_deals = deals_count  # simplified — all deals count toward pipeline
+        if open_deals >= 5:
+            unlocks.append({"feature": "Pipeline Insights", "status": "unlocked", "progress": 100})
+        else:
+            unlocks.append({"feature": "Pipeline Insights", "status": "locked", "needs": f"{5 - open_deals} more deals needed", "progress": min(100, int(open_deals / 5 * 100))})
+
+        # 2. Win Rate Analysis: ≥10 deals with won field
+        won_count = 0
+        if deals_count > 0:
+            try:
+                won_r2 = supabase.table("crm_deals").select("id", count="exact").eq("tenant_id", tenant_id).eq("crm_source", crm_source).not_.is_("won", "null").limit(0).execute()
+                won_count = won_r2.count or 0
+            except Exception:
+                pass
+        if won_count >= 10:
+            unlocks.append({"feature": "Win Rate Analysis", "status": "unlocked", "progress": 100})
+        else:
+            unlocks.append({"feature": "Win Rate Analysis", "status": "locked", "needs": f"{10 - won_count} more closed deals needed", "progress": min(100, int(won_count / 10 * 100))})
+
+        # 3. Rep Performance: ≥10 deals + ≥2 distinct assigned_to
+        distinct_owners = entities.get("deals", {}).get("distinct_owners", 0)
+        rep_ok = deals_count >= 10 and distinct_owners >= 2
+        if rep_ok:
+            unlocks.append({"feature": "Rep Performance", "status": "unlocked", "progress": 100})
+        else:
+            needs = []
+            if deals_count < 10:
+                needs.append(f"{10 - deals_count} more deals")
+            if distinct_owners < 2:
+                needs.append("assign owners to deals")
+            unlocks.append({"feature": "Rep Performance", "status": "locked", "needs": " + ".join(needs), "progress": min(100, int((min(deals_count, 10) / 10 * 50) + (min(distinct_owners, 2) / 2 * 50)))})
+
+        # 4. Deal Velocity: ≥10 deals with closed_at
+        closed_count = 0
+        if deals_count > 0:
+            try:
+                closed_r2 = supabase.table("crm_deals").select("id", count="exact").eq("tenant_id", tenant_id).eq("crm_source", crm_source).not_.is_("closed_at", "null").limit(0).execute()
+                closed_count = closed_r2.count or 0
+            except Exception:
+                pass
+        if closed_count >= 10:
+            unlocks.append({"feature": "Deal Velocity", "status": "unlocked", "progress": 100})
+        else:
+            unlocks.append({"feature": "Deal Velocity", "status": "locked", "needs": f"10 closed deals needed (have {closed_count})", "progress": min(100, int(closed_count / 10 * 100))})
+
+        # 5. Source Effectiveness: ≥2 distinct sources with ≥5 leads each
+        sources_5plus = entities.get("leads", {}).get("sources_with_5plus", 0)
+        if sources_5plus >= 2:
+            unlocks.append({"feature": "Source Effectiveness", "status": "unlocked", "progress": 100})
+        else:
+            unlocks.append({"feature": "Source Effectiveness", "status": "locked", "needs": "Add lead sources in your CRM", "progress": min(100, int(sources_5plus / 2 * 100))})
+
+        # 6. Activity Correlation: ≥3 reps with activities + deals
+        if activities_count > 0 and distinct_owners >= 3:
+            unlocks.append({"feature": "Activity Correlation", "status": "unlocked", "progress": 100})
+        else:
+            needs_parts = []
+            if activities_count == 0:
+                needs_parts.append("log activities in CRM")
+            if distinct_owners < 3:
+                needs_parts.append(f"{3 - distinct_owners} more deal owners needed")
+            unlocks.append({"feature": "Activity Correlation", "status": "locked", "needs": " + ".join(needs_parts) if needs_parts else "More data needed", "progress": min(100, int((min(activities_count, 1) * 50) + (min(distinct_owners, 3) / 3 * 50)))})
+
+        # Overall score
+        total = len(unlocks)
+        unlocked = sum(1 for u in unlocks if u["status"] == "unlocked")
+        overall_score = int(unlocked / total * 100) if total > 0 else 0
+
+        return {
+            "overall_score": overall_score,
+            "entities": entities,
+            "unlocks": unlocks,
+        }
+    except Exception as e:
+        logger.error(f"Data readiness check failed: {e}")
+        return {"overall_score": 0, "entities": {}, "unlocks": []}
+
+
 # ── Dashboard Sharing ──
 
 @api_router.post("/dashboard/shares")

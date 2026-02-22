@@ -114,6 +114,14 @@ export default function useDashboardApi() {
     apiCall('get', '/api/dashboard/insights'),
   [apiCall]);
 
+  const getDataReadiness = useCallback(() =>
+    apiCall('get', '/api/dashboard/data-readiness'),
+  [apiCall]);
+
+  const drilldown = useCallback((params) =>
+    apiCall('post', '/api/dashboard/drilldown', params),
+  [apiCall]);
+
   // --- Analytics (formerly Revenue) ---
   const getRevenueAlerts = useCallback((status = 'open') =>
     apiCall('get', '/api/dashboard/analytics/alerts', { status }),
@@ -195,6 +203,10 @@ export default function useDashboardApi() {
     apiCall('post', '/api/crm/sync/start'),
   [apiCall]);
 
+  const refreshSync = useCallback(() =>
+    apiCall('post', '/api/crm/sync/refresh'),
+  [apiCall]);
+
   const getIntegrationsStatus = useCallback(() =>
     apiCall('get', '/api/integrations/status'),
   [apiCall]);
@@ -215,6 +227,8 @@ export default function useDashboardApi() {
     reorderWidgets,
     resizeWidget,
     getInsights,
+    getDataReadiness,
+    drilldown,
     getExportData,
     // Demo
     getDemoWidgets,
@@ -226,6 +240,7 @@ export default function useDashboardApi() {
     getDataUsage,
     getSyncStatus,
     triggerSync,
+    refreshSync,
     getIntegrationsStatus,
     // Analytics (formerly Revenue)
     getRevenueAlerts,
@@ -238,5 +253,5 @@ export default function useDashboardApi() {
     revokeShare,
     // Chat Suggestions
     getChatSuggestions,
-  }), [startOnboarding, selectCategories, submitRefinement, reconfigure, connectCRM, getConfig, getWidgets, addWidget, updateWidget, deleteWidget, reorderWidgets, resizeWidget, getInsights, getExportData, getDemoWidgets, sendChatMessage, getChatHistory, clearChatHistory, getDataUsage, getSyncStatus, triggerSync, getIntegrationsStatus, getRevenueAlerts, getRevenueOverview, recomputeRevenue, dismissRevenueAlert, createShare, listShares, revokeShare, getChatSuggestions]);
+  }), [startOnboarding, selectCategories, submitRefinement, reconfigure, connectCRM, getConfig, getWidgets, addWidget, updateWidget, deleteWidget, reorderWidgets, resizeWidget, getInsights, getDataReadiness, drilldown, getExportData, getDemoWidgets, sendChatMessage, getChatHistory, clearChatHistory, getDataUsage, getSyncStatus, triggerSync, refreshSync, getIntegrationsStatus, getRevenueAlerts, getRevenueOverview, recomputeRevenue, dismissRevenueAlert, createShare, listShares, revokeShare, getChatSuggestions]);
 }

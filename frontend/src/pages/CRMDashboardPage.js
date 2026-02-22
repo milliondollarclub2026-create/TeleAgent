@@ -6,6 +6,7 @@ import AiOrb from '../components/Orb/AiOrb';
 import useDashboardApi from '../hooks/useDashboardApi';
 import DashboardOnboarding from '../components/dashboard/DashboardOnboarding';
 import DashboardView from '../components/dashboard/DashboardView';
+import DrilldownModal from '../components/dashboard/DrilldownModal';
 import DashboardChat from '../components/dashboard/DashboardChat';
 import DashboardTour from '../components/dashboard/DashboardTour';
 import SplitPaneLayout from '../components/dashboard/SplitPaneLayout';
@@ -94,12 +95,17 @@ function CRMDashboardPageInner() {
   const [dataUsage, setDataUsage] = useState({});
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [dataReadiness, setDataReadiness] = useState(null);
 
   // Modify widget flow: tracks which widget is being modified via chat
   const [modifyingWidget, setModifyingWidget] = useState(null);
 
-  // Drill-down: auto-inject a chat message
+  // Drill-down: modal + fallback chat message
   const [drillDownMessage, setDrillDownMessage] = useState(null);
+  const [drilldownOpen, setDrilldownOpen] = useState(false);
+  const [drilldownData, setDrilldownData] = useState(null);
+  const [drilldownLoading, setDrilldownLoading] = useState(false);
+  const [drilldownContext, setDrilldownContext] = useState(null);
 
   // Demo mode
   const [demoMode, setDemoMode] = useState(false);
@@ -141,6 +147,10 @@ function CRMDashboardPageInner() {
       setConfig(innerConfig);
 
       if (innerConfig?.onboarding_state === 'complete') {
+        // Background incremental sync on mount (fire-and-forget)
+        if (crmConnected) {
+          api.refreshSync().catch(() => {});
+        }
         loadDashboardData();
       }
     };
@@ -153,11 +163,12 @@ function CRMDashboardPageInner() {
     setWidgetsLoading(true);
     setInsightsLoading(true);
 
-    const [widgetRes, insightRes, usageRes, alertRes] = await Promise.all([
+    const [widgetRes, insightRes, usageRes, alertRes, readinessRes] = await Promise.all([
       api.getWidgets(dateRange),
       api.getInsights(),
       api.getDataUsage(),
       api.getRevenueAlerts('open'),
+      api.getDataReadiness(),
     ]);
 
     if (widgetRes.data) {
@@ -186,6 +197,10 @@ function CRMDashboardPageInner() {
       setDataUsage(usageRes.data.entities || usageRes.data || {});
     }
 
+    if (readinessRes.data) {
+      setDataReadiness(readinessRes.data);
+    }
+
     setLastRefreshed(new Date().toISOString());
   }, [api, dateRange]);
 
@@ -196,13 +211,26 @@ function CRMDashboardPageInner() {
     }
   }, [dateRange]);
 
-  // --- Refresh handler ---
+  // Auto-refresh every 2 hours (incremental sync + reload)
+  useEffect(() => {
+    if (!hasCRM || config?.onboarding_state !== 'complete') return;
+    const interval = setInterval(() => {
+      api.refreshSync().catch(() => {});
+      loadDashboardData();
+    }, 2 * 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [hasCRM, config, api, loadDashboardData]);
+
+  // --- Refresh handler (incremental sync + reload) ---
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
+    if (hasCRM) {
+      try { await api.refreshSync(); } catch (e) { /* non-fatal */ }
+    }
     await loadDashboardData();
     setRefreshing(false);
     toast.success('Dashboard refreshed', { duration: 2000 });
-  }, [loadDashboardData]);
+  }, [loadDashboardData, api, hasCRM]);
 
   // --- Delete widget ---
   const handleDeleteWidget = useCallback(async (widgetId) => {
@@ -296,12 +324,55 @@ function CRMDashboardPageInner() {
     new Set(widgets.map(w => (w.title || '').toLowerCase())),
   [widgets]);
 
-  // --- Drill-down handler (chart click → chat) ---
-  const handleDrillDown = useCallback(({ label, value, chartTitle }) => {
-    const query = `Show me the ${label} ${chartTitle ? `from "${chartTitle}"` : 'records'} in detail`;
-    setChatOpen(true);
-    setDrillDownMessage(query);
-  }, []);
+  // --- Drill-down handler (chart click → API → modal, with chat fallback) ---
+  const handleDrillDown = useCallback(async ({ label, value, chartTitle, data_source, x_field, aggregation, filter_field, filter_value, time_range_days }) => {
+    // If widget has data_source metadata, use drilldown modal
+    if (data_source && x_field) {
+      setDrilldownContext({ label, chartTitle });
+      setDrilldownLoading(true);
+      setDrilldownOpen(true);
+      setDrilldownData(null);
+
+      const { data, error } = await api.drilldown({
+        data_source,
+        x_field,
+        clicked_label: label,
+        clicked_value: value,
+        aggregation: aggregation || 'count',
+        filter_field: filter_field || null,
+        filter_value: filter_value || null,
+        time_range_days: time_range_days || null,
+        chart_title: chartTitle || '',
+      });
+
+      setDrilldownLoading(false);
+      if (!error && data) {
+        setDrilldownData(data);
+      } else {
+        // Fallback to chat on error
+        setDrilldownOpen(false);
+        const query = `Show me the ${label} ${chartTitle ? `from "${chartTitle}"` : 'records'} in detail`;
+        setChatOpen(true);
+        setDrillDownMessage(query);
+      }
+    } else {
+      // No metadata — fallback to chat
+      const query = `Show me the ${label} ${chartTitle ? `from "${chartTitle}"` : 'records'} in detail`;
+      setChatOpen(true);
+      setDrillDownMessage(query);
+    }
+  }, [api]);
+
+  // "Ask Bobur" fallback from drilldown modal
+  const handleDrillDownAskBobur = useCallback(() => {
+    const ctx = drilldownContext;
+    setDrilldownOpen(false);
+    if (ctx) {
+      const query = `Show me the ${ctx.label} ${ctx.chartTitle ? `from "${ctx.chartTitle}"` : 'records'} in detail`;
+      setChatOpen(true);
+      setDrillDownMessage(query);
+    }
+  }, [drilldownContext]);
 
   // --- Reorder widgets ---
   const handleReorderWidgets = useCallback(async (orderedIds) => {
@@ -400,6 +471,15 @@ function CRMDashboardPageInner() {
         <div className="hidden sm:block w-24" />
       </div>
 
+      {/* Drilldown modal */}
+      <DrilldownModal
+        open={drilldownOpen}
+        onClose={() => setDrilldownOpen(false)}
+        drilldownData={drilldownData}
+        loading={drilldownLoading}
+        onAskBobur={handleDrillDownAskBobur}
+      />
+
       {/* Split pane content */}
       <div className="flex-1 min-h-0">
         <SplitPaneLayout
@@ -413,6 +493,7 @@ function CRMDashboardPageInner() {
               insightsLoading={insightsLoading}
               opportunities={opportunities}
               dataUsage={dataUsage}
+              dataReadiness={dataReadiness}
               lastRefreshed={lastRefreshed}
               onDeleteWidget={handleDeleteWidget}
               onModifyWidget={handleModifyWidget}

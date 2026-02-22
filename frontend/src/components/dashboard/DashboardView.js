@@ -5,6 +5,7 @@ import InsightsPanel from './InsightsPanel';
 import DataUsageBar from './DataUsageBar';
 import MetricsSummaryCard from './MetricsSummaryCard';
 import OpportunitiesRow from './OpportunitiesRow';
+import DataReadinessCard from './DataReadinessCard';
 import DateRangeSelector from './DateRangeSelector';
 import ExportMenu from './ExportMenu';
 import ShareDialog from './ShareDialog';
@@ -27,6 +28,7 @@ export default function DashboardView({
   insightsLoading,
   opportunities,
   dataUsage,
+  dataReadiness,
   lastRefreshed,
   onDeleteWidget,
   onModifyWidget,
@@ -136,6 +138,11 @@ export default function DashboardView({
           />
           </div>
         </div>
+
+        {/* Data readiness (shown when data is thin) */}
+        {dataReadiness && dataReadiness.overall_score < 80 && (
+          <DataReadinessCard readiness={dataReadiness} />
+        )}
 
         {/* Insights panel */}
         <InsightsPanel

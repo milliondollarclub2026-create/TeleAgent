@@ -176,9 +176,18 @@ export default function DashboardGrid({
 
   const handleDeleteRequest = (widget) => setDeleteTarget(widget);
 
-  const handleDrillDownClick = (chartTitle) => (label, value) => {
+  const handleDrillDownClick = (widget) => (label, value) => {
     if (onDrillDown) {
-      onDrillDown({ label, value, chartTitle });
+      onDrillDown({
+        label, value,
+        chartTitle: widget.title,
+        data_source: widget.data_source,
+        x_field: widget.x_field,
+        aggregation: widget.aggregation,
+        filter_field: widget.filter_field,
+        filter_value: widget.filter_value,
+        time_range_days: widget.time_range_days,
+      });
     }
   };
 
@@ -257,7 +266,7 @@ export default function DashboardGrid({
                         chart={toChart(widget)}
                         chartIndex={kpis.length + idx}
                         interactive
-                        onDrillDown={handleDrillDownClick(widget.title)}
+                        onDrillDown={handleDrillDownClick(widget)}
                       />
                     </SortableWidgetItem>
                   </div>
