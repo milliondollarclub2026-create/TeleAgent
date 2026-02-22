@@ -11,8 +11,10 @@ import KPICardBlock from './KPICardBlock';
  * @param {Object} chart - Chart data object with type and data
  * @param {string} chart.type - One of: "bar", "pie", "line", "funnel", "kpi"
  * @param {number} chartIndex - Index of this chart in a series (for color rotation)
+ * @param {boolean} interactive - Whether chart supports drill-down clicks
+ * @param {Function} onDrillDown - Callback(label, value) when chart element is clicked
  */
-export default function ChartRenderer({ chart, chartIndex = 0 }) {
+export default function ChartRenderer({ chart, chartIndex = 0, interactive = false, onDrillDown }) {
   if (!chart || !chart.type) {
     console.warn('ChartRenderer: Invalid chart data', chart);
     return null;
@@ -22,18 +24,18 @@ export default function ChartRenderer({ chart, chartIndex = 0 }) {
 
   switch (chartType) {
     case 'bar':
-      return <BarChartBlock chart={chart} chartIndex={chartIndex} />;
+      return <BarChartBlock chart={chart} chartIndex={chartIndex} interactive={interactive} onDrillDown={onDrillDown} />;
 
     case 'pie':
     case 'donut':
-      return <PieChartBlock chart={{ ...chart, donut: chartType === 'donut' }} chartIndex={chartIndex} />;
+      return <PieChartBlock chart={{ ...chart, donut: chartType === 'donut' }} chartIndex={chartIndex} interactive={interactive} onDrillDown={onDrillDown} />;
 
     case 'line':
     case 'area':
-      return <LineChartBlock chart={{ ...chart, area: chartType === 'area' || chart.area !== false }} chartIndex={chartIndex} />;
+      return <LineChartBlock chart={{ ...chart, area: chartType === 'area' || chart.area !== false }} chartIndex={chartIndex} interactive={interactive} onDrillDown={onDrillDown} />;
 
     case 'funnel':
-      return <FunnelChartBlock chart={chart} chartIndex={chartIndex} />;
+      return <FunnelChartBlock chart={chart} chartIndex={chartIndex} interactive={interactive} onDrillDown={onDrillDown} />;
 
     case 'kpi':
     case 'metric':

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
-import { Plug, ArrowRight, Check, ChevronUp, ChevronDown, AlertTriangle, Minus } from 'lucide-react';
+import { Input } from '../ui/input';
+import { Plug, ArrowRight, Check, ChevronUp, ChevronDown, AlertTriangle, Minus, Eye, EyeOff, Sparkles, ChevronRight, BarChart3, Target, Layout } from 'lucide-react';
 import { toast } from 'sonner';
 import AiOrb from '../Orb/AiOrb';
 
@@ -154,7 +155,7 @@ function OrderQuestion({ options, value, onChange }) {
   );
 }
 
-export default function DashboardOnboarding({ api, onComplete, hasCRM, config }) {
+export default function DashboardOnboarding({ api, onComplete, hasCRM, config, onDemoMode }) {
   const navigate = useNavigate();
   const [step, setStep] = useState(1); // 1=analyzing, 2=goals, 3=refinement, 4=generating
   const [goals, setGoals] = useState([]);
@@ -168,6 +169,16 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config })
   const [syncRetrying, setSyncRetrying] = useState(false);
   const [localSyncStatus, setLocalSyncStatus] = useState(null);
   const [syncElapsed, setSyncElapsed] = useState(0);
+
+  // Inline CRM connection state
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [showUrl, setShowUrl] = useState(false);
+  const [crmConnecting, setCrmConnecting] = useState(false);
+  const [crmError, setCrmError] = useState('');
+  const [showGuide, setShowGuide] = useState(false);
+
+  // Reveal screen state
+  const [revealData, setRevealData] = useState(null);
 
   // --- Step 1: Auto-start analysis ---
   const startAnalysis = useCallback(async () => {
@@ -320,6 +331,31 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config })
     }
   };
 
+  // --- Inline CRM connection ---
+  const handleInlineConnect = async () => {
+    if (!webhookUrl.trim()) {
+      setCrmError('Please enter your Bitrix24 webhook URL');
+      return;
+    }
+    setCrmConnecting(true);
+    setCrmError('');
+    const { data, error } = await api.connectCRM(webhookUrl.trim());
+    setCrmConnecting(false);
+
+    if (error) {
+      setCrmError(error);
+      return;
+    }
+
+    toast.success('CRM connected successfully');
+    setStep('connect-success');
+    setTimeout(() => {
+      // Trigger sync and move to syncing state
+      api.triggerSync().catch(() => {});
+      setStep('syncing');
+    }, 1500);
+  };
+
   // --- Step 3: Refinement ---
   const handleRefinementSubmit = () => {
     handleGenerate(refinementAnswers);
@@ -352,29 +388,122 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config })
     setGenProgress(DEFAULT_GENERATION_STEPS.length - 1);
 
     setTimeout(() => {
-      onComplete(data);
+      setRevealData(data);
+      setStep('reveal');
     }, minDelay);
   };
 
-  // ─── No CRM ───────────────────────────────────────────────────────────────
+  // ─── No CRM — Inline connection form ─────────────────────────────────────
   if (step === 'no-crm') {
     return (
       <div className="h-full flex flex-col items-center justify-center px-4">
-        <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-5">
-          <Plug className="w-7 h-7 text-slate-400" strokeWidth={1.75} />
-        </div>
-        <h2 className="text-lg font-semibold text-slate-900 mb-2">Connect your CRM</h2>
+        <AiOrb size={56} colors={BOBUR_ORB_COLORS} state="idle" className="mb-5" />
+        <h2 className="text-lg font-semibold text-slate-900 mb-2">Let's connect your CRM</h2>
         <p className="text-sm text-slate-500 text-center max-w-sm mb-6">
-          To build your analytics dashboard, we need access to your CRM data.
-          Connect Bitrix24 or another supported CRM to get started.
+          Paste your Bitrix24 webhook URL below. Bobur will analyze your data and build a custom dashboard.
         </p>
-        <Button
-          onClick={() => navigate('/app/connections')}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-        >
-          <Plug className="w-4 h-4" strokeWidth={2} />
-          Go to Connections
-        </Button>
+
+        <div className="w-full max-w-sm space-y-3">
+          {/* Webhook URL input */}
+          <div className="relative">
+            <Input
+              type={showUrl ? 'text' : 'password'}
+              placeholder="https://your-domain.bitrix24.com/rest/..."
+              value={webhookUrl}
+              onChange={e => { setWebhookUrl(e.target.value); setCrmError(''); }}
+              className="h-11 pr-10 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+              onKeyDown={e => e.key === 'Enter' && handleInlineConnect()}
+            />
+            <button
+              type="button"
+              onClick={() => setShowUrl(!showUrl)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              {showUrl ? <EyeOff className="w-4 h-4" strokeWidth={1.75} /> : <Eye className="w-4 h-4" strokeWidth={1.75} />}
+            </button>
+          </div>
+
+          {/* Inline error */}
+          {crmError && (
+            <p className="text-xs text-red-600 flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3 flex-shrink-0" strokeWidth={2} />
+              {crmError}
+            </p>
+          )}
+
+          {/* Connect button */}
+          <Button
+            onClick={handleInlineConnect}
+            disabled={crmConnecting || !webhookUrl.trim()}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 h-11"
+          >
+            {crmConnecting ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <Plug className="w-4 h-4" strokeWidth={2} />
+                Connect
+              </>
+            )}
+          </Button>
+
+          {/* Collapsible guide */}
+          <button
+            type="button"
+            onClick={() => setShowGuide(!showGuide)}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors mx-auto"
+          >
+            <ChevronRight className={`w-3 h-3 transition-transform ${showGuide ? 'rotate-90' : ''}`} strokeWidth={2} />
+            How to get your webhook URL
+          </button>
+
+          {showGuide && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs text-slate-600 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+              <p className="font-medium text-slate-700">Steps to create a webhook:</p>
+              <ol className="list-decimal list-inside space-y-1.5 text-slate-500">
+                <li>Open your Bitrix24 admin panel</li>
+                <li>Go to <span className="font-medium text-slate-700">Developer resources → Other → Inbound webhook</span></li>
+                <li>Click <span className="font-medium text-slate-700">Add inbound webhook</span></li>
+                <li>Under permissions, enable <span className="font-medium text-slate-700">CRM</span> scope (read access)</li>
+                <li>Copy the generated webhook URL and paste it above</li>
+              </ol>
+            </div>
+          )}
+        </div>
+
+        {/* Divider + Demo option */}
+        {onDemoMode && (
+          <div className="w-full max-w-sm mt-6">
+            <div className="relative flex items-center my-4">
+              <div className="flex-1 border-t border-slate-200" />
+              <span className="px-3 text-xs text-slate-400">or</span>
+              <div className="flex-1 border-t border-slate-200" />
+            </div>
+            <button
+              type="button"
+              onClick={onDemoMode}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
+            >
+              <Sparkles className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
+              Explore with sample data
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Connect Success (brief state) ─────────────────────────────────────
+  if (step === 'connect-success') {
+    return (
+      <div className="h-full flex flex-col items-center justify-center px-4">
+        <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mb-5 animate-in zoom-in duration-300">
+          <Check className="w-7 h-7 text-emerald-600" strokeWidth={2.5} />
+        </div>
+        <h2 className="text-lg font-semibold text-slate-900 mb-2">Connected!</h2>
+        <p className="text-sm text-slate-500 text-center max-w-sm">
+          Starting sync...
+        </p>
       </div>
     );
   }
@@ -733,6 +862,45 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config })
             </div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  // ─── Reveal Screen ──────────────────────────────────────────────────────
+  if (step === 'reveal') {
+    return (
+      <div className="h-full flex flex-col items-center justify-center px-4">
+        <AiOrb size={72} colors={BOBUR_ORB_COLORS} state="idle" className="mb-6" />
+        <h2 className="text-xl font-semibold text-slate-900 mb-2">Your dashboard is ready</h2>
+        <p className="text-sm text-slate-500 text-center max-w-sm mb-8">
+          Here's what Bobur built for you.
+        </p>
+
+        <div className="grid grid-cols-3 gap-4 mb-8 w-full max-w-sm">
+          <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
+            <Layout className="w-5 h-5 text-emerald-600 mx-auto mb-2" strokeWidth={1.75} />
+            <p className="text-2xl font-bold text-slate-900">{revealData?.widgets_created || 0}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Widgets built</p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
+            <BarChart3 className="w-5 h-5 text-emerald-600 mx-auto mb-2" strokeWidth={1.75} />
+            <p className="text-2xl font-bold text-slate-900">{revealData?.kpi_count || 0}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">KPIs tracked</p>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 text-center">
+            <Target className="w-5 h-5 text-emerald-600 mx-auto mb-2" strokeWidth={1.75} />
+            <p className="text-2xl font-bold text-slate-900">{revealData?.goals_applied || 0}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Goals applied</p>
+          </div>
+        </div>
+
+        <Button
+          onClick={() => onComplete(revealData)}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 h-11 px-8"
+        >
+          Open Dashboard
+          <ArrowRight className="w-4 h-4" strokeWidth={2} />
+        </Button>
       </div>
     );
   }

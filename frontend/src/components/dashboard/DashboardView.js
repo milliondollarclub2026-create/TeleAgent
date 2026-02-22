@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { RefreshCw, Settings2 } from 'lucide-react';
 import DashboardGrid from './DashboardGrid';
 import InsightsPanel from './InsightsPanel';
 import DataUsageBar from './DataUsageBar';
 import MetricsSummaryCard from './MetricsSummaryCard';
+import DateRangeSelector from './DateRangeSelector';
+import ExportMenu from './ExportMenu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,12 +32,19 @@ export default function DashboardView({
   refreshing,
   onDismissAlert,
   getRevenueOverview,
+  dateRange,
+  onDateRangeChange,
+  onDrillDown,
+  onReorderWidgets,
+  onResizeWidget,
 }) {
+  const dashboardRef = useRef(null);
+
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-6xl mx-auto px-4 py-5 space-y-5">
+      <div className="mx-auto px-4 py-5 space-y-5">
         {/* Top actions bar */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2" data-tour="top-actions">
           <div className="flex items-center gap-3">
             {lastRefreshed && (
               <p className="text-xs text-slate-400">
@@ -43,7 +52,16 @@ export default function DashboardView({
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Date Range Selector */}
+            {onDateRangeChange && (
+              <DateRangeSelector value={dateRange} onChange={onDateRangeChange} />
+            )}
+
+            {/* Export */}
+            <ExportMenu dashboardRef={dashboardRef} widgets={widgets} dateRange={dateRange} />
+
+            {/* Reconfigure */}
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <button
@@ -71,6 +89,8 @@ export default function DashboardView({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+
+            {/* Refresh */}
             <button
               onClick={onRefresh}
               disabled={refreshing}
@@ -82,18 +102,28 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* Analytics summary */}
-        {getRevenueOverview && (
-          <MetricsSummaryCard getRevenueOverview={getRevenueOverview} />
-        )}
+        {/* Exportable content area */}
+        <div ref={dashboardRef} className="space-y-5">
+          {/* Analytics summary */}
+          {getRevenueOverview && (
+            <div data-tour="kpi-row">
+              <MetricsSummaryCard getRevenueOverview={getRevenueOverview} />
+            </div>
+          )}
 
-        {/* Widget grid */}
-        <DashboardGrid
-          widgets={widgets}
-          loading={widgetsLoading}
-          onDeleteWidget={onDeleteWidget}
-          onModifyWidget={onModifyWidget}
-        />
+          {/* Widget grid */}
+          <div data-tour="chart-grid">
+          <DashboardGrid
+            widgets={widgets}
+            loading={widgetsLoading}
+            onDeleteWidget={onDeleteWidget}
+            onModifyWidget={onModifyWidget}
+            onDrillDown={onDrillDown}
+            onReorderWidgets={onReorderWidgets}
+            onResizeWidget={onResizeWidget}
+          />
+          </div>
+        </div>
 
         {/* Insights panel */}
         <InsightsPanel

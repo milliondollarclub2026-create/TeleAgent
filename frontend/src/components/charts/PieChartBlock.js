@@ -6,6 +6,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  Sector,
 } from 'recharts';
 import {
   CHART_STYLES,
@@ -16,26 +17,37 @@ import {
   getRotatedPalette,
 } from './chartTheme';
 
-/**
- * Pie Chart Block - Pie or donut charts for proportions
- *
- * @param {Object} chart - Chart data
- * @param {string} chart.title - Chart title
- * @param {Array} chart.data - Array of {label, value} objects
- * @param {boolean} chart.donut - If true, renders as donut chart
- * @param {number} chartIndex - Index of this chart for color rotation
- */
-export default function PieChartBlock({ chart, chartIndex = 0 }) {
-  const { title, data: rawData = [], donut = false } = chart;
+// Active shape for hover expansion when interactive
+const renderActiveShape = (props) => {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
 
-  // Validate and clean data
+  return (
+    <g>
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={outerRadius + 6}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        style={{ cursor: 'pointer', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+      />
+    </g>
+  );
+};
+
+export default function PieChartBlock({ chart, chartIndex = 0, interactive = false, onDrillDown }) {
+  const { title, data: rawData = [], donut = false } = chart;
+  const [activeIndex, setActiveIndex] = React.useState(null);
+
   const data = (rawData || [])
     .filter(d => d && d.label !== undefined)
     .map(d => ({
       label: d.label || 'Unknown',
       value: Number(d.value) || 0,
     }))
-    .filter(d => d.value > 0); // Filter out zero values for pie charts
+    .filter(d => d.value > 0);
 
   if (!data || data.length === 0) {
     return (
@@ -48,13 +60,9 @@ export default function PieChartBlock({ chart, chartIndex = 0 }) {
     );
   }
 
-  // Calculate total for percentages
   const total = data.reduce((sum, item) => sum + item.value, 0);
-
-  // Get rotated palette for this chart
   const colors = getRotatedPalette(chartIndex);
 
-  // Prepare data for Recharts
   const chartData = data.map((item, index) => ({
     name: item.label,
     value: item.value,
@@ -62,60 +70,56 @@ export default function PieChartBlock({ chart, chartIndex = 0 }) {
     percentage: total > 0 ? (item.value / total) * 100 : 0,
   }));
 
-  // Custom tooltip formatter
+  const handleClick = (entry, index) => {
+    if (interactive && onDrillDown) {
+      onDrillDown(entry.name, entry.value);
+    }
+  };
+
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
-      const data = payload[0].payload;
+      const entry = payload[0].payload;
       return (
         <div style={TOOLTIP_STYLE.contentStyle}>
-          <p style={TOOLTIP_STYLE.labelStyle}>{data.name}</p>
+          <p style={TOOLTIP_STYLE.labelStyle}>{entry.name}</p>
           <p style={TOOLTIP_STYLE.itemStyle}>
-            Value: <strong>{formatNumber(data.value)}</strong>
+            Value: <strong>{formatNumber(entry.value)}</strong>
           </p>
           <p style={TOOLTIP_STYLE.itemStyle}>
-            Share: <strong>{formatPercent(data.percentage)}</strong>
+            Share: <strong>{formatPercent(entry.percentage)}</strong>
           </p>
+          {interactive && (
+            <p style={{ ...TOOLTIP_STYLE.itemStyle, fontSize: '11px', color: '#059669', marginTop: '4px' }}>
+              Click to explore
+            </p>
+          )}
         </div>
       );
     }
     return null;
   };
 
-  // Custom label renderer
-  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percentage, name }) => {
-    if (percentage < 5) return null; // Don't show labels for very small slices
-
+  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percentage }) => {
+    if (percentage < 5) return null;
     const RADIAN = Math.PI / 180;
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
     return (
-      <text
-        x={x}
-        y={y}
-        fill="#fff"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={12}
-        fontWeight={600}
-      >
+      <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={600}>
         {formatPercent(percentage)}
       </text>
     );
   };
 
-  // Custom legend
   const renderLegend = (props) => {
     const { payload } = props;
     return (
       <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 pt-3">
         {payload.map((entry, index) => (
           <div key={`legend-${index}`} className="flex items-center gap-1.5">
-            <div
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: entry.color }}
-            />
+            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
             <span className="text-xs text-slate-600">{entry.value}</span>
           </div>
         ))}
@@ -138,9 +142,15 @@ export default function PieChartBlock({ chart, chartIndex = 0 }) {
               paddingAngle={2}
               dataKey="value"
               labelLine={false}
-              label={renderCustomLabel}
+              label={activeIndex === null ? renderCustomLabel : undefined}
               animationDuration={CHART_CONFIG.animationDuration}
               animationEasing={CHART_CONFIG.animationEasing}
+              onClick={handleClick}
+              onMouseEnter={(_, index) => interactive && setActiveIndex(index)}
+              onMouseLeave={() => interactive && setActiveIndex(null)}
+              activeIndex={interactive ? activeIndex : undefined}
+              activeShape={interactive ? renderActiveShape : undefined}
+              style={interactive ? { cursor: 'pointer' } : {}}
             >
               {chartData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.fill} />

@@ -472,61 +472,99 @@ async def compute_adhoc_health_check(
     supabase,
     tenant_id: str,
     crm_source: str,
+    resolver=None,
+    schema_ctx=None,
 ) -> list[AlertResult]:
     """
     Run 4 data-driven checks when no alert rules or dynamic metrics exist.
     Pure SQL, $0 cost. Returns list[AlertResult].
+
+    Accepts schema_ctx (SchemaContext) or legacy resolver for field resolution.
+    Checks gracefully skip when their required fields don't exist.
     """
     fired: list[AlertResult] = []
 
+    # Use schema_ctx if provided, fall back to resolver, then hardcoded defaults
+    ctx = schema_ctx or resolver
+
+    # Resolve field names dynamically
+    amount_field = ctx.get_amount_field() if ctx else "value"
+    owner_field = ctx.get_owner_field() if ctx else "assigned_to"
+    has_won = ctx.has_field("crm_deals", "won") if ctx else True
+
+    # Find timestamp field dynamically
+    has_modified = False
+    if ctx:
+        # Try to find any modification timestamp field
+        if hasattr(ctx, 'get_fields_by_type'):
+            ts_fields = ctx.get_fields_by_type("crm_deals", "timestamp")
+            for f in ts_fields:
+                if "modif" in f or "update" in f:
+                    has_modified = True
+                    break
+            if not has_modified:
+                has_modified = ctx.has_field("crm_deals", "modified_at")
+        else:
+            has_modified = ctx.has_field("crm_deals", "modified_at")
+    else:
+        has_modified = True
+
     try:
-        # 1. Stale deals — not modified in 30+ days, won=false
-        cutoff_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-        stale_result = supabase.table("crm_deals").select(
-            "*", count="exact"
-        ).eq("tenant_id", tenant_id).eq(
-            "crm_source", crm_source
-        ).is_("won", False).lt("modified_at", cutoff_30d).limit(0).execute()
-        stale_count = stale_result.count or 0
+        # 1. Stale deals — not modified in 30+ days
+        if has_modified and has_won:
+            cutoff_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+            stale_result = supabase.table("crm_deals").select(
+                "*", count="exact"
+            ).eq("tenant_id", tenant_id).eq(
+                "crm_source", crm_source
+            ).is_("won", False).lt("modified_at", cutoff_30d).limit(0).execute()
+            stale_count = stale_result.count or 0
 
-        total_open = supabase.table("crm_deals").select(
-            "*", count="exact"
-        ).eq("tenant_id", tenant_id).eq(
-            "crm_source", crm_source
-        ).is_("won", False).limit(0).execute()
-        total_open_count = total_open.count or 0
+            total_open = supabase.table("crm_deals").select(
+                "*", count="exact"
+            ).eq("tenant_id", tenant_id).eq(
+                "crm_source", crm_source
+            ).is_("won", False).limit(0).execute()
+            total_open_count = total_open.count or 0
 
-        if total_open_count >= 5:
-            stale_pct = (stale_count / total_open_count) * 100
-            if stale_pct > 30:
-                severity = "critical" if stale_pct > 60 else "warning"
-                fired.append(AlertResult(
-                    alert_type="stale_deals",
-                    severity=severity,
-                    title=f"{stale_count} deals haven't been touched in 30+ days",
-                    summary=(
-                        f"{stale_pct:.0f}% of your open deals ({stale_count} of {total_open_count}) "
-                        f"haven't been modified in over 30 days. These may need follow-up."
-                    ),
-                    evidence={
-                        "stale_count": stale_count,
-                        "total_open": total_open_count,
-                        "stale_pct": round(stale_pct, 1),
-                    },
-                    entity="deals",
-                ))
+            if total_open_count >= 5:
+                stale_pct = (stale_count / total_open_count) * 100
+                if stale_pct > 30:
+                    severity = "critical" if stale_pct > 60 else "warning"
+                    fired.append(AlertResult(
+                        alert_type="stale_deals",
+                        severity=severity,
+                        title=f"{stale_count} deals haven't been touched in 30+ days",
+                        summary=(
+                            f"{stale_pct:.0f}% of your open deals ({stale_count} of {total_open_count}) "
+                            f"haven't been modified in over 30 days. These may need follow-up."
+                        ),
+                        evidence={
+                            "stale_count": stale_count,
+                            "total_open": total_open_count,
+                            "stale_pct": round(stale_pct, 1),
+                        },
+                        entity="deals",
+                    ))
     except Exception as e:
         logger.debug("Adhoc stale deals check: %s", e)
 
     try:
-        # 2. Missing data — null rate on value, stage, assigned_to
+        # 2. Missing data — null rate on key fields (only check fields that exist)
         total_result = supabase.table("crm_deals").select(
             "*", count="exact"
         ).eq("tenant_id", tenant_id).eq("crm_source", crm_source).limit(0).execute()
         total = total_result.count or 0
 
         if total >= 5:
-            for field in ("value", "stage", "assigned_to"):
+            # Build list of fields to check based on what actually exists
+            stage_field = ctx.get_stage_field() if ctx and hasattr(ctx, 'get_stage_field') else "stage"
+            fields_to_check = []
+            for candidate in (amount_field, stage_field, owner_field):
+                if not ctx or ctx.has_field("crm_deals", candidate):
+                    fields_to_check.append(candidate)
+
+            for field in fields_to_check:
                 null_result = supabase.table("crm_deals").select(
                     "*", count="exact"
                 ).eq("tenant_id", tenant_id).eq(
@@ -556,94 +594,103 @@ async def compute_adhoc_health_check(
 
     try:
         # 3. Pipeline concentration — single rep > 60% of pipeline value
-        result = supabase.table("crm_deals").select(
-            "assigned_to,value"
-        ).eq("tenant_id", tenant_id).eq(
-            "crm_source", crm_source
-        ).is_("won", False).not_.is_("value", "null").limit(5000).execute()
+        # Skip if owner or amount fields don't exist
+        has_owner = not ctx or ctx.has_field("crm_deals", owner_field)
+        has_amount = not ctx or ctx.has_field("crm_deals", amount_field)
 
-        rows = result.data or []
-        if len(rows) >= 5:
-            totals: dict[str, float] = {}
-            grand_total = 0.0
-            for r in rows:
-                rep = r.get("assigned_to") or "Unknown"
-                try:
-                    v = float(r.get("value", 0))
-                    totals[rep] = totals.get(rep, 0) + v
-                    grand_total += v
-                except (TypeError, ValueError):
-                    pass
+        if has_owner and has_amount:
+            select_fields = f"{owner_field},{amount_field}"
+            q = supabase.table("crm_deals").select(
+                select_fields
+            ).eq("tenant_id", tenant_id).eq(
+                "crm_source", crm_source
+            )
+            if has_won:
+                q = q.is_("won", False)
+            q = q.not_.is_(amount_field, "null")
+            result = q.limit(5000).execute()
 
-            unique_reps = set(k for k in totals if k != "Unknown")
-            if grand_total > 0 and len(unique_reps) > 1:
-                max_rep_raw = max(totals, key=totals.get)
-                max_val = totals[max_rep_raw]
-                max_pct = (max_val / grand_total) * 100
-
-                if max_pct > 60:
-                    # Resolve rep name
+            rows = result.data or []
+            if len(rows) >= 5:
+                totals: dict[str, float] = {}
+                grand_total = 0.0
+                for r in rows:
+                    rep = r.get(owner_field) or "Unknown"
                     try:
-                        rep_map = await build_rep_name_map(supabase, tenant_id, crm_source)
-                        max_rep = resolve_rep_name(max_rep_raw, rep_map)
-                    except Exception:
-                        max_rep = max_rep_raw
+                        v = float(r.get(amount_field, 0))
+                        totals[rep] = totals.get(rep, 0) + v
+                        grand_total += v
+                    except (TypeError, ValueError):
+                        pass
 
-                    fired.append(AlertResult(
-                        alert_type="concentration",
-                        severity="critical" if max_pct > 80 else "warning",
-                        title=f"{max_pct:.0f}% of pipeline from {max_rep}",
-                        summary=(
-                            f"{max_rep} accounts for {max_pct:.0f}% of your total pipeline value "
-                            f"(${max_val:,.0f} of ${grand_total:,.0f}). "
-                            f"This creates risk if this rep leaves or underperforms."
-                        ),
-                        evidence={
-                            "top_rep": max_rep,
-                            "top_value": round(max_val, 2),
-                            "total_value": round(grand_total, 2),
-                            "concentration_pct": round(max_pct, 1),
-                        },
-                        entity="deals",
-                    ))
+                unique_reps = set(k for k in totals if k != "Unknown")
+                if grand_total > 0 and len(unique_reps) > 1:
+                    max_rep_raw = max(totals, key=totals.get)
+                    max_val = totals[max_rep_raw]
+                    max_pct = (max_val / grand_total) * 100
+
+                    if max_pct > 60:
+                        try:
+                            rep_map = await build_rep_name_map(supabase, tenant_id, crm_source)
+                            max_rep = resolve_rep_name(max_rep_raw, rep_map)
+                        except Exception:
+                            max_rep = max_rep_raw
+
+                        fired.append(AlertResult(
+                            alert_type="concentration",
+                            severity="critical" if max_pct > 80 else "warning",
+                            title=f"{max_pct:.0f}% of pipeline from {max_rep}",
+                            summary=(
+                                f"{max_rep} accounts for {max_pct:.0f}% of your total pipeline value "
+                                f"(${max_val:,.0f} of ${grand_total:,.0f}). "
+                                f"This creates risk if this rep leaves or underperforms."
+                            ),
+                            evidence={
+                                "top_rep": max_rep,
+                                "top_value": round(max_val, 2),
+                                "total_value": round(grand_total, 2),
+                                "concentration_pct": round(max_pct, 1),
+                            },
+                            entity="deals",
+                        ))
     except Exception as e:
         logger.debug("Adhoc concentration check: %s", e)
 
     try:
-        # 4. Win rate — fire if < 20%
-        won_result = supabase.table("crm_deals").select(
-            "*", count="exact"
-        ).eq("tenant_id", tenant_id).eq(
-            "crm_source", crm_source
-        ).is_("won", True).limit(0).execute()
-        won_count = won_result.count or 0
+        # 4. Win rate — fire if < 20% (skip if no 'won' field)
+        if has_won:
+            won_result = supabase.table("crm_deals").select(
+                "*", count="exact"
+            ).eq("tenant_id", tenant_id).eq(
+                "crm_source", crm_source
+            ).is_("won", True).limit(0).execute()
+            won_count = won_result.count or 0
 
-        # Total closed = won + explicitly closed/lost (approximate via non-null closed_at or won field)
-        total_closed_result = supabase.table("crm_deals").select(
-            "*", count="exact"
-        ).eq("tenant_id", tenant_id).eq(
-            "crm_source", crm_source
-        ).not_.is_("closed_at", "null").limit(0).execute()
-        total_closed = total_closed_result.count or 0
+            total_closed_result = supabase.table("crm_deals").select(
+                "*", count="exact"
+            ).eq("tenant_id", tenant_id).eq(
+                "crm_source", crm_source
+            ).not_.is_("closed_at", "null").limit(0).execute()
+            total_closed = total_closed_result.count or 0
 
-        if total_closed >= 10:
-            win_rate = (won_count / total_closed) * 100
-            if win_rate < 20:
-                fired.append(AlertResult(
-                    alert_type="low_win_rate",
-                    severity="critical" if win_rate < 10 else "warning",
-                    title=f"Win rate is only {win_rate:.0f}%",
-                    summary=(
-                        f"Only {won_count} of {total_closed} closed deals were won ({win_rate:.0f}%). "
-                        f"Consider reviewing your qualification criteria or sales process."
-                    ),
-                    evidence={
-                        "won_count": won_count,
-                        "total_closed": total_closed,
-                        "win_rate_pct": round(win_rate, 1),
-                    },
-                    entity="deals",
-                ))
+            if total_closed >= 10:
+                win_rate = (won_count / total_closed) * 100
+                if win_rate < 20:
+                    fired.append(AlertResult(
+                        alert_type="low_win_rate",
+                        severity="critical" if win_rate < 10 else "warning",
+                        title=f"Win rate is only {win_rate:.0f}%",
+                        summary=(
+                            f"Only {won_count} of {total_closed} closed deals were won ({win_rate:.0f}%). "
+                            f"Consider reviewing your qualification criteria or sales process."
+                        ),
+                        evidence={
+                            "won_count": won_count,
+                            "total_closed": total_closed,
+                            "win_rate_pct": round(win_rate, 1),
+                        },
+                        entity="deals",
+                    ))
     except Exception as e:
         logger.debug("Adhoc win rate check: %s", e)
 

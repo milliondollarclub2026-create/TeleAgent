@@ -96,6 +96,34 @@ export const KPI_STYLES = {
   },
 };
 
+// Interactive chart styling
+export const INTERACTIVE_STYLES = {
+  cursor: 'pointer',
+  hoverOpacity: 0.8,
+  activeHighlight: 'rgba(5, 150, 105, 0.15)',
+  drillHint: { fontSize: '11px', color: '#059669' },
+};
+
+// Sparkline styling for KPI cards
+export const SPARKLINE_STYLES = {
+  width: 120,
+  height: 40,
+  strokeWidth: 1.5,
+  gradientOpacity: { start: 0.15, end: 0 },
+};
+
+// Goal progress bar styling
+export const GOAL_STYLES = {
+  height: '6px',
+  borderRadius: '9999px',
+  thresholds: {
+    excellent: { min: 100, color: '#16a34a' },
+    good: { min: 75, color: '#059669' },
+    warning: { min: 50, color: '#d97706' },
+    danger: { min: 0, color: '#dc2626' },
+  },
+};
+
 // Get color by index (cycles through palette)
 export const getChartColor = (index) => {
   return CHART_COLORS[index % CHART_COLORS.length];

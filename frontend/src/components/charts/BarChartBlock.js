@@ -19,19 +19,9 @@ import {
   getRotatedPalette,
 } from './chartTheme';
 
-/**
- * Bar Chart Block - Horizontal or vertical bar charts
- *
- * @param {Object} chart - Chart data
- * @param {string} chart.title - Chart title
- * @param {Array} chart.data - Array of {label, value} objects
- * @param {string} chart.orientation - "vertical" (default) or "horizontal"
- * @param {number} chartIndex - Index of this chart for color rotation
- */
-export default function BarChartBlock({ chart, chartIndex = 0 }) {
+export default function BarChartBlock({ chart, chartIndex = 0, interactive = false, onDrillDown }) {
   const { title, data: rawData = [], orientation = 'vertical' } = chart;
 
-  // Validate and clean data
   const data = (rawData || [])
     .filter(d => d && d.label !== undefined)
     .map(d => ({
@@ -50,10 +40,8 @@ export default function BarChartBlock({ chart, chartIndex = 0 }) {
     );
   }
 
-  // Get rotated palette for this chart
   const colors = getRotatedPalette(chartIndex);
 
-  // Prepare data for Recharts
   const chartData = data.map((item, index) => ({
     name: item.label,
     value: item.value,
@@ -62,7 +50,12 @@ export default function BarChartBlock({ chart, chartIndex = 0 }) {
 
   const isHorizontal = orientation === 'horizontal';
 
-  // Custom tooltip formatter
+  const handleClick = (entry, index) => {
+    if (interactive && onDrillDown && entry) {
+      onDrillDown(entry.name || entry.payload?.name, entry.value || entry.payload?.value);
+    }
+  };
+
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       return (
@@ -71,6 +64,11 @@ export default function BarChartBlock({ chart, chartIndex = 0 }) {
           <p style={TOOLTIP_STYLE.itemStyle}>
             Value: <strong>{formatNumber(payload[0].value)}</strong>
           </p>
+          {interactive && (
+            <p style={{ ...TOOLTIP_STYLE.itemStyle, fontSize: '11px', color: '#059669', marginTop: '4px' }}>
+              Click to explore
+            </p>
+          )}
         </div>
       );
     }
@@ -91,31 +89,13 @@ export default function BarChartBlock({ chart, chartIndex = 0 }) {
 
             {isHorizontal ? (
               <>
-                <XAxis
-                  type="number"
-                  {...AXIS_STYLE}
-                  tickFormatter={formatNumber}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  {...AXIS_STYLE}
-                  width={100}
-                  tick={{ ...AXIS_STYLE.tick, textAnchor: 'end' }}
-                />
+                <XAxis type="number" {...AXIS_STYLE} tickFormatter={formatNumber} />
+                <YAxis type="category" dataKey="name" {...AXIS_STYLE} width={100} tick={{ ...AXIS_STYLE.tick, textAnchor: 'end' }} />
               </>
             ) : (
               <>
-                <XAxis
-                  dataKey="name"
-                  {...AXIS_STYLE}
-                  interval={0}
-                  tick={{ ...AXIS_STYLE.tick, textAnchor: 'middle' }}
-                />
-                <YAxis
-                  {...AXIS_STYLE}
-                  tickFormatter={formatNumber}
-                />
+                <XAxis dataKey="name" {...AXIS_STYLE} interval={0} tick={{ ...AXIS_STYLE.tick, textAnchor: 'middle' }} />
+                <YAxis {...AXIS_STYLE} tickFormatter={formatNumber} />
               </>
             )}
 
@@ -126,9 +106,15 @@ export default function BarChartBlock({ chart, chartIndex = 0 }) {
               radius={[4, 4, 0, 0]}
               animationDuration={CHART_CONFIG.animationDuration}
               animationEasing={CHART_CONFIG.animationEasing}
+              onClick={handleClick}
+              style={interactive ? { cursor: 'pointer' } : {}}
             >
               {chartData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} />
+                <Cell
+                  key={`cell-${index}`}
+                  fill={entry.fill}
+                  style={interactive ? { cursor: 'pointer' } : {}}
+                />
               ))}
             </Bar>
           </BarChart>

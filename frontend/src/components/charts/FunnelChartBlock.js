@@ -7,19 +7,9 @@ import {
   getRotatedPalette,
 } from './chartTheme';
 
-/**
- * Funnel Chart Block - Sales pipeline/funnel visualization
- * Custom implementation since Recharts doesn't have native funnel
- *
- * @param {Object} chart - Chart data
- * @param {string} chart.title - Chart title
- * @param {Array} chart.data - Array of {label, value} objects (top to bottom)
- * @param {number} chartIndex - Index of this chart for color rotation
- */
-export default function FunnelChartBlock({ chart, chartIndex = 0 }) {
+export default function FunnelChartBlock({ chart, chartIndex = 0, interactive = false, onDrillDown }) {
   const { title, data: rawData = [] } = chart;
 
-  // Validate and clean data - filter out invalid entries
   const data = (rawData || [])
     .filter(d => d && d.label !== undefined)
     .map(d => ({
@@ -38,13 +28,9 @@ export default function FunnelChartBlock({ chart, chartIndex = 0 }) {
     );
   }
 
-  // Get the maximum value for scaling
   const maxValue = Math.max(...data.map(d => d.value), 1);
-
-  // Get rotated palette for this chart
   const colors = getRotatedPalette(chartIndex);
 
-  // Calculate conversion rates between stages
   const stages = data.map((item, index) => {
     const widthPercent = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
     const prevValue = index > 0 ? data[index - 1].value : null;
@@ -61,6 +47,12 @@ export default function FunnelChartBlock({ chart, chartIndex = 0 }) {
     };
   });
 
+  const handleClick = (stage) => {
+    if (interactive && onDrillDown) {
+      onDrillDown(stage.label, stage.value);
+    }
+  };
+
   return (
     <div className={CHART_STYLES.wrapper}>
       <div className={CHART_STYLES.innerPadding}>
@@ -69,18 +61,19 @@ export default function FunnelChartBlock({ chart, chartIndex = 0 }) {
         <div className="space-y-2 pt-2">
           {stages.map((stage, index) => (
             <div key={index} className="relative">
-              {/* Stage bar */}
               <div className="flex items-center gap-3">
-                {/* Bar container */}
                 <div className="flex-1 relative">
                   <div
-                    className="h-10 rounded-lg transition-all duration-700 ease-out flex items-center justify-between px-3"
+                    className={`h-10 rounded-lg transition-all duration-700 ease-out flex items-center justify-between px-3 ${
+                      interactive ? 'cursor-pointer hover:opacity-80' : ''
+                    }`}
                     style={{
                       width: `${Math.max(stage.widthPercent, 20)}%`,
                       backgroundColor: stage.color,
                       opacity: 0.9,
                       animationDelay: `${index * 100}ms`,
                     }}
+                    onClick={() => handleClick(stage)}
                   >
                     <span className="text-white text-sm font-medium truncate pr-2">
                       {stage.label}
@@ -91,7 +84,6 @@ export default function FunnelChartBlock({ chart, chartIndex = 0 }) {
                   </div>
                 </div>
 
-                {/* Conversion rate badge */}
                 {stage.conversionRate !== null && (
                   <div className="w-16 text-right">
                     <span className={`text-xs font-medium ${
@@ -110,7 +102,6 @@ export default function FunnelChartBlock({ chart, chartIndex = 0 }) {
                 )}
               </div>
 
-              {/* Connector line */}
               {index < stages.length - 1 && (
                 <div className="absolute left-0 w-full flex justify-center -bottom-1 z-10">
                   <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-slate-200" />
@@ -120,11 +111,10 @@ export default function FunnelChartBlock({ chart, chartIndex = 0 }) {
           ))}
         </div>
 
-        {/* Legend */}
         <div className="flex items-center justify-end gap-4 mt-4 pt-3 border-t border-slate-100">
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-emerald-600" />
-            <span className="text-xs text-slate-500">≥50% conversion</span>
+            <span className="text-xs text-slate-500">&ge;50% conversion</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-amber-600" />

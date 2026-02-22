@@ -20,19 +20,9 @@ import {
   getRotatedPalette,
 } from './chartTheme';
 
-/**
- * Line Chart Block - Line or area trend charts
- *
- * @param {Object} chart - Chart data
- * @param {string} chart.title - Chart title
- * @param {Array} chart.data - Array of {label, value} objects
- * @param {boolean} chart.area - If true, renders as area chart with gradient fill
- * @param {number} chartIndex - Index of this chart for color rotation
- */
-export default function LineChartBlock({ chart, chartIndex = 0 }) {
+export default function LineChartBlock({ chart, chartIndex = 0, interactive = false, onDrillDown }) {
   const { title, data: rawData = [], area = true } = chart;
 
-  // Validate and clean data
   const data = (rawData || [])
     .filter(d => d && d.label !== undefined)
     .map(d => ({
@@ -51,17 +41,21 @@ export default function LineChartBlock({ chart, chartIndex = 0 }) {
     );
   }
 
-  // Prepare data for Recharts
   const chartData = data.map((item) => ({
     name: item.label,
     value: item.value,
   }));
 
-  // Get rotated palette and use first color as primary
   const colors = getRotatedPalette(chartIndex);
   const primaryColor = colors[0];
 
-  // Custom tooltip formatter
+  const handleClick = (point) => {
+    if (interactive && onDrillDown && point?.activePayload?.[0]) {
+      const payload = point.activePayload[0].payload;
+      onDrillDown(payload.name, payload.value);
+    }
+  };
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -70,14 +64,25 @@ export default function LineChartBlock({ chart, chartIndex = 0 }) {
           <p style={TOOLTIP_STYLE.itemStyle}>
             Value: <strong>{formatNumber(payload[0].value)}</strong>
           </p>
+          {interactive && (
+            <p style={{ ...TOOLTIP_STYLE.itemStyle, fontSize: '11px', color: '#059669', marginTop: '4px' }}>
+              Click to explore
+            </p>
+          )}
         </div>
       );
     }
     return null;
   };
 
-  // Gradient ID for area fill
   const gradientId = `gradient-${title?.replace(/\s+/g, '-').toLowerCase() || 'line'}`;
+
+  const commonProps = {
+    data: chartData,
+    margin: { top: 10, right: 10, left: 0, bottom: 10 },
+    onClick: interactive ? handleClick : undefined,
+    style: interactive ? { cursor: 'pointer' } : {},
+  };
 
   if (area) {
     return (
@@ -85,10 +90,7 @@ export default function LineChartBlock({ chart, chartIndex = 0 }) {
         <div className={CHART_STYLES.innerPadding}>
           <h3 className={CHART_STYLES.title}>{title}</h3>
           <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
-            <AreaChart
-              data={chartData}
-              margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
-            >
+            <AreaChart {...commonProps}>
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={primaryColor} stopOpacity={0.2} />
@@ -96,15 +98,8 @@ export default function LineChartBlock({ chart, chartIndex = 0 }) {
                 </linearGradient>
               </defs>
               <CartesianGrid {...GRID_STYLE} />
-              <XAxis
-                dataKey="name"
-                {...AXIS_STYLE}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                {...AXIS_STYLE}
-                tickFormatter={formatNumber}
-              />
+              <XAxis dataKey="name" {...AXIS_STYLE} interval="preserveStartEnd" />
+              <YAxis {...AXIS_STYLE} tickFormatter={formatNumber} />
               <Tooltip content={<CustomTooltip />} />
               <Area
                 type="monotone"
@@ -115,7 +110,7 @@ export default function LineChartBlock({ chart, chartIndex = 0 }) {
                 animationDuration={CHART_CONFIG.animationDuration}
                 animationEasing={CHART_CONFIG.animationEasing}
                 dot={{ fill: primaryColor, strokeWidth: 0, r: 3 }}
-                activeDot={{ fill: primaryColor, strokeWidth: 2, stroke: '#fff', r: 5 }}
+                activeDot={{ fill: primaryColor, strokeWidth: 2, stroke: '#fff', r: 5, cursor: interactive ? 'pointer' : 'default' }}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -129,20 +124,10 @@ export default function LineChartBlock({ chart, chartIndex = 0 }) {
       <div className={CHART_STYLES.innerPadding}>
         <h3 className={CHART_STYLES.title}>{title}</h3>
         <ResponsiveContainer width="100%" height={CHART_CONFIG.height}>
-          <LineChart
-            data={chartData}
-            margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
-          >
+          <LineChart {...commonProps}>
             <CartesianGrid {...GRID_STYLE} />
-            <XAxis
-              dataKey="name"
-              {...AXIS_STYLE}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              {...AXIS_STYLE}
-              tickFormatter={formatNumber}
-            />
+            <XAxis dataKey="name" {...AXIS_STYLE} interval="preserveStartEnd" />
+            <YAxis {...AXIS_STYLE} tickFormatter={formatNumber} />
             <Tooltip content={<CustomTooltip />} />
             <Line
               type="monotone"
@@ -152,7 +137,7 @@ export default function LineChartBlock({ chart, chartIndex = 0 }) {
               animationDuration={CHART_CONFIG.animationDuration}
               animationEasing={CHART_CONFIG.animationEasing}
               dot={{ fill: primaryColor, strokeWidth: 0, r: 3 }}
-              activeDot={{ fill: primaryColor, strokeWidth: 2, stroke: '#fff', r: 5 }}
+              activeDot={{ fill: primaryColor, strokeWidth: 2, stroke: '#fff', r: 5, cursor: interactive ? 'pointer' : 'default' }}
             />
           </LineChart>
         </ResponsiveContainer>

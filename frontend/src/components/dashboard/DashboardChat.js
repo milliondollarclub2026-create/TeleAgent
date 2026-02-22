@@ -11,6 +11,7 @@ import { chartHasValidData } from '../../utils/chartUtils';
 const BOBUR_ORB_COLORS = ['#f97316', '#ea580c', '#f59e0b'];
 
 const DEFAULT_INTRO = "Hi! I'm Bobur, your Analytics Team Lead. Ask me anything about your CRM data, and I can analyze leads, visualize pipelines, or build charts for your dashboard.";
+const DEMO_INTRO = "Hi! I'm Bobur, your Analytics Team Lead. You're exploring with sample data — feel free to ask questions and see how I work. Connect your CRM anytime to use real data.";
 
 const DEFAULT_SUGGESTIONS = [
   { text: "Show me a conversion chart" },
@@ -84,7 +85,7 @@ const markdownComponents = {
   ),
 };
 
-export default function DashboardChat({ api, onAddWidget, modifyingWidget, onReplaceWidget, onCancelModify }) {
+export default function DashboardChat({ api, onAddWidget, modifyingWidget, onReplaceWidget, onCancelModify, compact = false, drillDownMessage, onDrillDownConsumed, demoMode = false }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -93,7 +94,7 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [suggestedActions, setSuggestedActions] = useState(DEFAULT_SUGGESTIONS);
-  const [introMessage, setIntroMessage] = useState(DEFAULT_INTRO);
+  const [introMessage, setIntroMessage] = useState(demoMode ? DEMO_INTRO : DEFAULT_INTRO);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -244,6 +245,14 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
     }
   };
 
+  // Handle drill-down messages from chart clicks
+  useEffect(() => {
+    if (drillDownMessage) {
+      sendMessage(drillDownMessage);
+      if (onDrillDownConsumed) onDrillDownConsumed();
+    }
+  }, [drillDownMessage]);
+
   // Auto-inject context message when modify mode starts
   useEffect(() => {
     if (modifyingWidget) {
@@ -325,7 +334,7 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
     return (
       <div className="h-full flex flex-col">
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+          <div className={`mx-auto space-y-6 ${compact ? 'px-3 py-4' : 'max-w-4xl px-4 py-6'}`}>
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
                 <div className={`animate-pulse flex items-start gap-3 ${i % 2 === 0 ? '' : 'flex-row-reverse'}`}>
@@ -348,7 +357,7 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
       {/* Modify mode banner */}
       {modifyingWidget && (
         <div className="flex-shrink-0 px-4 py-2.5 bg-emerald-50 border-b border-emerald-200">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div className={`flex items-center justify-between ${compact ? '' : 'max-w-4xl mx-auto'}`}>
             <div className="flex items-center gap-2 text-sm">
               <Pencil className="w-3.5 h-3.5 text-emerald-600" strokeWidth={2} />
               <span className="text-emerald-800 font-medium">
@@ -368,7 +377,7 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
       )}
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        <div className={`mx-auto space-y-6 ${compact ? 'px-3 py-4' : 'max-w-4xl px-4 py-6'}`}>
           {hasMore && (
             <div className="flex justify-center py-2">
               <button
@@ -449,7 +458,7 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
                                   {smallCharts.map((chart, i) => (
                                     <div key={`small-${i}`}>
                                       <ChartRenderer chart={chart} chartIndex={kpis.length + i} />
-                                      <AddToDashboardBtn chart={chart} onAdd={modifyingWidget ? handleReplaceOnDashboard : handleAddToDashboard} isReplace={!!modifyingWidget} />
+                                      {!demoMode && <AddToDashboardBtn chart={chart} onAdd={modifyingWidget ? handleReplaceOnDashboard : handleAddToDashboard} isReplace={!!modifyingWidget} />}
                                     </div>
                                   ))}
                                 </div>
@@ -459,7 +468,7 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
                                   {wideCharts.map((chart, i) => (
                                     <div key={`wide-${i}`}>
                                       <ChartRenderer chart={chart} chartIndex={kpis.length + smallCharts.length + i} />
-                                      <AddToDashboardBtn chart={chart} onAdd={modifyingWidget ? handleReplaceOnDashboard : handleAddToDashboard} isReplace={!!modifyingWidget} />
+                                      {!demoMode && <AddToDashboardBtn chart={chart} onAdd={modifyingWidget ? handleReplaceOnDashboard : handleAddToDashboard} isReplace={!!modifyingWidget} />}
                                     </div>
                                   ))}
                                 </div>
@@ -514,7 +523,7 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
 
       {/* Input area */}
       <div className="flex-shrink-0 px-4 pb-3 pt-4">
-        <div className="max-w-4xl mx-auto">
+        <div className={compact ? '' : 'max-w-4xl mx-auto'}>
           {/* Clear chat — only show when there are real messages */}
           {messages.some(m => !m.isIntro) && (
             <div className="flex justify-end mb-1.5">

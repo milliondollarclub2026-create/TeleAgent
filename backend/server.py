@@ -4341,14 +4341,41 @@ async def dashboard_onboarding_refine(
             }).eq("tenant_id", tenant_id).execute()
         )
 
+        kpi_count = sum(1 for w in widgets if w.get("chart_type") == "kpi")
+        chart_count = len(widgets) - kpi_count
         return {
             "success": True,
             "widgets_created": len(widgets),
+            "kpi_count": kpi_count,
+            "chart_count": chart_count,
+            "goals_applied": len(selected_goals),
         }
 
     except Exception as e:
         logger.exception("Dashboard onboarding refine failed")
         raise HTTPException(status_code=500, detail="Failed to generate dashboard. Please try again.")
+
+
+@api_router.get("/dashboard/demo-widgets")
+async def dashboard_demo_widgets(current_user: Dict = Depends(get_current_user)):
+    """Pre-built demo widgets for users without CRM."""
+    widgets = [
+        # KPIs
+        {"id": "demo-kpi-1", "chart_type": "kpi", "title": "Total Revenue", "value": "$248.5K", "change": "+12.3%", "changeDirection": "up", "size": "small", "position": 0},
+        {"id": "demo-kpi-2", "chart_type": "kpi", "title": "Win Rate", "value": "34%", "change": "+2.1%", "changeDirection": "up", "size": "small", "position": 1},
+        {"id": "demo-kpi-3", "chart_type": "kpi", "title": "Active Deals", "value": "87", "change": "-5", "changeDirection": "down", "size": "small", "position": 2},
+        {"id": "demo-kpi-4", "chart_type": "kpi", "title": "Avg Deal Size", "value": "$12.4K", "change": "+8.7%", "changeDirection": "up", "size": "small", "position": 3},
+        # Charts
+        {"id": "demo-chart-1", "chart_type": "bar", "title": "Deals by Stage", "size": "medium", "position": 4,
+         "data": [{"label": "Qualification", "value": 24}, {"label": "Proposal", "value": 18}, {"label": "Negotiation", "value": 12}, {"label": "Closed Won", "value": 9}, {"label": "Closed Lost", "value": 6}]},
+        {"id": "demo-chart-2", "chart_type": "line", "title": "Revenue Trend", "size": "large", "position": 5,
+         "data": [{"label": "Jan", "value": 32000}, {"label": "Feb", "value": 38000}, {"label": "Mar", "value": 35000}, {"label": "Apr", "value": 42000}, {"label": "May", "value": 48500}, {"label": "Jun", "value": 52000}]},
+        {"id": "demo-chart-3", "chart_type": "pie", "title": "Lead Sources", "size": "medium", "position": 6,
+         "data": [{"label": "Website", "value": 35}, {"label": "Referral", "value": 28}, {"label": "Social Media", "value": 20}, {"label": "Cold Outreach", "value": 12}, {"label": "Events", "value": 5}]},
+        {"id": "demo-chart-4", "chart_type": "bar", "title": "Top Sales Reps", "size": "medium", "position": 7,
+         "data": [{"label": "Sarah K.", "value": 68000}, {"label": "Mike R.", "value": 54000}, {"label": "Lisa T.", "value": 47000}, {"label": "James W.", "value": 41000}, {"label": "Anna P.", "value": 38000}]},
+    ]
+    return {"widgets": widgets, "demo": True}
 
 
 @api_router.post("/dashboard/reconfigure")
@@ -4428,9 +4455,12 @@ def _match_kpi_pattern(wc: dict) -> Optional[str]:
 async def dashboard_widgets_get(
     current_user: Dict = Depends(get_current_user),
     limit: int = 50,
+    from_date: str = None,
+    to_date: str = None,
 ):
     """
     Load dashboard widgets with live data (paginated).
+    Optional from_date/to_date (YYYY-MM-DD) override widget time_range_days.
     """
     tenant_id = current_user["tenant_id"]
     limit = clamp_limit(limit, maximum=200)
@@ -4664,6 +4694,84 @@ async def dashboard_widget_delete(
     return {"success": True}
 
 
+@api_router.post("/dashboard/widgets/reorder")
+async def dashboard_widgets_reorder(
+    request: Request,
+    current_user: Dict = Depends(get_current_user),
+):
+    """
+    Reorder dashboard widgets by updating their positions.
+    Expects { "widget_ids": ["id1", "id2", ...] }
+    """
+    tenant_id = current_user["tenant_id"]
+    body = await request.json()
+    widget_ids = body.get("widget_ids", [])
+
+    for position, wid in enumerate(widget_ids):
+        supabase.table("dashboard_widgets").update({
+            "position": position,
+        }).eq("id", wid).eq("tenant_id", tenant_id).execute()
+
+    return {"success": True}
+
+
+@api_router.patch("/dashboard/widgets/{widget_id}/resize")
+async def dashboard_widget_resize(
+    widget_id: str,
+    request: Request,
+    current_user: Dict = Depends(get_current_user),
+):
+    """
+    Update widget size (small, medium, large).
+    """
+    tenant_id = current_user["tenant_id"]
+    body = await request.json()
+    size = body.get("size", "medium")
+
+    if size not in ("small", "medium", "large"):
+        raise HTTPException(status_code=400, detail="Invalid size. Must be small, medium, or large.")
+
+    supabase.table("dashboard_widgets").update({
+        "size": size,
+    }).eq("id", widget_id).eq("tenant_id", tenant_id).execute()
+
+    return {"success": True}
+
+
+@api_router.get("/dashboard/export")
+async def dashboard_export(current_user: Dict = Depends(get_current_user)):
+    """
+    Return all widget data in a flat, export-friendly format.
+    """
+    tenant_id = current_user["tenant_id"]
+    crm_source = await _get_tenant_crm_source(supabase, tenant_id)
+    if not crm_source:
+        return {"widgets": []}
+
+    result = (
+        supabase.table("dashboard_widgets")
+        .select("*")
+        .eq("tenant_id", tenant_id)
+        .is_("deleted_at", "null")
+        .order("position")
+        .limit(200)
+        .execute()
+    )
+    widget_configs = result.data or []
+
+    export_data = []
+    for wc in widget_configs:
+        export_data.append({
+            "title": wc.get("title", "Untitled"),
+            "chart_type": wc.get("chart_type", "bar"),
+            "data_source": wc.get("data_source"),
+            "size": wc.get("size", "medium"),
+            "position": wc.get("position", 0),
+        })
+
+    return {"widgets": export_data}
+
+
 @api_router.get("/dashboard/insights")
 async def dashboard_insights(current_user: Dict = Depends(get_current_user)):
     """
@@ -4720,10 +4828,28 @@ async def dashboard_chat(
     except Exception:
         pass
 
+    # Load conversation_state from latest assistant message
+    conversation_state = None
+    try:
+        last_msg = (
+            supabase.table("dashboard_chat_messages")
+            .select("conversation_state")
+            .eq("tenant_id", tenant_id)
+            .eq("role", "assistant")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if last_msg.data and last_msg.data[0].get("conversation_state"):
+            conversation_state = last_msg.data[0]["conversation_state"]
+    except Exception:
+        pass
+
     # Route + execute via Bobur
     result = await dashboard_chat_handler(
         supabase, tenant_id, crm_source,
         request.message, request.conversation_history, crm_profile,
+        conversation_state=conversation_state,
     )
 
     # Persist to dashboard_chat_messages
@@ -4742,6 +4868,7 @@ async def dashboard_chat(
             "content": result.get("reply", ""),
             "charts": result.get("charts", []),
             "agent_used": result.get("agent_used"),
+            "conversation_state": result.get("conversation_state"),
         }).execute()
     except Exception as e:
         logger.warning(f"Failed to persist chat messages: {e}")

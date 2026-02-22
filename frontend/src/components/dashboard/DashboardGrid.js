@@ -1,5 +1,19 @@
-import React, { useState } from 'react';
-import { X, Pencil, LayoutGrid } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { LayoutGrid, GripVertical, Pencil } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,6 +25,7 @@ import {
   AlertDialogTitle,
 } from '../ui/alert-dialog';
 import ChartRenderer from '../charts/ChartRenderer';
+import SortableWidgetItem from './SortableWidgetItem';
 import { chartHasValidData } from '../../utils/chartUtils';
 
 // Skeleton loaders
@@ -33,8 +48,76 @@ function ChartSkeleton() {
   );
 }
 
-export default function DashboardGrid({ widgets, loading, onDeleteWidget, onModifyWidget }) {
+// Map widget size to grid column span
+function sizeToSpan(size) {
+  switch (size) {
+    case 'small': return 'col-span-1';
+    case 'large': return 'col-span-1 sm:col-span-2';
+    case 'medium':
+    default: return 'col-span-1';
+  }
+}
+
+export default function DashboardGrid({
+  widgets,
+  loading,
+  onDeleteWidget,
+  onModifyWidget,
+  onDrillDown,
+  onReorderWidgets,
+  onResizeWidget,
+}) {
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [localWidgets, setLocalWidgets] = useState(null);
+
+  // Use local widget order when in edit mode, otherwise use prop
+  const displayWidgets = localWidgets || widgets;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = useCallback((event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setLocalWidgets(prev => {
+      const items = prev || widgets;
+      const activeWidget = items.find(w => w.id === active.id);
+      const overWidget = items.find(w => w.id === over.id);
+      if (!activeWidget || !overWidget) return items;
+
+      // Prevent cross-category drag (KPI ↔ chart)
+      const activeIsKPI = ['kpi', 'metric'].includes(activeWidget.chart_type?.toLowerCase());
+      const overIsKPI = ['kpi', 'metric'].includes(overWidget.chart_type?.toLowerCase());
+      if (activeIsKPI !== overIsKPI) return items;
+
+      const oldIndex = items.findIndex(w => w.id === active.id);
+      const newIndex = items.findIndex(w => w.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return items;
+      const reordered = arrayMove(items, oldIndex, newIndex);
+
+      // Persist in background
+      if (onReorderWidgets) {
+        onReorderWidgets(reordered.map(w => w.id));
+      }
+
+      return reordered;
+    });
+  }, [widgets, onReorderWidgets]);
+
+  const toggleEditMode = useCallback(() => {
+    if (editMode) {
+      // Exiting edit mode — sync local to parent
+      setLocalWidgets(null);
+    } else {
+      // Entering edit mode — snapshot
+      setLocalWidgets([...widgets]);
+    }
+    setEditMode(!editMode);
+  }, [editMode, widgets]);
 
   if (loading) {
     return (
@@ -49,7 +132,7 @@ export default function DashboardGrid({ widgets, loading, onDeleteWidget, onModi
     );
   }
 
-  if (!widgets || widgets.length === 0) {
+  if (!displayWidgets || displayWidgets.length === 0) {
     return (
       <div className="text-center py-16">
         <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
@@ -57,19 +140,16 @@ export default function DashboardGrid({ widgets, loading, onDeleteWidget, onModi
         </div>
         <h3 className="font-medium text-slate-900 mb-1">No widgets yet</h3>
         <p className="text-sm text-slate-500">
-          Switch to the Chat tab and ask Bobur for charts, then add them to your dashboard.
+          Ask Bobur in the chat panel for charts, then add them to your dashboard.
         </p>
       </div>
     );
   }
 
-  // Convert widget data to ChartRenderer format and categorize
-  const validWidgets = widgets.filter(chartHasValidData);
+  const validWidgets = displayWidgets.filter(chartHasValidData);
   const kpis = validWidgets.filter(w => ['kpi', 'metric'].includes(w.chart_type?.toLowerCase()));
-  const smallCharts = validWidgets.filter(w => ['pie', 'donut', 'bar'].includes(w.chart_type?.toLowerCase()));
-  const wideCharts = validWidgets.filter(w => ['line', 'area', 'funnel'].includes(w.chart_type?.toLowerCase()));
+  const charts = validWidgets.filter(w => !['kpi', 'metric'].includes(w.chart_type?.toLowerCase()));
 
-  // Map widget to chart format for ChartRenderer
   const toChart = (widget) => ({
     type: widget.chart_type,
     title: widget.title,
@@ -77,79 +157,105 @@ export default function DashboardGrid({ widgets, loading, onDeleteWidget, onModi
     value: widget.value,
     change: widget.change,
     changeDirection: widget.changeDirection,
+    sparkline_data: widget.sparkline_data,
+    previous_value: widget.previous_value,
+    goal_value: widget.goal_value,
   });
 
   const isKPI = (widget) => ['kpi', 'metric'].includes(widget.chart_type?.toLowerCase());
 
-  const WidgetWrapper = ({ widget, children }) => (
-    <div className="relative group">
-      {children}
-      {/* Hover controls — top right */}
-      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        {/* Modify button (non-KPI only — KPIs have no chart to modify) */}
-        {!isKPI(widget) && onModifyWidget && (
-          <button
-            onClick={() => onModifyWidget(widget)}
-            className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-emerald-50 hover:border-emerald-300 transition-colors"
-            title="Modify widget"
-          >
-            <Pencil className="w-3 h-3 text-slate-400 group-hover:text-emerald-600" strokeWidth={2} />
-          </button>
-        )}
-        {/* Delete button */}
-        {onDeleteWidget && (
-          <button
-            onClick={() => setDeleteTarget(widget)}
-            className="w-6 h-6 rounded-md bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
-            title="Remove widget"
-          >
-            <X className="w-3.5 h-3.5 text-slate-400 hover:text-red-500" strokeWidth={2} />
-          </button>
-        )}
-      </div>
-    </div>
-  );
+  const handleDeleteRequest = (widget) => setDeleteTarget(widget);
+
+  const handleDrillDownClick = (chartTitle) => (label, value) => {
+    if (onDrillDown) {
+      onDrillDown({ label, value, chartTitle });
+    }
+  };
 
   return (
     <>
-      <div className="space-y-4">
-        {/* KPIs */}
-        {kpis.length > 0 && (
-          <div className={`grid gap-3 ${
-            kpis.length === 1 ? 'grid-cols-1 max-w-xs' :
-            kpis.length === 2 ? 'grid-cols-2' :
-            'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
-          }`}>
-            {kpis.map((widget, idx) => (
-              <WidgetWrapper key={widget.id} widget={widget}>
-                <ChartRenderer chart={toChart(widget)} chartIndex={idx} />
-              </WidgetWrapper>
-            ))}
-          </div>
-        )}
+      {/* Edit Layout toggle */}
+      {validWidgets.length > 1 && (
+        <div className="flex justify-end mb-2">
+          <button
+            onClick={toggleEditMode}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              editMode
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            {editMode ? (
+              <>
+                <GripVertical className="w-3.5 h-3.5" strokeWidth={2} />
+                Done Editing
+              </>
+            ) : (
+              <>
+                <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
+                Edit Layout
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
-        {/* Small charts (bar, pie) */}
-        {smallCharts.length > 0 && (
-          <div className={`grid gap-4 ${smallCharts.length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
-            {smallCharts.map((widget, idx) => (
-              <WidgetWrapper key={widget.id} widget={widget}>
-                <ChartRenderer chart={toChart(widget)} chartIndex={kpis.length + idx} />
-              </WidgetWrapper>
-            ))}
-          </div>
-        )}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <div className="space-y-4">
+          {/* KPIs */}
+          {kpis.length > 0 && (
+            <SortableContext items={kpis.map(w => w.id)} strategy={rectSortingStrategy}>
+              <div className={`grid gap-3 ${
+                kpis.length === 1 ? 'grid-cols-1 max-w-xs' :
+                kpis.length === 2 ? 'grid-cols-2' :
+                'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
+              }`}>
+                {kpis.map((widget, idx) => (
+                  <SortableWidgetItem
+                    key={widget.id}
+                    id={widget.id}
+                    widget={widget}
+                    editMode={editMode}
+                    isKPI
+                    onDelete={handleDeleteRequest}
+                    onModify={onModifyWidget}
+                  >
+                    <ChartRenderer chart={toChart(widget)} chartIndex={idx} interactive={false} />
+                  </SortableWidgetItem>
+                ))}
+              </div>
+            </SortableContext>
+          )}
 
-        {/* Wide charts (line, funnel) */}
-        {wideCharts.length > 0 && (
-          <div className="space-y-4">
-            {wideCharts.map((widget, idx) => (
-              <WidgetWrapper key={widget.id} widget={widget}>
-                <ChartRenderer chart={toChart(widget)} chartIndex={kpis.length + smallCharts.length + idx} />
-              </WidgetWrapper>
-            ))}
-          </div>
-        )}
-      </div>
+          {/* Charts */}
+          {charts.length > 0 && (
+            <SortableContext items={charts.map(w => w.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {charts.map((widget, idx) => (
+                  <div key={widget.id} className={sizeToSpan(widget.size)}>
+                    <SortableWidgetItem
+                      id={widget.id}
+                      widget={widget}
+                      editMode={editMode}
+                      isKPI={false}
+                      onDelete={handleDeleteRequest}
+                      onModify={onModifyWidget}
+                      onResize={onResizeWidget}
+                    >
+                      <ChartRenderer
+                        chart={toChart(widget)}
+                        chartIndex={kpis.length + idx}
+                        interactive
+                        onDrillDown={handleDrillDownClick(widget.title)}
+                      />
+                    </SortableWidgetItem>
+                  </div>
+                ))}
+              </div>
+            </SortableContext>
+          )}
+        </div>
+      </DndContext>
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

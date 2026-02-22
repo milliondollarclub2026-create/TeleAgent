@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import AiOrb from '../components/Orb/AiOrb';
@@ -8,7 +7,10 @@ import useDashboardApi from '../hooks/useDashboardApi';
 import DashboardOnboarding from '../components/dashboard/DashboardOnboarding';
 import DashboardView from '../components/dashboard/DashboardView';
 import DashboardChat from '../components/dashboard/DashboardChat';
-import { AlertTriangle } from 'lucide-react';
+import DashboardTour from '../components/dashboard/DashboardTour';
+import SplitPaneLayout from '../components/dashboard/SplitPaneLayout';
+import { getDefaultDateRange } from '../components/dashboard/DateRangeSelector';
+import { AlertTriangle, Sparkles, ArrowRight } from 'lucide-react';
 
 // Error boundary to catch rendering crashes
 class DashboardErrorBoundary extends React.Component {
@@ -54,7 +56,7 @@ class DashboardErrorBoundary extends React.Component {
 const BOBUR_ORB_COLORS = ['#f97316', '#ea580c', '#f59e0b'];
 
 function CRMDashboardPageInner() {
-  const { hiredPrebuilt } = useAuth();
+  const { hiredPrebuilt, user } = useAuth();
   const navigate = useNavigate();
   const api = useDashboardApi();
 
@@ -64,10 +66,16 @@ function CRMDashboardPageInner() {
       navigate('/app/agents', { replace: true });
     }
   }, [hiredPrebuilt, navigate]);
+
   const [config, setConfig] = useState(undefined); // undefined = loading, null = no config
   const [configLoading, setConfigLoading] = useState(true);
   const [hasCRM, setHasCRM] = useState(null); // null = checking
-  const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Split-pane chat state
+  const [chatOpen, setChatOpen] = useState(true);
+
+  // Date range state
+  const [dateRange, setDateRange] = useState(getDefaultDateRange);
 
   // Dashboard data
   const [widgets, setWidgets] = useState([]);
@@ -78,9 +86,17 @@ function CRMDashboardPageInner() {
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
-
   // Modify widget flow: tracks which widget is being modified via chat
   const [modifyingWidget, setModifyingWidget] = useState(null);
+
+  // Drill-down: auto-inject a chat message
+  const [drillDownMessage, setDrillDownMessage] = useState(null);
+
+  // Demo mode
+  const [demoMode, setDemoMode] = useState(false);
+
+  // Tour
+  const [showTour, setShowTour] = useState(false);
 
   // --- Load config on mount ---
   const [initSlow, setInitSlow] = useState(false);
@@ -88,7 +104,6 @@ function CRMDashboardPageInner() {
   useEffect(() => {
     let cancelled = false;
 
-    // Show feedback if init takes >10s (e.g. cold backend start)
     const slowTimer = setTimeout(() => {
       if (!cancelled) setInitSlow(true);
     }, 10000);
@@ -96,7 +111,6 @@ function CRMDashboardPageInner() {
     const init = async () => {
       setConfigLoading(true);
 
-      // Run both API calls in parallel
       const [intResult, cfgResult] = await Promise.all([
         api.getIntegrationsStatus(),
         api.getConfig(),
@@ -114,11 +128,9 @@ function CRMDashboardPageInner() {
         return;
       }
 
-      // Unwrap config: backend returns { config: { onboarding_state, ... } }
       const innerConfig = cfgData?.config ?? cfgData;
       setConfig(innerConfig);
 
-      // If onboarding complete, load dashboard data
       if (innerConfig?.onboarding_state === 'complete') {
         loadDashboardData();
       }
@@ -133,7 +145,7 @@ function CRMDashboardPageInner() {
     setInsightsLoading(true);
 
     const [widgetRes, insightRes, usageRes, alertRes] = await Promise.all([
-      api.getWidgets(),
+      api.getWidgets(dateRange),
       api.getInsights(),
       api.getDataUsage(),
       api.getRevenueAlerts('open'),
@@ -144,7 +156,6 @@ function CRMDashboardPageInner() {
     }
     setWidgetsLoading(false);
 
-    // Map revenue alerts to insight format (dismissible) and prepend to nilufar insights
     const alertItems = (alertRes.data?.alerts || []).map(a => ({
       id: a.id,
       title: a.summary,
@@ -165,7 +176,14 @@ function CRMDashboardPageInner() {
     }
 
     setLastRefreshed(new Date().toISOString());
-  }, [api]);
+  }, [api, dateRange]);
+
+  // Reload data when date range changes
+  useEffect(() => {
+    if (config?.onboarding_state === 'complete') {
+      loadDashboardData();
+    }
+  }, [dateRange]);
 
   // --- Refresh handler ---
   const handleRefresh = useCallback(async () => {
@@ -186,19 +204,18 @@ function CRMDashboardPageInner() {
   const handleAddWidget = useCallback(async (widgetData) => {
     const { data, error } = await api.addWidget(widgetData);
     if (!error && data) {
-      // Refetch full widget list instead of pushing partial response
-      const { data: refreshed } = await api.getWidgets();
+      const { data: refreshed } = await api.getWidgets(dateRange);
       if (refreshed) {
         setWidgets(Array.isArray(refreshed) ? refreshed : refreshed.widgets || []);
       }
     }
     return { data, error };
-  }, [api]);
+  }, [api, dateRange]);
 
-  // --- Modify widget (switch to chat with widget context) ---
+  // --- Modify widget (opens chat panel if collapsed) ---
   const handleModifyWidget = useCallback((widget) => {
     setModifyingWidget(widget);
-    setActiveTab('chat');
+    setChatOpen(true);
   }, []);
 
   // --- Replace widget (from modify flow in chat) ---
@@ -206,8 +223,7 @@ function CRMDashboardPageInner() {
     if (!modifyingWidget?.id) return { error: 'No widget to replace' };
     const { error } = await api.updateWidget(modifyingWidget.id, widgetData);
     if (!error) {
-      // Refetch to get hydrated data
-      const { data: refreshed } = await api.getWidgets();
+      const { data: refreshed } = await api.getWidgets(dateRange);
       if (refreshed) {
         setWidgets(Array.isArray(refreshed) ? refreshed : refreshed.widgets || []);
       }
@@ -215,7 +231,7 @@ function CRMDashboardPageInner() {
       toast.success('Widget updated');
     }
     return { error };
-  }, [api, modifyingWidget]);
+  }, [api, modifyingWidget, dateRange]);
 
   // --- Dismiss revenue alert ---
   const handleDismissAlert = useCallback(async (alertId) => {
@@ -234,11 +250,62 @@ function CRMDashboardPageInner() {
     setInsights([]);
   }, [api]);
 
+  // --- Demo mode ---
+  const handleDemoMode = useCallback(async () => {
+    const { data, error } = await api.getDemoWidgets();
+    if (error) {
+      toast.error('Failed to load sample data');
+      return;
+    }
+    setWidgets(data?.widgets || []);
+    setDemoMode(true);
+    setConfig({ onboarding_state: 'complete', demo: true });
+  }, [api]);
+
+  // Auto-exit demo when real CRM connects
+  useEffect(() => {
+    if (hasCRM && demoMode) {
+      setDemoMode(false);
+      setConfig(null);
+      setWidgets([]);
+    }
+  }, [hasCRM, demoMode]);
+
   // --- Onboarding complete ---
   const handleOnboardingComplete = useCallback((data) => {
     setConfig({ onboarding_state: 'complete', ...data });
     loadDashboardData();
+    setShowTour(true);
   }, [loadDashboardData]);
+
+  // --- Drill-down handler (chart click → chat) ---
+  const handleDrillDown = useCallback(({ label, value, chartTitle }) => {
+    const query = `Show me the ${label} ${chartTitle ? `from "${chartTitle}"` : 'records'} in detail`;
+    setChatOpen(true);
+    setDrillDownMessage(query);
+  }, []);
+
+  // --- Reorder widgets ---
+  const handleReorderWidgets = useCallback(async (orderedIds) => {
+    // Optimistically update parent widget order
+    setWidgets(prev => {
+      const idMap = new Map(prev.map(w => [w.id, w]));
+      return orderedIds.map(id => idMap.get(id)).filter(Boolean);
+    });
+    const { error } = await api.reorderWidgets(orderedIds);
+    if (error) {
+      toast.error('Failed to save layout');
+    }
+  }, [api]);
+
+  // --- Resize widget ---
+  const handleResizeWidget = useCallback(async (widgetId, size) => {
+    setWidgets(prev => prev.map(w => w.id === widgetId ? { ...w, size } : w));
+    const { error } = await api.resizeWidget(widgetId, size);
+    if (error) {
+      toast.error('Failed to save size');
+    }
+  }, [api]);
 
   // --- Loading state ---
   if (configLoading) {
@@ -262,16 +329,41 @@ function CRMDashboardPageInner() {
           hasCRM={hasCRM}
           config={config}
           onComplete={handleOnboardingComplete}
+          onDemoMode={handleDemoMode}
         />
       </div>
     );
   }
 
-  // --- Dashboard ready (tabs) ---
+  // --- Dashboard ready (split pane) ---
   return (
     <div className="h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] flex flex-col" data-testid="crm-dashboard-page">
+      {/* Dashboard tour */}
+      {showTour && (
+        <DashboardTour tenantId={user?.tenant_id} onComplete={() => setShowTour(false)} />
+      )}
+
+      {/* Demo mode banner */}
+      {demoMode && (
+        <div className="flex-shrink-0 px-4 py-2 bg-amber-50 border-b border-amber-200">
+          <div className="flex items-center justify-between max-w-6xl mx-auto">
+            <div className="flex items-center gap-2 text-sm">
+              <Sparkles className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
+              <span className="text-amber-800 font-medium">Viewing sample data</span>
+            </div>
+            <button
+              onClick={() => { setDemoMode(false); setConfig(null); setWidgets([]); }}
+              className="flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-900 transition-colors"
+            >
+              Connect your CRM
+              <ArrowRight className="w-3 h-3" strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top bar */}
-      <div className="flex-shrink-0 min-h-[3rem] px-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 -mt-2 lg:-mt-3 relative">
+      <div className="flex-shrink-0 min-h-[3rem] px-4 flex items-center justify-between gap-2 -mt-2 lg:-mt-3 relative">
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
 
         {/* Left: Bobur identity */}
@@ -283,55 +375,51 @@ function CRMDashboardPageInner() {
           </div>
         </div>
 
-        {/* Center: Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="static sm:absolute sm:left-1/2 sm:-translate-x-1/2">
-          <TabsList className="bg-slate-100 h-8">
-            <TabsTrigger
-              value="dashboard"
-              className="text-xs px-3 sm:px-4 h-7 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
-            >
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger
-              value="chat"
-              className="text-xs px-3 sm:px-4 h-7 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
-            >
-              Chat
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        {/* Right: spacer for balance (hidden on mobile) */}
+        {/* Right: spacer */}
         <div className="hidden sm:block w-24" />
       </div>
 
-      {/* Tab content */}
+      {/* Split pane content */}
       <div className="flex-1 min-h-0">
-        {activeTab === 'dashboard' ? (
-          <DashboardView
-            widgets={widgets}
-            widgetsLoading={widgetsLoading}
-            insights={insights}
-            insightsLoading={insightsLoading}
-            dataUsage={dataUsage}
-            lastRefreshed={lastRefreshed}
-            onDeleteWidget={handleDeleteWidget}
-            onModifyWidget={handleModifyWidget}
-            onReconfigure={handleReconfigure}
-            onRefresh={handleRefresh}
-            refreshing={refreshing}
-            onDismissAlert={handleDismissAlert}
-            getRevenueOverview={api.getRevenueOverview}
-          />
-        ) : (
-          <DashboardChat
-            api={api}
-            onAddWidget={handleAddWidget}
-            modifyingWidget={modifyingWidget}
-            onReplaceWidget={handleReplaceWidget}
-            onCancelModify={() => setModifyingWidget(null)}
-          />
-        )}
+        <SplitPaneLayout
+          chatOpen={chatOpen}
+          onChatOpenChange={setChatOpen}
+          dashboard={
+            <DashboardView
+              widgets={widgets}
+              widgetsLoading={widgetsLoading}
+              insights={insights}
+              insightsLoading={insightsLoading}
+              dataUsage={dataUsage}
+              lastRefreshed={lastRefreshed}
+              onDeleteWidget={handleDeleteWidget}
+              onModifyWidget={handleModifyWidget}
+              onReconfigure={handleReconfigure}
+              onRefresh={handleRefresh}
+              refreshing={refreshing}
+              onDismissAlert={handleDismissAlert}
+              getRevenueOverview={api.getRevenueOverview}
+              dateRange={dateRange}
+              onDateRangeChange={setDateRange}
+              onDrillDown={handleDrillDown}
+              onReorderWidgets={handleReorderWidgets}
+              onResizeWidget={handleResizeWidget}
+            />
+          }
+          chat={
+            <DashboardChat
+              api={api}
+              onAddWidget={handleAddWidget}
+              modifyingWidget={modifyingWidget}
+              onReplaceWidget={handleReplaceWidget}
+              onCancelModify={() => setModifyingWidget(null)}
+              compact
+              drillDownMessage={drillDownMessage}
+              onDrillDownConsumed={() => setDrillDownMessage(null)}
+              demoMode={demoMode}
+            />
+          }
+        />
       </div>
     </div>
   );

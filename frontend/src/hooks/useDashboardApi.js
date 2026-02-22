@@ -79,9 +79,12 @@ export default function useDashboardApi() {
     apiCall('get', '/api/dashboard/config'),
   [apiCall]);
 
-  const getWidgets = useCallback(() =>
-    apiCall('get', '/api/dashboard/widgets'),
-  [apiCall]);
+  const getWidgets = useCallback((dateRange) => {
+    const params = {};
+    if (dateRange?.from) params.from_date = dateRange.from instanceof Date ? dateRange.from.toISOString().slice(0, 10) : dateRange.from;
+    if (dateRange?.to) params.to_date = dateRange.to instanceof Date ? dateRange.to.toISOString().slice(0, 10) : dateRange.to;
+    return apiCall('get', '/api/dashboard/widgets', Object.keys(params).length > 0 ? params : null);
+  }, [apiCall]);
 
   const addWidget = useCallback((widgetData) =>
     apiCallWithToast('post', '/api/dashboard/widgets', widgetData, 'Failed to add widget'),
@@ -94,6 +97,18 @@ export default function useDashboardApi() {
   const deleteWidget = useCallback((widgetId) =>
     apiCallWithToast('delete', `/api/dashboard/widgets/${widgetId}`, null, 'Failed to delete widget'),
   [apiCallWithToast]);
+
+  const reorderWidgets = useCallback((widgetIds) =>
+    apiCallWithToast('post', '/api/dashboard/widgets/reorder', { widget_ids: widgetIds }, 'Failed to save layout'),
+  [apiCallWithToast]);
+
+  const resizeWidget = useCallback((widgetId, size) =>
+    apiCallWithToast('patch', `/api/dashboard/widgets/${widgetId}/resize`, { size }, 'Failed to save size'),
+  [apiCallWithToast]);
+
+  const getExportData = useCallback(() =>
+    apiCall('get', '/api/dashboard/export'),
+  [apiCall]);
 
   const getInsights = useCallback(() =>
     apiCall('get', '/api/dashboard/insights'),
@@ -134,6 +149,16 @@ export default function useDashboardApi() {
     apiCallWithToast('delete', '/api/dashboard/chat/history', null, 'Failed to clear chat'),
   [apiCallWithToast]);
 
+  // --- CRM Connection (inline onboarding) ---
+  const connectCRM = useCallback((webhook_url) =>
+    apiCallWithToast('post', '/api/bitrix-crm/connect', { webhook_url }, 'Failed to connect CRM'),
+  [apiCallWithToast]);
+
+  // --- Demo ---
+  const getDemoWidgets = useCallback(() =>
+    apiCall('get', '/api/dashboard/demo-widgets'),
+  [apiCall]);
+
   // --- Data ---
   const getDataUsage = useCallback(() =>
     apiCall('get', '/api/data/usage'),
@@ -157,13 +182,19 @@ export default function useDashboardApi() {
     selectCategories,
     submitRefinement,
     reconfigure,
+    connectCRM,
     // Dashboard
     getConfig,
     getWidgets,
     addWidget,
     updateWidget,
     deleteWidget,
+    reorderWidgets,
+    resizeWidget,
     getInsights,
+    getExportData,
+    // Demo
+    getDemoWidgets,
     // Chat
     sendChatMessage,
     getChatHistory,
@@ -180,5 +211,5 @@ export default function useDashboardApi() {
     dismissRevenueAlert,
     // Chat Suggestions
     getChatSuggestions,
-  }), [startOnboarding, selectCategories, submitRefinement, reconfigure, getConfig, getWidgets, addWidget, updateWidget, deleteWidget, getInsights, sendChatMessage, getChatHistory, clearChatHistory, getDataUsage, getSyncStatus, triggerSync, getIntegrationsStatus, getRevenueAlerts, getRevenueOverview, recomputeRevenue, dismissRevenueAlert, getChatSuggestions]);
+  }), [startOnboarding, selectCategories, submitRefinement, reconfigure, connectCRM, getConfig, getWidgets, addWidget, updateWidget, deleteWidget, reorderWidgets, resizeWidget, getInsights, getExportData, getDemoWidgets, sendChatMessage, getChatHistory, clearChatHistory, getDataUsage, getSyncStatus, triggerSync, getIntegrationsStatus, getRevenueAlerts, getRevenueOverview, recomputeRevenue, dismissRevenueAlert, getChatSuggestions]);
 }

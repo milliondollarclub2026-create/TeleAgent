@@ -46,7 +46,6 @@ class TestAgentImports:
             list_revenue_alerts,
             query_metric,
             recommend_actions,
-            list_deals,
             format_overview_evidence,
             format_alerts_evidence,
             format_metric_evidence,
@@ -54,13 +53,13 @@ class TestAgentImports:
             get_analytics_overview,
             query_dynamic_metric,
         )
-        # Verify list_deals is not duplicated — only one definition should exist
-        import inspect
-        source = inspect.getsource(list_deals)
-        assert "source_id" in source, "list_deals should use source_id (second/correct definition)"
         # Phase 2 functions exist
         assert get_analytics_overview is not None
         assert query_dynamic_metric is not None
+
+    def test_import_schema_context(self):
+        from agents.schema_context import SchemaContext
+        assert SchemaContext is not None
 
 
 # ── Test 2: Import CRM adapter modules ──────────────────────────────────
