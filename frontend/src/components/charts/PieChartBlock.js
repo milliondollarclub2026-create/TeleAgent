@@ -38,6 +38,8 @@ const renderActiveShape = (props) => {
 };
 
 export default function PieChartBlock({ chart, chartIndex = 0, interactive = false, onDrillDown }) {
+  const mounted = React.useRef(false);
+  React.useEffect(() => { mounted.current = true; }, []);
   const { title, data: rawData = [], donut = false } = chart;
   const [activeIndex, setActiveIndex] = React.useState(null);
 
@@ -143,6 +145,7 @@ export default function PieChartBlock({ chart, chartIndex = 0, interactive = fal
               dataKey="value"
               labelLine={false}
               label={activeIndex === null ? renderCustomLabel : undefined}
+              isAnimationActive={!mounted.current}
               animationDuration={CHART_CONFIG.animationDuration}
               animationEasing={CHART_CONFIG.animationEasing}
               onClick={handleClick}

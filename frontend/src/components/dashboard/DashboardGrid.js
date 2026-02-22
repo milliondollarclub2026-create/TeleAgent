@@ -147,7 +147,17 @@ export default function DashboardGrid({
   }
 
   const validWidgets = displayWidgets.filter(chartHasValidData);
-  const kpis = validWidgets.filter(w => ['kpi', 'metric'].includes(w.chart_type?.toLowerCase()));
+
+  // Deduplicate KPIs by title — keep the first occurrence
+  const kpisRaw = validWidgets.filter(w => ['kpi', 'metric'].includes(w.chart_type?.toLowerCase()));
+  const seenTitles = new Set();
+  const kpis = kpisRaw.filter(w => {
+    const key = (w.title || '').toLowerCase();
+    if (seenTitles.has(key)) return false;
+    seenTitles.add(key);
+    return true;
+  });
+
   const charts = validWidgets.filter(w => !['kpi', 'metric'].includes(w.chart_type?.toLowerCase()));
 
   const toChart = (widget) => ({
@@ -181,7 +191,7 @@ export default function DashboardGrid({
             onClick={toggleEditMode}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
               editMode
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                ? 'bg-slate-100 text-slate-900 border border-slate-300'
                 : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
             }`}
           >
@@ -208,6 +218,7 @@ export default function DashboardGrid({
               <div className={`grid gap-3 ${
                 kpis.length === 1 ? 'grid-cols-1 max-w-xs' :
                 kpis.length === 2 ? 'grid-cols-2' :
+                kpis.length === 3 ? 'grid-cols-3' :
                 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'
               }`}>
                 {kpis.map((widget, idx) => (

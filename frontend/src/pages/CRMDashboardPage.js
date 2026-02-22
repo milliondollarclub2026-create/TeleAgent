@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
@@ -205,6 +205,7 @@ function CRMDashboardPageInner() {
     const { error } = await api.deleteWidget(widgetId);
     if (!error) {
       setWidgets(prev => prev.filter(w => w.id !== widgetId));
+      toast.success('Widget removed');
     }
   }, [api]);
 
@@ -286,6 +287,11 @@ function CRMDashboardPageInner() {
     setShowTour(true);
   }, [loadDashboardData]);
 
+  // Existing widget titles for duplicate prevention
+  const existingTitles = useMemo(() =>
+    new Set(widgets.map(w => (w.title || '').toLowerCase())),
+  [widgets]);
+
   // --- Drill-down handler (chart click → chat) ---
   const handleDrillDown = useCallback(({ label, value, chartTitle }) => {
     const query = `Show me the ${label} ${chartTitle ? `from "${chartTitle}"` : 'records'} in detail`;
@@ -306,14 +312,17 @@ function CRMDashboardPageInner() {
     }
   }, [api]);
 
-  // --- Resize widget ---
+  // --- Resize widget (with revert on error) ---
   const handleResizeWidget = useCallback(async (widgetId, size) => {
-    setWidgets(prev => prev.map(w => w.id === widgetId ? { ...w, size } : w));
+    const prev = widgets.find(w => w.id === widgetId);
+    const prevSize = prev?.size || 'medium';
+    setWidgets(ws => ws.map(w => w.id === widgetId ? { ...w, size } : w));
     const { error } = await api.resizeWidget(widgetId, size);
     if (error) {
+      setWidgets(ws => ws.map(w => w.id === widgetId ? { ...w, size: prevSize } : w));
       toast.error('Failed to save size');
     }
-  }, [api]);
+  }, [api, widgets]);
 
   // --- Loading state ---
   if (configLoading) {
@@ -425,6 +434,7 @@ function CRMDashboardPageInner() {
               drillDownMessage={drillDownMessage}
               onDrillDownConsumed={() => setDrillDownMessage(null)}
               demoMode={demoMode}
+              existingTitles={existingTitles}
             />
           }
         />

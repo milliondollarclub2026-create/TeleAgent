@@ -70,7 +70,7 @@ export default function SortableWidgetItem({
                     onClick={() => onResize(widget.id, opt.value)}
                     className={`w-6 h-6 flex items-center justify-center text-[10px] font-bold transition-colors ${
                       currentSize === opt.value
-                        ? 'bg-emerald-50 text-emerald-600'
+                        ? 'bg-slate-100 text-slate-900'
                         : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                     }`}
                     title={`${opt.value} size`}

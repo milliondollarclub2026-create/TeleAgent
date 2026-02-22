@@ -18,54 +18,43 @@ const DEFAULT_GENERATION_STEPS = [
   'Finalizing dashboard',
 ];
 
-// Trust badge styling by score
+// Trust badge styling — neutral for all scores
 function TrustBadge({ score, available }) {
   if (!available) {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-600">
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">
         Limited data
       </span>
     );
   }
-  if (score >= 0.7) {
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700">
-        {Math.round(score * 100)}% confidence
-      </span>
-    );
-  }
-  if (score >= 0.4) {
-    return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
-        {Math.round(score * 100)}% confidence
-      </span>
-    );
-  }
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-700">
-      {Math.round(score * 100)}% confidence
-    </span>
+    <>
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">
+        {Math.round(score * 100)}% confidence
+      </span>
+      {score < 0.4 && (
+        <span className="text-[10px] text-amber-600">Low confidence</span>
+      )}
+    </>
   );
 }
 
-// Inline goal card
+// Inline goal card — vertical list with black checkboxes
 function GoalCard({ goal, selected, onToggle, isRecommended }) {
   return (
     <button
       type="button"
       onClick={() => onToggle(goal.id)}
-      className={`w-full text-left p-4 rounded-xl border transition-all duration-150 ${
-        selected
-          ? 'border-emerald-500 bg-emerald-50/30 cursor-pointer'
-          : 'border-slate-200 bg-white hover:border-slate-300 cursor-pointer'
+      className={`w-full text-left py-4 transition-all duration-150 cursor-pointer ${
+        selected ? 'bg-slate-50' : ''
       }`}
     >
       <div className="flex items-start gap-3">
-        {/* Selection indicator */}
+        {/* Selection indicator — black checkbox */}
         <div
           className={`mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
             selected
-              ? 'border-emerald-600 bg-emerald-600'
+              ? 'border-slate-900 bg-slate-900'
               : 'border-slate-300'
           }`}
         >
@@ -80,7 +69,7 @@ function GoalCard({ goal, selected, onToggle, isRecommended }) {
             <span className="text-sm font-medium text-slate-900">{goal.name}</span>
             <TrustBadge score={goal.trust_score} available={goal.available} />
             {isRecommended && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">
                 Recommended
               </span>
             )}
@@ -90,11 +79,6 @@ function GoalCard({ goal, selected, onToggle, isRecommended }) {
           {/* Data-driven justification */}
           {goal.why && (
             <p className="text-[11px] text-slate-400 mt-1 italic">{goal.why}</p>
-          )}
-
-          {/* Widget count */}
-          {goal.widget_count > 0 && (
-            <span className="text-[10px] text-slate-400 mt-1 inline-block">{goal.widget_count} widgets</span>
           )}
 
           {/* Model confirmation note */}
@@ -253,15 +237,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
       setLoading(false);
 
       setGoals(data.goals);
-      // Recommend goals based on available data instead of pre-selecting all
-      const recommended = data.goals
-        .filter(g => g.available && (g.recommended || g.trust_score >= 0.5))
-        .map(g => g.id);
-      // If no explicit recommendations, pick the top 2-3 available
-      const preSelected = recommended.length > 0
-        ? recommended
-        : data.goals.filter(g => g.available).slice(0, 3).map(g => g.id);
-      setSelectedGoals(preSelected);
+      setSelectedGoals([]); // Always start empty — let user choose
       setOverallTrust(data.overall_trust ?? null);
       setRequiresConfirmation(data.requires_confirmation ?? false);
       setStep(2);
@@ -285,14 +261,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
       setGoals(savedGoals);
       // If user had already made a selection, restore it; otherwise recommend top goals
       const saved = config?.selected_categories;
-      if (saved && saved.length > 0) {
-        setSelectedGoals(saved);
-      } else {
-        const recommended = savedGoals
-          .filter(g => g.available && (g.recommended || g.trust_score >= 0.5))
-          .map(g => g.id);
-        setSelectedGoals(recommended.length > 0 ? recommended : savedGoals.filter(g => g.available).slice(0, 3).map(g => g.id));
-      }
+      setSelectedGoals(saved && saved.length > 0 ? saved : []);
       setOverallTrust(config?.crm_profile?.overall_trust ?? null);
       setStep(2);
       return;
@@ -737,7 +706,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
         )}
         {!overallTrust && <div className="mb-6" />}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+        <div className="divide-y divide-slate-100 mb-8">
           {goals.map(goal => (
             <GoalCard
               key={goal.id}
@@ -756,7 +725,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
           <Button
             onClick={handleGoalsSubmit}
             disabled={selectedGoals.length === 0 || loading}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            className="bg-slate-900 hover:bg-slate-800 text-white gap-2"
           >
             {loading ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -796,7 +765,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
                 )}
                 {!q.description && !q.why && <div className="mb-3" />}
 
-                {/* Radio */}
+                {/* Radio — black selection */}
                 {type === 'radio' && (
                   <div className="space-y-2">
                     {(q.options || []).map((opt, oIdx) => {
@@ -811,17 +780,17 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
                           }
                           className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
                             isSelected
-                              ? 'border-emerald-500 bg-emerald-50/30'
+                              ? 'border-slate-300 bg-slate-50'
                               : 'border-slate-200 hover:border-slate-300'
                           }`}
                         >
                           <div
                             className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                              isSelected ? 'border-emerald-600' : 'border-slate-300'
+                              isSelected ? 'border-slate-900' : 'border-slate-300'
                             }`}
                           >
                             {isSelected && (
-                              <div className="w-2 h-2 rounded-full bg-emerald-600" />
+                              <div className="w-2 h-2 rounded-full bg-slate-900" />
                             )}
                           </div>
                           <span className="text-sm text-slate-700">{optLabel}</span>
@@ -831,7 +800,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
                   </div>
                 )}
 
-                {/* Multiselect */}
+                {/* Multiselect — black checkboxes */}
                 {type === 'multiselect' && (
                   <div className="space-y-2">
                     {(q.options || []).map((opt, oIdx) => {
@@ -852,13 +821,13 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
                           }}
                           className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
                             isChecked
-                              ? 'border-emerald-500 bg-emerald-50/30'
+                              ? 'border-slate-300 bg-slate-50'
                               : 'border-slate-200 hover:border-slate-300'
                           }`}
                         >
                           <div
                             className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isChecked ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
+                              isChecked ? 'border-slate-900 bg-slate-900' : 'border-slate-300'
                             }`}
                           >
                             {isChecked && (
@@ -896,7 +865,7 @@ export default function DashboardOnboarding({ api, onComplete, hasCRM, config, o
           </button>
           <Button
             onClick={handleRefinementSubmit}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            className="bg-slate-900 hover:bg-slate-800 text-white gap-2"
           >
             Generate Dashboard
             <ArrowRight className="w-4 h-4" strokeWidth={2} />

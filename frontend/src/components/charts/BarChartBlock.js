@@ -7,7 +7,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
 } from 'recharts';
 import {
   CHART_STYLES,
@@ -16,10 +15,11 @@ import {
   AXIS_STYLE,
   GRID_STYLE,
   formatNumber,
-  getRotatedPalette,
 } from './chartTheme';
 
 export default function BarChartBlock({ chart, chartIndex = 0, interactive = false, onDrillDown }) {
+  const mounted = React.useRef(false);
+  React.useEffect(() => { mounted.current = true; }, []);
   const { title, data: rawData = [], orientation = 'vertical' } = chart;
 
   const data = (rawData || [])
@@ -40,12 +40,11 @@ export default function BarChartBlock({ chart, chartIndex = 0, interactive = fal
     );
   }
 
-  const colors = getRotatedPalette(chartIndex);
+  const barColor = '#1e293b'; // slate-800 — single color for all bars
 
-  const chartData = data.map((item, index) => ({
+  const chartData = data.map((item) => ({
     name: item.label,
     value: item.value,
-    fill: colors[index % colors.length],
   }));
 
   const isHorizontal = orientation === 'horizontal';
@@ -90,11 +89,27 @@ export default function BarChartBlock({ chart, chartIndex = 0, interactive = fal
             {isHorizontal ? (
               <>
                 <XAxis type="number" {...AXIS_STYLE} tickFormatter={formatNumber} />
-                <YAxis type="category" dataKey="name" {...AXIS_STYLE} width={100} tick={{ ...AXIS_STYLE.tick, textAnchor: 'end' }} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  {...AXIS_STYLE}
+                  width={120}
+                  tick={{ ...AXIS_STYLE.tick, textAnchor: 'end' }}
+                  tickFormatter={(v) => v.length > 15 ? v.slice(0, 15) + '...' : v}
+                />
               </>
             ) : (
               <>
-                <XAxis dataKey="name" {...AXIS_STYLE} interval={0} tick={{ ...AXIS_STYLE.tick, textAnchor: 'middle' }} />
+                <XAxis
+                  dataKey="name"
+                  {...AXIS_STYLE}
+                  interval={0}
+                  tick={chartData.length > 5
+                    ? { ...AXIS_STYLE.tick, textAnchor: 'end', angle: -35 }
+                    : { ...AXIS_STYLE.tick, textAnchor: 'middle' }
+                  }
+                  height={chartData.length > 5 ? 60 : undefined}
+                />
                 <YAxis {...AXIS_STYLE} tickFormatter={formatNumber} />
               </>
             )}
@@ -103,20 +118,14 @@ export default function BarChartBlock({ chart, chartIndex = 0, interactive = fal
 
             <Bar
               dataKey="value"
+              fill={barColor}
               radius={[4, 4, 0, 0]}
+              isAnimationActive={!mounted.current}
               animationDuration={CHART_CONFIG.animationDuration}
               animationEasing={CHART_CONFIG.animationEasing}
               onClick={handleClick}
               style={interactive ? { cursor: 'pointer' } : {}}
-            >
-              {chartData.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={entry.fill}
-                  style={interactive ? { cursor: 'pointer' } : {}}
-                />
-              ))}
-            </Bar>
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>

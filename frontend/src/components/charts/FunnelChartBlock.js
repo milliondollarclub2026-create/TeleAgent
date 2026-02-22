@@ -4,7 +4,6 @@ import {
   CHART_CONFIG,
   formatNumber,
   formatPercent,
-  getRotatedPalette,
 } from './chartTheme';
 
 export default function FunnelChartBlock({ chart, chartIndex = 0, interactive = false, onDrillDown }) {
@@ -29,7 +28,7 @@ export default function FunnelChartBlock({ chart, chartIndex = 0, interactive = 
   }
 
   const maxValue = Math.max(...data.map(d => d.value), 1);
-  const colors = getRotatedPalette(chartIndex);
+  const baseColor = '#1e293b'; // slate-800
 
   const stages = data.map((item, index) => {
     const widthPercent = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
@@ -37,13 +36,15 @@ export default function FunnelChartBlock({ chart, chartIndex = 0, interactive = 
     const conversionRate = prevValue && prevValue > 0
       ? (item.value / prevValue) * 100
       : null;
+    const opacity = Math.max(1.0 - (index * 0.15), 0.25);
 
     return {
       label: item.label,
       value: item.value,
       widthPercent,
       conversionRate,
-      color: colors[index % colors.length],
+      color: baseColor,
+      opacity,
     };
   });
 
@@ -70,7 +71,7 @@ export default function FunnelChartBlock({ chart, chartIndex = 0, interactive = 
                     style={{
                       width: `${Math.max(stage.widthPercent, 20)}%`,
                       backgroundColor: stage.color,
-                      opacity: 0.9,
+                      opacity: stage.opacity,
                       animationDelay: `${index * 100}ms`,
                     }}
                     onClick={() => handleClick(stage)}

@@ -1,6 +1,6 @@
 import React, { useId } from 'react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
-import { CHART_STYLES, KPI_STYLES, formatNumber } from './chartTheme';
+import { CHART_STYLES, KPI_STYLES, GOAL_STYLES, formatNumber } from './chartTheme';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 /**
@@ -87,7 +87,10 @@ export default function KPICardBlock({ chart }) {
                 className="h-full rounded-full transition-all duration-700 ease-out"
                 style={{
                   width: `${goalProgress}%`,
-                  backgroundColor: goalProgress >= 100 ? '#16a34a' : goalProgress >= 75 ? '#059669' : goalProgress >= 50 ? '#d97706' : '#dc2626',
+                  backgroundColor: goalProgress >= GOAL_STYLES.thresholds.excellent.min ? GOAL_STYLES.thresholds.excellent.color
+                    : goalProgress >= GOAL_STYLES.thresholds.good.min ? GOAL_STYLES.thresholds.good.color
+                    : goalProgress >= GOAL_STYLES.thresholds.warning.min ? GOAL_STYLES.thresholds.warning.color
+                    : GOAL_STYLES.thresholds.danger.color,
                 }}
               />
             </div>

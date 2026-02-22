@@ -77,7 +77,7 @@ const markdownComponents = {
   ),
 };
 
-export default function DashboardChat({ api, onAddWidget, modifyingWidget, onReplaceWidget, onCancelModify, compact = false, drillDownMessage, onDrillDownConsumed, demoMode = false }) {
+export default function DashboardChat({ api, onAddWidget, modifyingWidget, onReplaceWidget, onCancelModify, compact = false, drillDownMessage, onDrillDownConsumed, demoMode = false, existingTitles }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -450,7 +450,7 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
                                   {smallCharts.map((chart, i) => (
                                     <div key={`small-${i}`}>
                                       <ChartRenderer chart={chart} chartIndex={kpis.length + i} />
-                                      {!demoMode && <AddToDashboardBtn chart={chart} onAdd={modifyingWidget ? handleReplaceOnDashboard : handleAddToDashboard} isReplace={!!modifyingWidget} />}
+                                      {!demoMode && <AddToDashboardBtn chart={chart} onAdd={modifyingWidget ? handleReplaceOnDashboard : handleAddToDashboard} isReplace={!!modifyingWidget} existingTitles={existingTitles} />}
                                     </div>
                                   ))}
                                 </div>
@@ -460,7 +460,7 @@ export default function DashboardChat({ api, onAddWidget, modifyingWidget, onRep
                                   {wideCharts.map((chart, i) => (
                                     <div key={`wide-${i}`}>
                                       <ChartRenderer chart={chart} chartIndex={kpis.length + smallCharts.length + i} />
-                                      {!demoMode && <AddToDashboardBtn chart={chart} onAdd={modifyingWidget ? handleReplaceOnDashboard : handleAddToDashboard} isReplace={!!modifyingWidget} />}
+                                      {!demoMode && <AddToDashboardBtn chart={chart} onAdd={modifyingWidget ? handleReplaceOnDashboard : handleAddToDashboard} isReplace={!!modifyingWidget} existingTitles={existingTitles} />}
                                     </div>
                                   ))}
                                 </div>
@@ -683,14 +683,17 @@ function RecordTable({ chart }) {
 }
 
 // "Add to Dashboard" / "Replace Widget" button under non-KPI charts
-function AddToDashboardBtn({ chart, onAdd, isReplace }) {
+function AddToDashboardBtn({ chart, onAdd, isReplace, existingTitles }) {
   const [done, setDone] = useState(false);
   const [working, setWorking] = useState(false);
 
-  if (done) {
+  // Check if widget with same title already exists on dashboard
+  const alreadyExists = !isReplace && existingTitles?.has((chart.title || '').toLowerCase());
+
+  if (done || alreadyExists) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-600 mt-2">
-        {isReplace ? 'Widget replaced' : 'Added to dashboard'}
+      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 mt-2">
+        {done ? (isReplace ? 'Widget replaced' : 'Added to dashboard') : 'Already on dashboard'}
       </span>
     );
   }
