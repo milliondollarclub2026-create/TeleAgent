@@ -191,6 +191,22 @@ TOOL_DEFINITIONS = [
     {
         "type": "function",
         "function": {
+            "name": "get_correlations",
+            "description": (
+                "Cross-entity analysis: rep performance, activity-to-outcome, deal velocity, "
+                "pipeline concentration. Use for 'what should I do?', 'how can I improve?', "
+                "'who is performing best?'"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "design_chart",
             "description": "Design and generate a chart/visualization from a natural language description.",
             "parameters": {
@@ -374,6 +390,16 @@ async def _execute_tool(
                     for i in insights[:5]
                 ] if insights else [{"title": "All clear", "summary": "No critical issues found."}],
             }
+        except Exception as e:
+            return {"error": str(e)}
+
+    elif tool_name == "get_correlations":
+        try:
+            from agents.correlations import compute_correlations
+            results = await compute_correlations(supabase, tenant_id, crm_source)
+            if results:
+                return {"correlations": [c.model_dump() for c in results]}
+            return {"correlations": [], "note": "Insufficient data for cross-entity analysis."}
         except Exception as e:
             return {"error": str(e)}
 

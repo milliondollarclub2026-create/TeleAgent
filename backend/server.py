@@ -4383,21 +4383,49 @@ async def dashboard_export(current_user: Dict = Depends(get_current_user)):
 @api_router.get("/dashboard/insights")
 async def dashboard_insights(current_user: Dict = Depends(get_current_user)):
     """
-    Run Nilufar's insight engine and return anomalies/trends.
+    Run Nilufar's insight engine and return anomalies/trends + prescriptive opportunities.
     """
     tenant_id = current_user["tenant_id"]
     crm_source = await _get_tenant_crm_source(supabase, tenant_id)
     if not crm_source:
-        return {"insights": []}
+        return {"insights": [], "opportunities": []}
 
     try:
+        # Run legacy insights
         insights = await nilufar_check_insights(supabase, tenant_id, crm_source)
+
+        # Compute correlations ($0) and generate opportunities
+        opportunities = []
+        try:
+            from agents.correlations import compute_correlations
+            correlations = await compute_correlations(supabase, tenant_id, crm_source)
+
+            if correlations:
+                try:
+                    from agents.nilufar import analyze_and_recommend
+                    from agents.bobur_v4 import _load_schema_profile
+                    schema = await _load_schema_profile(supabase, tenant_id, crm_source)
+                    if schema:
+                        recs = await analyze_and_recommend(
+                            supabase, tenant_id, crm_source,
+                            schema, [], [], correlations
+                        )
+                        opportunities = [
+                            r.model_dump() for r in recs
+                            if r.severity == "opportunity"
+                        ]
+                except Exception as e:
+                    logger.warning(f"Opportunity generation failed: {e}")
+        except Exception as e:
+            logger.warning(f"Correlation computation failed: {e}")
+
         return {
             "insights": [i.model_dump() for i in insights],
+            "opportunities": opportunities,
         }
     except Exception as e:
         logger.error(f"Insight check failed: {e}")
-        return {"insights": []}
+        return {"insights": [], "opportunities": []}
 
 
 # ── Dashboard Sharing ──

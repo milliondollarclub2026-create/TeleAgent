@@ -89,6 +89,7 @@ function CRMDashboardPageInner() {
   const [widgets, setWidgets] = useState([]);
   const [widgetsLoading, setWidgetsLoading] = useState(false);
   const [insights, setInsights] = useState([]);
+  const [opportunities, setOpportunities] = useState([]);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [dataUsage, setDataUsage] = useState({});
   const [lastRefreshed, setLastRefreshed] = useState(null);
@@ -176,7 +177,9 @@ function CRMDashboardPageInner() {
     const nilufarInsights = insightRes.data
       ? (Array.isArray(insightRes.data) ? insightRes.data : insightRes.data.insights || [])
       : [];
+    const nilufarOpportunities = insightRes.data?.opportunities || [];
     setInsights([...alertItems, ...nilufarInsights]);
+    setOpportunities(nilufarOpportunities);
     setInsightsLoading(false);
 
     if (usageRes.data) {
@@ -408,6 +411,7 @@ function CRMDashboardPageInner() {
               widgetsLoading={widgetsLoading}
               insights={insights}
               insightsLoading={insightsLoading}
+              opportunities={opportunities}
               dataUsage={dataUsage}
               lastRefreshed={lastRefreshed}
               onDeleteWidget={handleDeleteWidget}

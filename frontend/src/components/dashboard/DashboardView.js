@@ -4,6 +4,7 @@ import DashboardGrid from './DashboardGrid';
 import InsightsPanel from './InsightsPanel';
 import DataUsageBar from './DataUsageBar';
 import MetricsSummaryCard from './MetricsSummaryCard';
+import OpportunitiesRow from './OpportunitiesRow';
 import DateRangeSelector from './DateRangeSelector';
 import ExportMenu from './ExportMenu';
 import ShareDialog from './ShareDialog';
@@ -24,6 +25,7 @@ export default function DashboardView({
   widgetsLoading,
   insights,
   insightsLoading,
+  opportunities,
   dataUsage,
   lastRefreshed,
   onDeleteWidget,
@@ -114,6 +116,11 @@ export default function DashboardView({
             <div data-tour="kpi-row">
               <MetricsSummaryCard getRevenueOverview={getRevenueOverview} dateRange={dateRange} />
             </div>
+          )}
+
+          {/* Prescriptive opportunities */}
+          {opportunities && opportunities.length > 0 && (
+            <OpportunitiesRow opportunities={opportunities} loading={insightsLoading} />
           )}
 
           {/* Widget grid */}

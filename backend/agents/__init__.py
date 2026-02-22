@@ -167,6 +167,8 @@ class Recommendation(BaseModel):
     action: str = ""             # What to do about it
     evidence: dict = Field(default_factory=dict)
     related_metrics: list[str] = Field(default_factory=list)
+    estimated_impact: Optional[str] = None    # "+12% conversion rate"
+    effort_level: Optional[str] = None        # "low", "medium", "high"
 
 
 # ── Phase 4: Dynamic Farid Onboarding Models ──────────────────────────
