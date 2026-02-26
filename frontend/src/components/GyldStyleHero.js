@@ -43,15 +43,15 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
         <h1
           className="animate-fadeUp opacity-0 delay-100 text-[40px] sm:text-[56px] md:text-[72px] font-bold tracking-[-1.8px] leading-[1] font-['Plus_Jakarta_Sans'] mb-6"
         >
-          <span className="text-slate-900 block">Hire an AI that sells</span>
-          <span className="text-emerald-600 block">while you sleep</span>
+          <span className="text-slate-900 block">Sell more. Know more.</span>
+          <span className="text-emerald-600 block">Run less.</span>
         </h1>
 
         {/* Subheadline */}
         <p
           className="animate-fadeUp opacity-0 delay-200 text-xl text-slate-500 max-w-2xl mx-auto mb-10 leading-relaxed"
         >
-          Your AI sales team qualifies leads, closes deals across Telegram and Instagram, and monitors your CRM revenue 24/7. It works nights, weekends, and holidays.
+          AI agents that close deals on Telegram and Instagram. An analytics engine that turns your CRM into a real-time command center. One platform, fully autonomous.
         </p>
 
         {/* CTAs */}
@@ -62,7 +62,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
             onClick={onGetStarted}
             className="group bg-slate-900 hover:bg-emerald-600 text-white px-8 py-4 rounded-full font-semibold text-lg transition-all duration-200 inline-flex items-center gap-2"
           >
-            Hire Your AI Team
+            Get Started Free
             <ArrowRight
               className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-1"
               strokeWidth={2}
@@ -72,7 +72,7 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
             onClick={onBookDemo}
             className="meet-team-btn flex items-center gap-2 text-slate-600 px-8 py-4 font-semibold text-lg rounded-full border border-transparent"
           >
-            Meet the team
+            See how it works
             <ChevronDown className="meet-team-icon w-5 h-5" strokeWidth={2} />
           </button>
         </div>
@@ -84,16 +84,16 @@ export default function GyldStyleHero({ onGetStarted, onBookDemo }) {
               <div className="text-2xl sm:text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">
                 <AnimatedCounter end={2} duration={800} delay={500} />
               </div>
-              <div className="text-xs sm:text-sm text-slate-400 font-medium mt-1">AI Specialists</div>
+              <div className="text-xs sm:text-sm text-slate-400 font-medium mt-1">AI Products</div>
             </div>
 
             <div className="w-px h-10 bg-slate-200" />
 
             <div className="text-center">
               <div className="text-2xl sm:text-3xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">
-                <AnimatedCounter end={20} duration={1000} delay={700} suffix="+" />
+                <AnimatedCounter end={4} duration={1000} delay={700} suffix="+" />
               </div>
-              <div className="text-xs sm:text-sm text-slate-400 font-medium mt-1">Languages</div>
+              <div className="text-xs sm:text-sm text-slate-400 font-medium mt-1">CRMs Supported</div>
             </div>
 
             <div className="w-px h-10 bg-slate-200" />

@@ -11,57 +11,57 @@ import { Button } from '@/components/ui/button';
 const faqData = [
   {
     id: 'faq-1',
-    question: 'How does the AI sales agent work?',
+    question: 'What is LeadRelay?',
     answer:
-      "LeadRelay gives you two AI specialists, each focused on a key area. Jasur, your Sales Team Lead, handles customer conversations and qualifies leads across Telegram and Instagram — answering product questions from your uploaded materials in 20+ languages. Bobur, your Analytics Team Lead, connects to your CRM and gives you conversational access to pipeline data, dashboards, and AI-powered insights. Both are trained on your specific business.",
+      'LeadRelay is two products in one platform. Sales Automation deploys AI agents on Telegram and Instagram that qualify leads, answer questions from your knowledge base, score prospects, and sync everything to your CRM in 20+ languages. CRM Intelligence connects to your existing CRM and delivers live dashboards, pipeline analytics, anomaly detection, and conversational data queries powered by a team of six AI specialists. Use either product independently or both together.',
   },
   {
     id: 'faq-2',
-    question: 'What languages does LeadRelay support?',
+    question: 'What languages are supported?',
     answer:
-      "LeadRelay supports 20+ languages including English, Spanish, Arabic, Russian, French, and more. The AI automatically detects the customer's language and responds naturally in their preferred language, switching automatically if the conversation changes.",
+      'The sales agents support 20+ languages including English, Arabic, Russian, Spanish, French, and more. Language is detected automatically from each conversation and the AI responds natively. No configuration needed.',
   },
   {
     id: 'faq-3',
     question: 'How does the CRM integration work?',
     answer:
-      'LeadRelay syncs your CRM data incrementally using an ETL engine. It supports Bitrix24, HubSpot, Zoho, and Freshsales. Your data is copied to a local database so queries return in under a second instead of minutes. All leads, conversations, and customer data are automatically logged and updated.',
+      'LeadRelay syncs your CRM data incrementally using a dedicated sync engine. It supports Bitrix24, HubSpot, Zoho, and Freshsales. Data is mirrored locally so dashboard queries return in under a second. Syncs run automatically every 15 minutes.',
   },
   {
     id: 'faq-3b',
-    question: 'Which CRMs does LeadRelay support?',
+    question: 'Do I need a CRM to use LeadRelay?',
     answer:
-      'LeadRelay currently supports Bitrix24, HubSpot, Zoho CRM, and Freshsales. You can connect multiple CRMs simultaneously and get unified analytics across all of them. More integrations are on the roadmap.',
+      'No. Sales Automation works independently. Leads are captured and managed inside LeadRelay. If you connect a CRM, leads sync automatically and you unlock the full CRM Intelligence dashboard with analytics, alerts, and insights across your pipeline.',
   },
   {
     id: 'faq-3c',
-    question: 'How does the CRM Dashboard work?',
+    question: 'What can I ask the analytics dashboard?',
     answer:
-      'When you connect a CRM, Bobur and his analytics team analyze your data schema, build a personalized dashboard with KPI widgets and charts, and surface AI-powered insights. You can also ask questions in plain language, like "show me deals by stage", and get instant visualizations. No SQL or spreadsheets required.',
+      'Anything about your pipeline in plain English. "Show me deals by stage," "What is my win rate by rep," "Which deals are stalling?" The AI team translates your question into a live query, returns data, and generates charts on the fly. No SQL or spreadsheets.',
   },
   {
     id: 'faq-4',
-    question: 'Can I customize the AI responses?',
+    question: 'Can I customize the AI sales agents?',
     answer:
-      'Yes. You can upload your own product documents, FAQ sheets, and sales scripts. The AI learns from your materials and gives accurate, on-brand responses to every customer.',
+      'Yes. Upload product documents, FAQ sheets, and pricing. The AI learns your catalog and responds accurately. You also configure tone, language, and sales approach per agent.',
   },
   {
     id: 'faq-5',
-    question: 'How does billing work?',
+    question: 'How does pricing work?',
     answer:
-      'Sales Team: $15 per month per agent. Hire both agents and get a $5/month bundle discount. Telegram is included; add Instagram for $10\u2013$25/month. Analytics Team: free tier available, with Pro ($49/mo) and Business ($149/mo) plans for advanced features. No setup fees, no annual contracts. Cancel from your dashboard at any time.',
+      'Sales Automation starts at $15/mo per agent. Telegram is included; Instagram is available as an add-on. CRM Intelligence has a free tier, with Pro ($49/mo) and Business ($149/mo) for advanced features. No setup fees, no annual contracts. Cancel anytime.',
   },
   {
     id: 'faq-6',
     question: 'How long does setup take?',
     answer:
-      'Under ten minutes. The onboarding wizard walks you through every step: connecting Telegram, linking your CRM, uploading product docs, and configuring your agents. No technical skills required.',
+      'Under ten minutes. A guided wizard walks you through connecting channels, linking your CRM, uploading product materials, and configuring your agents. No technical skills required.',
   },
   {
     id: 'faq-7',
     question: 'Is my data secure?',
     answer:
-      'Your data is encrypted at rest and in transit. We use enterprise-grade infrastructure and never share your business data or customer conversations with third parties.',
+      'All data is encrypted at rest and in transit. Multi-tenant isolation with row-level security ensures your data is never accessible to other accounts. We never share your business data or customer conversations with third parties.',
   },
 ];
 

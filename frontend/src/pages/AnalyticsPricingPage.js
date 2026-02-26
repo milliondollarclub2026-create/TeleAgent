@@ -75,14 +75,14 @@ const tiers = [
 
 const faqs = [
   {
-    question: 'What CRMs does the Analytics Team support?',
+    question: 'Which CRMs are supported?',
     answer:
-      'Bobur supports Bitrix24, HubSpot, Zoho CRM, and Freshsales. You can connect multiple CRMs simultaneously and get unified analytics across all of them.',
+      'CRM Intelligence supports Bitrix24, HubSpot, Zoho CRM, and Freshsales. You can connect multiple CRMs simultaneously and get unified analytics across all of them.',
   },
   {
     question: 'How does the AI question limit work?',
     answer:
-      'Each plan includes a monthly quota of conversational questions you can ask Bobur. Questions include things like "show me deals by stage" or "what\u2019s my win rate this quarter." The limit resets monthly.',
+      'Each plan includes a monthly quota of conversational questions. Examples: "show me deals by stage" or "what is my win rate this quarter." The limit resets monthly.',
   },
   {
     question: 'Can I upgrade or downgrade at any time?',
@@ -231,9 +231,9 @@ export default function AnalyticsPricingPage() {
                   isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
                 }`}
               >
-                Analytics Team Pricing
+                CRM Intelligence Pricing
               </h1>
-              <p className="text-slate-500 mt-1">Powered by Bobur — your AI Revenue Analyst</p>
+              <p className="text-slate-500 mt-1">Powered by Bobur and a team of six AI specialists</p>
             </div>
           </div>
         </div>

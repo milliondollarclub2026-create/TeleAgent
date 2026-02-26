@@ -79,13 +79,13 @@ function CRMAnalyticsSection() {
             </div>
 
             <h2 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight font-['Plus_Jakarta_Sans'] mb-6">
-              Your Revenue Analyst,
+              Your CRM, decoded
               <br />
-              <span className="text-emerald-600">always watching</span>
+              <span className="text-emerald-600">in real time</span>
             </h2>
 
             <p className="text-slate-500 text-lg leading-relaxed mb-8">
-              Connect your CRM and Bobur monitors your pipeline, win rates, and deal flow in real time. Ask anything in plain English — get answers backed by your live data.
+              Connect any supported CRM. The analytics engine syncs your data, builds live dashboards, and answers questions in plain English, all backed by your actual pipeline data.
             </p>
 
             {/* Speed comparison */}
@@ -104,9 +104,9 @@ function CRMAnalyticsSection() {
 
             <ul className="space-y-4">
               {[
-                'Bitrix24, HubSpot, Zoho, and Freshsales supported',
-                'AI-powered anomaly detection and trend analysis',
-                'Interactive dashboard with live KPI widgets',
+                'Bitrix24, HubSpot, Zoho, and Freshsales in one unified view',
+                'Anomaly detection, deal stall alerts, and prescriptive actions',
+                'Ask anything: "show me win rate by rep" and get an instant answer',
               ].map((text, i) => (
                 <li
                   key={i}
@@ -187,7 +187,7 @@ function CRMAnalyticsSection() {
                   <Activity className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" strokeWidth={2} />
                   <div>
                     <p className="text-[11px] font-semibold text-amber-800">Bobur's Alert</p>
-                    <p className="text-[11px] text-amber-700 leading-relaxed">8 deals stalling in Proposal for 3+ weeks — $47K at risk. Review and follow up.</p>
+                    <p className="text-[11px] text-amber-700 leading-relaxed">8 deals stalling in Proposal for 3+ weeks. $47K at risk. Review and follow up.</p>
                   </div>
                 </div>
               </div>
@@ -417,12 +417,12 @@ export default function LandingPage() {
           {/* Section Header */}
           <div className="text-center mb-20 scroll-reveal">
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-6">
-              Meet your
+              Two products.
               <br />
-              <span className="text-emerald-600">AI sales team</span>
+              <span className="text-emerald-600">One platform.</span>
             </h2>
             <p className="text-slate-500 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-              Two AI specialists. Trained on your business. Always on.
+              AI-powered sales automation and CRM intelligence, built for businesses that want to grow without growing headcount.
             </p>
           </div>
 
@@ -431,19 +431,19 @@ export default function LandingPage() {
             {[
               {
                 name: 'Jasur',
-                role: 'Sales Team Lead',
+                role: 'AI Sales Automation',
                 roleColor: 'text-emerald-600',
                 orbColors: ['#10b981', '#059669', '#14b8a6'],
-                desc: 'Your AI sales closer. Handles customer conversations across Telegram and Instagram 24/7 — qualifying leads, answering product questions from your knowledge base, and collecting contact info. Fluent in 20+ languages.',
-                tags: ['Telegram', 'Instagram', 'Lead Gen', 'Multilingual', 'Knowledge Base'],
+                desc: 'Deploys AI sales agents on Telegram and Instagram that qualify leads, answer product questions from your knowledge base, score prospects, and sync every conversation to your CRM. Supports 20+ languages natively.',
+                tags: ['Telegram', 'Instagram', 'Lead Scoring', '20+ Languages', 'CRM Sync'],
               },
               {
                 name: 'Bobur',
-                role: 'Analytics Team Lead',
+                role: 'CRM Intelligence Engine',
                 roleColor: 'text-orange-600',
                 orbColors: ['#f97316', '#ea580c', '#f59e0b'],
-                desc: 'Your AI Revenue Analyst. Connects to your CRM, monitors pipeline health, tracks win rates, detects stalling deals, and surfaces AI-powered insights — all through a conversational dashboard.',
-                tags: ['Revenue Analyst', 'Live Alerts', 'CRM Chat', 'Pipeline Intelligence', 'AI Insights'],
+                desc: 'Connects to Bitrix24, HubSpot, Zoho, or Freshsales and gives you a conversational analytics dashboard. Ask questions in plain English, get live KPIs, detect stalling deals, and surface revenue insights automatically.',
+                tags: ['Multi-CRM', 'Live Dashboards', 'Anomaly Detection', 'Pipeline Analytics', 'Plain-English Queries'],
               },
             ].map((agent) => (
               <div
@@ -488,20 +488,20 @@ export default function LandingPage() {
             {/* Trained on your business */}
             <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
               <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans'] tracking-tight">
-                Trained on your business
+                Your knowledge, their answers
               </h3>
               <p className="text-slate-500 leading-relaxed">
-                Upload product catalogs, pricing sheets, or FAQ documents. Your AI team studies your materials and answers customer questions with the accuracy of your best salesperson.
+                Upload product catalogs, pricing sheets, or FAQ documents. The AI learns your business and responds to customers with accurate, on-brand information. No scripting required.
               </p>
             </div>
 
             {/* See what's working */}
             <div className="bg-white border border-slate-200 rounded-2xl p-8 transition-all duration-300 hover:shadow-md hover:border-slate-300 hover:-translate-y-1">
               <h3 className="text-xl font-bold text-slate-900 mb-3 font-['Plus_Jakarta_Sans'] tracking-tight">
-                See what's working
+                Revenue visibility in seconds
               </h3>
               <p className="text-slate-500 leading-relaxed">
-                Your CRM Dashboard shows live KPIs, conversion funnels, and revenue trends across all connected CRMs. AI-powered insights detect anomalies and surface opportunities automatically.
+                Live KPIs, conversion funnels, and revenue trends across every connected CRM. The analytics engine detects anomalies, flags stalling deals, and recommends next actions.
               </p>
             </div>
           </div>
@@ -518,7 +518,7 @@ export default function LandingPage() {
               See LeadRelay in Action
             </h2>
             <p className="text-slate-500 text-lg max-w-xl mx-auto">
-              See how Jasur and Bobur work together to close more deals
+              From lead capture to pipeline insight. Watch the full workflow.
             </p>
           </div>
           <div className="scroll-reveal" style={{ transitionDelay: '100ms' }}>
@@ -547,12 +547,12 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 md:px-12 relative">
           <div className="text-center mb-20 scroll-reveal">
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-6">
-              Hire in
+              Live in
               <br className="hidden sm:block" />
-              <span className="text-emerald-600"> three steps</span>
+              <span className="text-emerald-600"> ten minutes</span>
             </h2>
             <p className="text-slate-500 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-              From signup to your first qualified lead in under ten minutes. No code. No consultants.
+              Connect your channels, link your CRM, and start capturing leads and insights. No code. No consultants.
             </p>
           </div>
 
@@ -560,18 +560,18 @@ export default function LandingPage() {
             {[
               {
                 step: 1,
-                title: 'Define your business',
-                description: 'Tell us about your products, pricing, and how you sell. The setup wizard configures your AI team\'s tone, language, and sales approach.',
+                title: 'Describe what you sell',
+                description: 'Add your products, pricing, and sales approach. Upload documents or enter details manually. The platform configures itself around your business.',
               },
               {
                 step: 2,
-                title: 'Connect your tools',
-                description: 'Connect your Telegram bot, link your CRM, and upload your product docs. Your AI team reads everything and starts learning your business.',
+                title: 'Connect your channels and CRM',
+                description: 'Link Telegram or Instagram for sales automation. Connect Bitrix24, HubSpot, Zoho, or Freshsales for analytics. Each works independently or together.',
               },
               {
                 step: 3,
-                title: 'Start selling',
-                description: 'Flip the switch. Your AI team handles conversations, qualifies leads, collects contacts, and logs every deal to your CRM. You focus on closing.',
+                title: 'Go live',
+                description: 'Your sales agents start handling conversations immediately. Your analytics dashboard populates with live CRM data. You focus on decisions, not data entry.',
               }
             ].map((item) => (
               <div key={item.step} className={`group flex flex-col cursor-default step-glow step-glow-${item.step}`}>
@@ -604,17 +604,17 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-8 scroll-reveal">
             <div>
               <h3 className="text-2xl md:text-3xl font-bold text-white font-['Plus_Jakarta_Sans'] mb-2">
-                Your next sales hire costs $15/month
+                Sales automation from $15/mo. CRM analytics free.
               </h3>
               <p className="text-emerald-100/80 text-lg">
-                Live in 10 minutes. Sales agent + revenue intelligence. Cancel anytime.
+                Two products, transparent pricing. No contracts. Cancel anytime.
               </p>
             </div>
             <button
               onClick={handleCTA}
               className="group flex-shrink-0 bg-slate-900 text-white rounded-full px-8 py-4 text-base font-semibold transition-all duration-300 flex items-center gap-2 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)]"
             >
-              Start Hiring
+              Get Started
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" strokeWidth={2.5} />
             </button>
           </div>
@@ -632,7 +632,7 @@ export default function LandingPage() {
               Simple, transparent <span className="text-emerald-600">pricing</span>
             </h2>
             <p className="text-lg text-slate-500 max-w-xl mx-auto">
-              Two teams, each with plans that fit your stage. Start free or go all-in.
+              Use one product or both. Start free with analytics, or go live with sales automation for $15/mo.
             </p>
           </div>
           <div className="grid md:grid-cols-2 gap-6 scroll-reveal" style={{ transitionDelay: '100ms' }}>
@@ -640,11 +640,11 @@ export default function LandingPage() {
               <div className="flex items-center gap-3 mb-4">
                 <AiOrb size={36} colors={['#10b981', '#059669', '#14b8a6']} />
                 <div>
-                  <h3 className="font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Sales Team</h3>
+                  <h3 className="font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Sales Automation</h3>
                   <span className="text-xs text-slate-400">Powered by Jasur</span>
                 </div>
               </div>
-              <p className="text-slate-500 text-sm mb-4 leading-relaxed">AI sales agents for Telegram & Instagram</p>
+              <p className="text-slate-500 text-sm mb-4 leading-relaxed">AI agents on Telegram & Instagram that qualify, score, and convert leads</p>
               <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">From $15<span className="text-base font-medium text-slate-400">/mo</span></p>
               <p className="text-xs text-slate-400 mb-6">per agent</p>
               <Link
@@ -659,11 +659,11 @@ export default function LandingPage() {
               <div className="flex items-center gap-3 mb-4">
                 <AiOrb size={36} colors={['#f97316', '#ea580c', '#f59e0b']} />
                 <div>
-                  <h3 className="font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Analytics Team</h3>
+                  <h3 className="font-bold text-slate-900 font-['Plus_Jakarta_Sans']">CRM Intelligence</h3>
                   <span className="text-xs text-slate-400">Powered by Bobur</span>
                 </div>
               </div>
-              <p className="text-slate-500 text-sm mb-4 leading-relaxed">CRM dashboards, insights & revenue monitoring</p>
+              <p className="text-slate-500 text-sm mb-4 leading-relaxed">Live dashboards, pipeline analytics, and AI-powered revenue insights</p>
               <p className="text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-1">Free<span className="text-base font-medium text-slate-400"> plan</span></p>
               <p className="text-xs text-slate-400 mb-6">Pro from $49/mo</p>
               <Link
@@ -697,13 +697,13 @@ export default function LandingPage() {
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-emerald-200/25 rounded-full blur-[120px] pointer-events-none" />
         <div className="max-w-5xl mx-auto px-6 md:px-12 text-center relative z-10 scroll-reveal">
           <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] mb-8 leading-[1.1]">
-            <span className="text-slate-900">Your AI sales team</span>
+            <span className="text-slate-900">Close more deals.</span>
             <br />
-            <span className="text-emerald-600">starts tonight.</span>
+            <span className="text-emerald-600">Know your numbers.</span>
           </h2>
 
           <p className="text-slate-500 text-lg md:text-xl mb-14 max-w-2xl mx-auto leading-relaxed">
-            Two AI specialists. Trained on your business. Working every channel. Hire your team in ten minutes.
+            Sales automation and CRM intelligence on one platform. Set up in ten minutes, run autonomously from day one.
           </p>
 
           {/* CTA Buttons */}
@@ -713,7 +713,7 @@ export default function LandingPage() {
               className="group inline-flex items-center gap-3 bg-slate-900 hover:bg-emerald-600 text-white rounded-full px-10 py-5 text-lg font-semibold transition-all duration-300"
               data-testid="final-cta-btn"
             >
-              Hire Your Team
+              Get Started Free
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform duration-300" strokeWidth={2.5} />
             </button>
 
@@ -742,7 +742,7 @@ export default function LandingPage() {
               Your data, protected at every layer
             </h2>
             <p className="text-slate-500 text-sm max-w-lg mx-auto">
-              Built with security-first architecture so you can focus on selling, not worrying.
+              Built with security-first architecture so you can focus on growing, not worrying.
             </p>
           </div>
 
@@ -797,7 +797,7 @@ export default function LandingPage() {
                   </span>
                 </Link>
                 <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-8">
-                  AI sales agents that qualify leads, close deals, and keep your CRM accurate. 24 hours a day, 7 days a week. Built for businesses worldwide.
+                  AI-powered sales automation and CRM intelligence. Two products, one platform. Built for businesses that move fast.
                 </p>
 
                 {/* Social */}

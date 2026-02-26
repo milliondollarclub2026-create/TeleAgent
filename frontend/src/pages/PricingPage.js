@@ -62,9 +62,9 @@ export default function PricingPage() {
   const featureDetails = [
     {
       icon: Users,
-      title: '2 Specialized AI Agents',
+      title: 'Two AI Products',
       description:
-        'Jasur leads sales across Telegram and Instagram, and Bobur keeps your CRM analytics in sync. Each specialist is trained on your business.',
+        'Sales Automation handles lead qualification and deal closing. CRM Intelligence delivers pipeline analytics powered by six AI specialists. Both are trained on your business.',
     },
     {
       icon: MessageSquare,
@@ -114,7 +114,7 @@ export default function PricingPage() {
     {
       question: 'How does per-agent pricing work?',
       answer:
-        'Each AI agent costs $15/month. Hire both agents and get a $5/month bundle discount, bringing the total to $25/month for your full AI team.',
+        'Each AI agent costs $15/month. Select both and get a $5/month bundle discount, bringing the total to $25/month for the full platform.',
     },
     {
       question: 'What do I get with each agent?',
@@ -129,7 +129,7 @@ export default function PricingPage() {
     {
       question: 'How do the channel add-ons work?',
       answer:
-        'Telegram is included with every plan at no extra cost. If you want your AI team to also work on Instagram DMs, add it for $25/month. If you only need Instagram (no Telegram), the add-on is $10/month. WhatsApp support is coming soon.',
+        'Telegram is included with every plan at no extra cost. To add Instagram DMs, the add-on is $25/month. If you only need Instagram without Telegram, the add-on is $10/month. WhatsApp support is coming soon.',
     },
     {
       question: 'Do you offer discounts for longer commitments?',
@@ -261,10 +261,10 @@ export default function PricingPage() {
           Back to all plans
         </Link>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight font-['Plus_Jakarta_Sans'] text-slate-900 mb-2">
-          Sales Team Pricing
+          Sales Automation Pricing
         </h1>
         <p className="text-slate-500 text-lg">
-          Hire Jasur and his team to handle your sales conversations
+          AI agents that qualify leads and close deals on Telegram and Instagram
         </p>
       </div>
 
@@ -360,11 +360,10 @@ export default function PricingPage() {
       <section className="py-24 bg-white">
         <div className="max-w-4xl mx-auto px-6 md:px-12 text-center scroll-reveal">
           <h2 className="text-4xl md:text-5xl font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-6 tracking-tight">
-            Ready to hire your <span className="text-emerald-600">AI team</span>?
+            Ready to put your <span className="text-emerald-600">AI team</span> to work?
           </h2>
           <p className="text-slate-500 text-lg md:text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
-            Two AI specialists. Trained on your business. Working every channel, every hour. Start your
-            free trial today.
+            Sales agents and analytics specialists trained on your business. Working every channel, every hour.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
             <button
@@ -412,8 +411,7 @@ export default function PricingPage() {
                   </span>
                 </Link>
                 <p className="text-slate-400 text-sm leading-relaxed max-w-xs mb-8">
-                  AI sales agents that qualify leads, close deals, and keep your CRM accurate. 24 hours a
-                  day, 7 days a week.
+                  AI-powered sales automation and CRM intelligence. Two products, one platform, always on.
                 </p>
 
                 <div className="flex items-center gap-4">

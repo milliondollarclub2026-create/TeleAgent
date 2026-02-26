@@ -26,19 +26,19 @@ export default function PricingHubPage() {
 
   const teams = [
     {
-      name: 'Sales Team',
+      name: 'Sales Automation',
       agent: 'Jasur',
       orbColors: ['#10b981', '#059669', '#14b8a6'],
-      description: 'AI-powered sales agents for Telegram & Instagram. Qualify leads, answer questions, and close deals around the clock.',
+      description: 'AI sales agents for Telegram and Instagram. Qualify leads, answer questions, and close deals around the clock.',
       price: 'From $15/mo per agent',
       href: '/pricing/sales',
       cta: 'View Sales Plans',
     },
     {
-      name: 'Analytics Team',
-      agent: 'Bobur',
+      name: 'CRM Intelligence',
+      agent: 'Bobur + 6 AI specialists',
       orbColors: ['#f97316', '#ea580c', '#f59e0b'],
-      description: 'CRM dashboards, AI insights & revenue monitoring. Connect your CRM and get answers in plain English.',
+      description: 'Live dashboards, pipeline analytics, and revenue monitoring. Connect your CRM and get answers in plain English.',
       price: 'Free plan available',
       href: '/pricing/analytics',
       cta: 'View Analytics Plans',
@@ -157,7 +157,7 @@ export default function PricingHubPage() {
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
             }`}
           >
-            Two specialized teams, each with their own pricing. Pick what fits your business.
+            Two products, each with their own pricing. Pick what fits your business.
           </p>
         </div>
       </section>

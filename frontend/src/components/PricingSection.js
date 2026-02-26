@@ -10,15 +10,15 @@ const agents = [
   {
     id: 'jasur',
     name: 'Jasur',
-    role: 'Sales Team Lead',
-    desc: 'Leads your sales across Telegram and Instagram around the clock.',
+    role: 'Sales Automation',
+    desc: 'AI sales agents for Telegram and Instagram. Qualifies leads and closes deals 24/7.',
     orbColors: ['#10b981', '#059669', '#14b8a6'],
   },
   {
     id: 'bobur',
     name: 'Bobur',
-    role: 'Analytics Team Lead',
-    desc: 'Connects to your CRM to analyze leads and generate insightful charts.',
+    role: 'CRM Intelligence',
+    desc: 'Six AI specialists that sync your CRM, build dashboards, and surface revenue insights.',
     orbColors: ['#f97316', '#ea580c', '#f59e0b'],
   },
 ];
