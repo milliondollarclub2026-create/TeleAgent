@@ -41,6 +41,7 @@ import {
   X,
   Plus,
   Sparkles,
+  Cpu,
   CheckCircle,
   XCircle,
   Key,
@@ -111,26 +112,18 @@ const AgentSettingsPage = () => {
 
   const MAX_ACTIVE_FIELDS = 5;
 
-  // Model providers data (visual only - not saved to backend)
-  const MODEL_PROVIDERS = {
-    openai: {
-      name: 'OpenAI',
-      models: [
-        { id: 'gpt-4o', name: 'GPT-4o', inputCost: '0.25', outputCost: '1.0' },
-        { id: 'gpt-4o-mini', name: 'GPT-4o Mini', inputCost: '0.015', outputCost: '0.06' },
-      ],
-    },
-    anthropic: {
-      name: 'Anthropic',
-      models: [
-        { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', inputCost: '0.3', outputCost: '1.5' },
-        { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', inputCost: '0.1', outputCost: '0.5' },
-      ],
-    },
-  };
+  // Available AI models with real pricing (visual only - not saved to backend)
+  // Prices: cents per 1,000 tokens (source: openai.com/api/pricing, platform.claude.com/docs)
+  const AI_MODELS = [
+    { id: 'gpt-5', name: 'GPT-5', provider: 'OpenAI', inputCost: '0.125', outputCost: '1.0', badge: 'Latest' },
+    { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'OpenAI', inputCost: '0.025', outputCost: '0.2', badge: 'Budget' },
+    { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI', inputCost: '0.2', outputCost: '0.8', badge: null },
+    { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', inputCost: '0.3', outputCost: '1.5', badge: null },
+    { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', provider: 'Anthropic', inputCost: '0.1', outputCost: '0.5', badge: 'Fast' },
+  ];
 
   // Model selection state (visual only - NOT saved to backend)
-  const [selectedProvider, setSelectedProvider] = useState('openai');
+  const [selectedModel, setSelectedModel] = useState('gpt-5');
   const [customApiKey, setCustomApiKey] = useState('');
   const [verifyingKey, setVerifyingKey] = useState(false);
   const [keyStatus, setKeyStatus] = useState(null); // null | 'valid' | 'invalid'
@@ -298,7 +291,7 @@ const AgentSettingsPage = () => {
   return (
     <div className="space-y-6" data-testid="agent-settings-page">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between max-w-2xl mx-auto">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Settings</h1>
           <p className="text-[13px] text-slate-500 mt-0.5">Configure your AI agent's behavior and personality</p>
@@ -323,8 +316,8 @@ const AgentSettingsPage = () => {
       </div>
 
       {/* Main Content - Tabbed Layout */}
-      <Tabs defaultValue="business" className="w-full">
-        <TabsList className="w-full justify-start bg-slate-100 p-1 rounded-lg h-auto flex-wrap">
+      <Tabs defaultValue="business" className="w-full max-w-2xl mx-auto">
+        <TabsList className="w-full justify-center bg-slate-100 p-1 rounded-lg h-auto flex-wrap">
           <TabsTrigger value="business" className="text-[13px] data-[state=active]:bg-white data-[state=active]:shadow-sm">
             <Building2 className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
             Business
@@ -342,14 +335,14 @@ const AgentSettingsPage = () => {
             Controls
           </TabsTrigger>
           <TabsTrigger value="model" className="text-[13px] data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            <Sparkles className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
+            <Cpu className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
             Model
           </TabsTrigger>
         </TabsList>
 
         {/* ===== BUSINESS TAB ===== */}
         <TabsContent value="business" className="mt-5">
-          <div className="max-w-2xl">
+          <div className="max-w-2xl mx-auto">
             <Card className="bg-white border-slate-200/80 shadow-sm">
               <CardContent className="p-5">
                 <SectionHeader
@@ -408,38 +401,6 @@ const AgentSettingsPage = () => {
                   </div>
                 </div>
 
-                {/* Divider */}
-                <div className="border-t border-slate-100 my-5" />
-
-                <SectionHeader
-                  icon={MessageSquare}
-                  title="Custom Messages"
-                  description="Customize greeting and closing messages"
-                />
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-700 text-[12px] font-medium">Greeting Message</Label>
-                    <Textarea
-                      value={config.greeting_message || ''}
-                      onChange={(e) => handleChange('greeting_message', e.target.value)}
-                      placeholder="Hello! How can I help you today?"
-                      rows={2}
-                      className="border-slate-200 resize-none text-[13px]"
-                    />
-                    <p className="text-[11px] text-slate-400">Leave empty to auto-generate based on language</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-700 text-[12px] font-medium">Closing Message</Label>
-                    <Textarea
-                      value={config.closing_message || ''}
-                      onChange={(e) => handleChange('closing_message', e.target.value)}
-                      placeholder="Great! I'll connect you with our team..."
-                      rows={2}
-                      className="border-slate-200 resize-none text-[13px]"
-                    />
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </div>
@@ -447,7 +408,7 @@ const AgentSettingsPage = () => {
 
         {/* ===== PERSONALITY TAB ===== */}
         <TabsContent value="personality" className="mt-5">
-          <div className="max-w-2xl space-y-5">
+          <div className="max-w-2xl mx-auto space-y-5">
             {/* Languages */}
             <Card className="bg-white border-slate-200/80 shadow-sm">
               <CardContent className="p-5">
@@ -571,7 +532,7 @@ const AgentSettingsPage = () => {
 
         {/* ===== DATA COLLECTION TAB ===== */}
         <TabsContent value="data" className="mt-5">
-          <div className="max-w-2xl">
+          <div className="max-w-2xl mx-auto">
             <Card className="bg-white border-slate-200/80 shadow-sm">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-4">
@@ -682,7 +643,7 @@ const AgentSettingsPage = () => {
 
         {/* ===== CONTROLS TAB ===== */}
         <TabsContent value="controls" className="mt-5">
-          <div className="max-w-2xl">
+          <div className="max-w-2xl mx-auto space-y-5">
             <Card className="bg-white border-slate-200/80 shadow-sm">
               <CardContent className="p-5">
                 <SectionHeader
@@ -730,115 +691,148 @@ const AgentSettingsPage = () => {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="bg-white border-slate-200/80 shadow-sm">
+              <CardContent className="p-5">
+                <SectionHeader
+                  icon={MessageSquare}
+                  title="Custom Messages"
+                  description="Customize greeting and closing messages"
+                />
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-700 text-[12px] font-medium">Greeting Message</Label>
+                    <Textarea
+                      value={config.greeting_message || ''}
+                      onChange={(e) => handleChange('greeting_message', e.target.value)}
+                      placeholder="Hello! How can I help you today?"
+                      rows={2}
+                      className="border-slate-200 resize-none text-[13px]"
+                    />
+                    <p className="text-[11px] text-slate-400">Leave empty to auto-generate based on language</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-700 text-[12px] font-medium">Closing Message</Label>
+                    <Textarea
+                      value={config.closing_message || ''}
+                      onChange={(e) => handleChange('closing_message', e.target.value)}
+                      placeholder="Great! I'll connect you with our team..."
+                      rows={2}
+                      className="border-slate-200 resize-none text-[13px]"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
         {/* ===== MODEL SELECTION TAB ===== */}
         <TabsContent value="model" className="mt-5">
-          <div className="max-w-2xl">
+          <div className="max-w-2xl mx-auto">
             <Card className="bg-white border-slate-200/80 shadow-sm">
               <CardContent className="p-5">
                 <SectionHeader
-                  icon={Sparkles}
+                  icon={Cpu}
                   title="Model Selection"
-                  description="Choose your AI provider and model"
+                  description="Choose the AI model that powers your agent"
                 />
 
-                <div className="space-y-5">
-                  {/* Provider Dropdown */}
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-700 text-[12px] font-medium">AI Provider</Label>
-                    <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-                      <SelectTrigger className="h-9 text-[13px] border-slate-200">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="openai">OpenAI</SelectItem>
-                        <SelectItem value="anthropic">Anthropic</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Model Info Cards */}
-                  <div className="space-y-2">
-                    <Label className="text-slate-700 text-[12px] font-medium">Available Models</Label>
-                    {MODEL_PROVIDERS[selectedProvider].models.map((model) => (
-                      <div
-                        key={model.id}
-                        className="flex items-center justify-between py-3 px-4 rounded-lg bg-slate-50 border border-slate-100"
-                      >
-                        <div>
-                          <p className="text-[13px] font-medium text-slate-900">{model.name}</p>
-                          <p className="text-[11px] text-slate-500 mt-0.5">{model.id}</p>
+                {/* Selectable Model Cards */}
+                <div className="space-y-2">
+                  {AI_MODELS.map((model) => (
+                    <button
+                      key={model.id}
+                      type="button"
+                      onClick={() => setSelectedModel(model.id)}
+                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                        selectedModel === model.id
+                          ? 'border-slate-900 bg-slate-50'
+                          : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2.5 h-2.5 rounded-full border-2 transition-colors ${
+                            selectedModel === model.id
+                              ? 'border-slate-900 bg-slate-900'
+                              : 'border-slate-300 bg-white'
+                          }`} />
+                          <div className="flex items-center gap-2">
+                            <span className="text-[13px] font-semibold text-slate-900">{model.name}</span>
+                            <span className="text-[11px] text-slate-400 font-medium">{model.provider}</span>
+                            {model.badge && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{model.badge}</span>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-[12px] text-slate-600">
-                            Input: <span className="font-medium">{model.inputCost}&#162;</span> / 1K tokens
-                          </p>
-                          <p className="text-[12px] text-slate-600">
-                            Output: <span className="font-medium">{model.outputCost}&#162;</span> / 1K tokens
-                          </p>
+                        <div className="text-[11px] text-slate-500 tabular-nums">
+                          <span className="font-medium text-slate-700">{model.inputCost}&#162;</span> in
+                          <span className="text-slate-300 mx-1.5">|</span>
+                          <span className="font-medium text-slate-700">{model.outputCost}&#162;</span> out
+                          <span className="text-slate-400 ml-1">/ 1K tokens</span>
                         </div>
                       </div>
-                    ))}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-slate-100 my-5" />
+
+                {/* API Key Section */}
+                <div className="space-y-3">
+                  <Label className="text-slate-700 text-[12px] font-medium">
+                    <Key className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" strokeWidth={1.75} />
+                    API Key (optional)
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      value={customApiKey}
+                      onChange={(e) => {
+                        setCustomApiKey(e.target.value);
+                        setKeyStatus(null);
+                      }}
+                      placeholder="sk-..."
+                      className="h-9 text-[13px] border-slate-200 flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      className="h-9 px-4 text-[13px] border-slate-200"
+                      onClick={handleVerifyKey}
+                      disabled={verifyingKey || !customApiKey}
+                    >
+                      {verifyingKey ? (
+                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin" strokeWidth={2} />
+                      ) : null}
+                      Verify
+                    </Button>
                   </div>
-
-                  {/* Divider */}
-                  <div className="border-t border-slate-100" />
-
-                  {/* API Key Section */}
-                  <div className="space-y-3">
-                    <Label className="text-slate-700 text-[12px] font-medium">
-                      <Key className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" strokeWidth={1.75} />
-                      API Key (optional)
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="password"
-                        value={customApiKey}
-                        onChange={(e) => {
-                          setCustomApiKey(e.target.value);
-                          setKeyStatus(null);
-                        }}
-                        placeholder="sk-..."
-                        className="h-9 text-[13px] border-slate-200 flex-1"
-                      />
-                      <Button
-                        variant="outline"
-                        className="h-9 px-4 text-[13px] border-slate-200"
-                        onClick={handleVerifyKey}
-                        disabled={verifyingKey || !customApiKey}
-                      >
-                        {verifyingKey ? (
-                          <Loader2 className="w-4 h-4 mr-1.5 animate-spin" strokeWidth={2} />
-                        ) : null}
-                        Verify Key
-                      </Button>
+                  {keyStatus === 'valid' && (
+                    <div className="flex items-center gap-1.5 text-green-600">
+                      <CheckCircle className="w-4 h-4" strokeWidth={1.75} />
+                      <span className="text-[12px] font-medium">API key is valid</span>
                     </div>
-                    {keyStatus === 'valid' && (
-                      <div className="flex items-center gap-1.5 text-green-600">
-                        <CheckCircle className="w-4 h-4" strokeWidth={1.75} />
-                        <span className="text-[12px] font-medium">API key is valid</span>
-                      </div>
-                    )}
-                    {keyStatus === 'invalid' && (
-                      <div className="flex items-center gap-1.5 text-red-600">
-                        <XCircle className="w-4 h-4" strokeWidth={1.75} />
-                        <span className="text-[12px] font-medium">Invalid API key</span>
-                      </div>
-                    )}
-                    <p className="text-[11px] text-slate-400">
-                      If you use your own API key, there is an additional platform fee of 0.1 cents per API call.
-                    </p>
-                  </div>
+                  )}
+                  {keyStatus === 'invalid' && (
+                    <div className="flex items-center gap-1.5 text-red-600">
+                      <XCircle className="w-4 h-4" strokeWidth={1.75} />
+                      <span className="text-[12px] font-medium">Invalid API key</span>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-slate-400">
+                    Bring your own key for custom model access. Platform fee: 0.1&#162; per API call.
+                  </p>
+                </div>
 
-                  {/* Info Notice */}
-                  <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 border border-slate-100">
-                    <Sparkles className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" strokeWidth={1.75} />
-                    <p className="text-[12px] text-slate-500 leading-relaxed">
-                      Currently using LeadRelay's default GPT-4o. Custom model selection coming soon.
-                    </p>
-                  </div>
+                {/* Info Notice */}
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 mt-5">
+                  <Sparkles className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" strokeWidth={1.75} />
+                  <p className="text-[12px] text-slate-500 leading-relaxed">
+                    Currently using LeadRelay's default GPT-4o. Custom model selection coming soon.
+                  </p>
                 </div>
               </CardContent>
             </Card>
