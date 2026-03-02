@@ -67,7 +67,10 @@ def create_chunks_with_overlap(
     """
     if not text or not text.strip():
         return []
-    
+
+    # Strip null bytes - PostgreSQL text columns reject \x00
+    text = text.replace('\x00', '')
+
     sentences = split_into_sentences(text)
     chunks = []
     current_chunk = []
@@ -178,6 +181,8 @@ def process_pdf(file_content: bytes, filename: str) -> List[Dict]:
         full_text = []
         for page_num, page in enumerate(doc, 1):
             page_text = page.get_text("text")
+            # Strip null bytes - PostgreSQL text columns reject \x00
+            page_text = page_text.replace('\x00', '')
             if page_text.strip():
                 full_text.append(f"[Page {page_num}]\n{page_text}")
         
@@ -445,7 +450,8 @@ async def generate_embeddings_batch(texts: List[str], tenant_id: Optional[str] =
 async def process_document(
     file_content: bytes,
     filename: str,
-    content_type: str
+    content_type: str,
+    tenant_id: Optional[str] = None
 ) -> Tuple[List[Dict], List[List[float]]]:
     """
     Main entry point for document processing.
@@ -486,7 +492,7 @@ async def process_document(
     
     # Generate embeddings for all chunks
     chunk_texts = [chunk["text"] for chunk in chunks]
-    embeddings = await generate_embeddings_batch(chunk_texts)
+    embeddings = await generate_embeddings_batch(chunk_texts, tenant_id=tenant_id)
     
     return chunks, embeddings
 
@@ -508,7 +514,8 @@ async def semantic_search(
     query: str,
     document_chunks: List[Dict],
     top_k: int = 5,
-    min_similarity: float = 0.3
+    min_similarity: float = 0.3,
+    tenant_id: Optional[str] = None
 ) -> List[Dict]:
     """
     Perform semantic search on document chunks.
@@ -516,9 +523,9 @@ async def semantic_search(
     """
     if not document_chunks:
         return []
-    
+
     # Generate query embedding
-    query_embedding = await generate_embedding(query)
+    query_embedding = await generate_embedding(query, tenant_id=tenant_id)
     
     # Calculate similarities
     results = []

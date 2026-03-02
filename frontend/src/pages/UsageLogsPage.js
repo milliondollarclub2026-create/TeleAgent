@@ -97,16 +97,16 @@ const modelBadgeStyles = {
   'default': 'bg-slate-50 text-slate-600 border-slate-200/80'
 };
 
-// Request type labels and colors
+// Request type labels and pill styles
 const requestTypeConfig = {
-  'sales_agent': { label: 'Sales Agent', color: 'text-emerald-600' },
-  'sales_agent_faq': { label: 'FAQ (Mini)', color: 'text-sky-600' },
-  'sales_agent_escalated': { label: 'Escalated', color: 'text-amber-600' },
-  'intent_classifier': { label: 'Classifier', color: 'text-slate-500' },
-  'crm_extractor': { label: 'CRM Extract', color: 'text-indigo-600' },
-  'crm_chat': { label: 'CRM Chat', color: 'text-amber-600' },
-  'embedding': { label: 'Embedding', color: 'text-slate-500' },
-  'summarization': { label: 'Summary', color: 'text-violet-600' }
+  'sales_agent': { label: 'Sales Agent', pillClass: 'text-violet-600 border-violet-300 bg-violet-50' },
+  'sales_agent_faq': { label: 'FAQ (Mini)', pillClass: 'text-sky-600 border-sky-300 bg-sky-50' },
+  'sales_agent_escalated': { label: 'Escalated', pillClass: 'text-amber-600 border-amber-300 bg-amber-50' },
+  'intent_classifier': { label: 'Classifier', pillClass: 'text-slate-500 border-slate-200 bg-slate-50' },
+  'crm_extractor': { label: 'CRM Extract', pillClass: 'text-indigo-600 border-indigo-300 bg-indigo-50' },
+  'crm_chat': { label: 'CRM Chat', pillClass: 'text-amber-600 border-amber-300 bg-amber-50' },
+  'embedding': { label: 'Embedding', pillClass: 'text-slate-500 border-slate-200 bg-slate-50' },
+  'summarization': { label: 'Summary', pillClass: 'text-violet-600 border-violet-300 bg-violet-50' }
 };
 
 // Premium StatCard matching AgentDashboard exactly
@@ -196,7 +196,7 @@ const CustomTooltip = ({ active, payload, label }) => {
     return (
       <div className="bg-slate-900 text-white px-3.5 py-2.5 rounded-xl shadow-2xl border border-slate-700">
         <p className="text-[11px] text-slate-400 mb-1">{formattedDate}</p>
-        <p className="text-[14px] font-semibold text-emerald-400">{formatNumber(payload[0].value)} tokens</p>
+        <p className="text-[14px] font-semibold text-violet-400">{formatNumber(payload[0].value)} tokens</p>
       </div>
     );
   }
@@ -240,7 +240,7 @@ const UsageLogsPage = ({ agentType }) => {
   const [summary, setSummary] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, total_pages: 0 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, total_pages: 0 });
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(true);
   const [logsLoading, setLogsLoading] = useState(true);
@@ -485,8 +485,8 @@ const UsageLogsPage = ({ agentType }) => {
                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="tokenGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.2}/>
-                        <stop offset="100%" stopColor="#10b981" stopOpacity={0}/>
+                        <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.2}/>
+                        <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
@@ -509,11 +509,11 @@ const UsageLogsPage = ({ agentType }) => {
                     <Area
                       type="monotone"
                       dataKey="tokens"
-                      stroke="#10b981"
+                      stroke="#8b5cf6"
                       strokeWidth={2.5}
                       fill="url(#tokenGradient)"
                       dot={false}
-                      activeDot={{ r: 5, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
+                      activeDot={{ r: 5, fill: '#8b5cf6', stroke: '#fff', strokeWidth: 2 }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -610,7 +610,7 @@ const UsageLogsPage = ({ agentType }) => {
                       </TableHeader>
                       <TableBody>
                         {logs.map((log, index) => {
-                          const typeConfig = requestTypeConfig[log.request_type] || { label: log.request_type, color: 'text-slate-600' };
+                          const typeConfig = requestTypeConfig[log.request_type] || { label: log.request_type, pillClass: 'text-slate-500 border-slate-200 bg-slate-50' };
                           return (
                             <TableRow
                               key={log.id}
@@ -628,8 +628,10 @@ const UsageLogsPage = ({ agentType }) => {
                                   {log.model === 'text-embedding-3-small' ? 'embeddings' : log.model}
                                 </Badge>
                               </TableCell>
-                              <TableCell className={`text-[13px] font-medium py-3.5 ${typeConfig.color}`}>
-                                {typeConfig.label}
+                              <TableCell className="py-3.5">
+                                <span className={`inline-flex items-center text-[11px] font-medium px-2.5 py-1 rounded-md border ${typeConfig.pillClass}`}>
+                                  {typeConfig.label}
+                                </span>
                               </TableCell>
                               <TableCell className="text-[13px] text-slate-900 font-medium text-right tabular-nums py-3.5">
                                 {formatNumber(log.input_tokens)}
@@ -653,17 +655,14 @@ const UsageLogsPage = ({ agentType }) => {
                       <p className="text-[12px] text-slate-500">
                         Showing <span className="font-medium text-slate-700">{((pagination.page - 1) * pagination.limit) + 1}</span> to <span className="font-medium text-slate-700">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of <span className="font-medium text-slate-700">{pagination.total}</span> entries
                       </p>
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          variant="outline"
-                          size="sm"
+                      <div className="flex items-center gap-2">
+                        <button
                           onClick={() => handlePageChange(pagination.page - 1)}
                           disabled={pagination.page <= 1}
-                          className="h-8 px-3 text-[12px] border-slate-200 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40 transition-all"
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
                         >
-                          <ChevronLeft className="w-4 h-4 mr-1" strokeWidth={1.75} />
-                          Prev
-                        </Button>
+                          <ChevronLeft className="w-4 h-4" strokeWidth={2} />
+                        </button>
                         <div className="flex items-center gap-1">
                           {[...Array(Math.min(5, pagination.total_pages))].map((_, i) => {
                             let pageNum;
@@ -676,34 +675,28 @@ const UsageLogsPage = ({ agentType }) => {
                             } else {
                               pageNum = pagination.page - 2 + i;
                             }
-
                             return (
-                              <Button
+                              <button
                                 key={pageNum}
-                                variant={pagination.page === pageNum ? "default" : "ghost"}
-                                size="sm"
                                 onClick={() => handlePageChange(pageNum)}
-                                className={`h-8 w-8 p-0 text-[12px] font-medium transition-all ${
+                                className={`w-8 h-8 flex items-center justify-center rounded-lg text-[12px] font-medium transition-all duration-200 ${
                                   pagination.page === pageNum
-                                    ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-sm'
-                                    : 'text-slate-600 hover:bg-slate-100'
+                                    ? 'bg-slate-900 text-white shadow-sm'
+                                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                                 }`}
                               >
                                 {pageNum}
-                              </Button>
+                              </button>
                             );
                           })}
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
+                        <button
                           onClick={() => handlePageChange(pagination.page + 1)}
                           disabled={pagination.page >= pagination.total_pages}
-                          className="h-8 px-3 text-[12px] border-slate-200 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40 transition-all"
+                          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
                         >
-                          Next
-                          <ChevronRight className="w-4 h-4 ml-1" strokeWidth={1.75} />
-                        </Button>
+                          <ChevronRight className="w-4 h-4" strokeWidth={2} />
+                        </button>
                       </div>
                     </div>
                   )}

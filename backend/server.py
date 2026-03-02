@@ -1,11 +1,17 @@
 """AI Sales Agent for Telegram + Bitrix24 - Enhanced Version with Sales Pipeline & RAG"""
+from dotenv import load_dotenv
+import os
+from pathlib import Path
+
+# CRITICAL: Load .env BEFORE any local module imports so that modules like
+# token_logger can read SUPABASE_URL / SUPABASE_SERVICE_KEY at import time.
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, Request, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import RedirectResponse, JSONResponse
-from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-import os
 import logging
-from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any, Tuple
 import uuid
@@ -101,9 +107,6 @@ from agents import ChartConfig, CRMProfile
 # dima is used for chat-generated charts. Anvar executes widget queries.
 
 import bcrypt as _bcrypt_lib  # for password hashing upgrade
-
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
 
 # ============ Startup Validation ============
 REQUIRED_ENV = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'JWT_SECRET']
@@ -6268,7 +6271,7 @@ async def get_business_context_semantic(tenant_id: str, query: str, top_k: int =
             local_count = len(all_chunks) - global_count
             logger.info(f"Performing semantic search over {len(all_chunks)} chunks ({global_count} global, {local_count} local) for tenant {tenant_id}")
 
-            results = await semantic_search(query, all_chunks, top_k=top_k, min_similarity=0.25)
+            results = await semantic_search(query, all_chunks, top_k=top_k, min_similarity=0.25, tenant_id=tenant_id)
             context = [
                 f"[{r.get('source', 'Document')}] (relevance: {r['similarity']:.0%}): {r['text'][:600]}"
                 for r in results
@@ -9676,8 +9679,8 @@ async def upload_document(
         logger.info(f"Processing upload: {filename}, type: {content_type}, size: {file_size}")
 
         # Process document and generate embeddings
-        chunks, embeddings = await process_document(file_content, filename, content_type)
-        
+        chunks, embeddings = await process_document(file_content, filename, content_type, tenant_id=tenant_id)
+
         # Prepare chunks with embeddings
         chunks_with_embeddings = []
         extracted_text = []
@@ -10010,7 +10013,7 @@ async def upload_global_document(
         logger.info(f"Processing global upload: {filename}, type: {content_type}, size: {file_size}")
 
         # Process document and generate embeddings
-        chunks, embeddings = await process_document(file_content, filename, content_type)
+        chunks, embeddings = await process_document(file_content, filename, content_type, tenant_id=tenant_id)
 
         # Prepare chunks with embeddings
         chunks_with_embeddings = []

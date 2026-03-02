@@ -625,7 +625,11 @@ const AgentsPage = () => {
     try {
       if (removalTarget.type === 'agent') {
         // Delete real agent
-        await axios.delete(`${API}/agents/${removalTarget.data.id}`);
+        const agentIdToRemove = removalTarget.data.id;
+        await axios.delete(`${API}/agents/${agentIdToRemove}`);
+        // Clear test chat localStorage for this agent
+        localStorage.removeItem(`test_bot_chat_history_${agentIdToRemove}`);
+        localStorage.removeItem(`test_bot_debug_info_${agentIdToRemove}`);
       } else {
         // Fire prebuilt
         const prebuilt = removalTarget.data;
@@ -637,6 +641,13 @@ const AgentsPage = () => {
           localStorage.removeItem(`analytics_pending_question_${user?.tenant_id || 'default'}`);
           try { await axios.post(`${API}/crm/sync/stop`, {}, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
           try { await axios.post(`${API}/analytics/stop`, {}, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+        }
+
+        // Clear test chat localStorage for sales/prebuilt agents (agentId = tenant_id)
+        if (prebuilt.type === 'sales') {
+          const tid = user?.tenant_id || 'default';
+          localStorage.removeItem(`test_bot_chat_history_${tid}`);
+          localStorage.removeItem(`test_bot_debug_info_${tid}`);
         }
       }
 
