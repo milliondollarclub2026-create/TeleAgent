@@ -3,12 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { Toaster } from "./components/ui/sonner";
 
-// Legacy route redirect component that preserves route params
-function LegacyAgentRedirect() {
-  const { agentId } = useParams();
-  return <Navigate to={`/app/agents/${agentId}`} replace />;
-}
-
 // Pages
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
@@ -46,6 +40,12 @@ import PricingHubPage from "./pages/PricingHubPage";
 import AnalyticsPricingPage from "./pages/AnalyticsPricingPage";
 import SecurityPage from "./pages/SecurityPage";
 import SharedDashboardPage from "./pages/SharedDashboardPage";
+
+// Legacy route redirect component that preserves route params
+function LegacyAgentRedirect() {
+  const { agentId } = useParams();
+  return <Navigate to={`/app/agents/${agentId}`} replace />;
+}
 
 // Protected route wrapper - redirects to landing if not authenticated
 function ProtectedRoute({ children }) {
@@ -113,6 +113,7 @@ function AppRoutes() {
         <Route path="agents/:agentId/connections/zoho" element={<ZohoSetupPage />} />
         <Route path="agents/:agentId/connections/freshsales" element={<FreshsalesSetupPage />} />
         <Route path="agents/:agentId/leads" element={<AgentLeadsPage />} />
+        <Route path="agents/:agentId/usage" element={<UsageLogsPage agentType="sales" />} />
         <Route path="agents/:agentId/dialogue" element={<AgentDialoguePage />} />
         <Route path="agents/:agentId/dialogue/:customerId" element={<AgentDialoguePage />} />
         <Route path="leads" element={<LeadsPage />} />
@@ -158,7 +159,7 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <AppRoutes />
-        <Toaster position="bottom-right" />
+        <Toaster position="bottom-right" richColors />
       </BrowserRouter>
     </AuthProvider>
   );

@@ -98,7 +98,7 @@ const AgentLeadsPage = () => {
   const fetchLeads = async () => {
     setLoading(true);
     try {
-      let url = `${API}/leads?limit=100`;
+      let url = `${API}/leads?limit=500`;
       if (hotnessFilter !== 'all') {
         url += `&hotness=${hotnessFilter}`;
       }
@@ -330,15 +330,15 @@ const AgentLeadsPage = () => {
                       </TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${stageColors[lead.sales_stage] || stageColors.awareness}`}>
-                          {lead.sales_stage?.charAt(0).toUpperCase() + lead.sales_stage?.slice(1) || 'Awareness'}
+                          {lead.sales_stage ? lead.sales_stage.charAt(0).toUpperCase() + lead.sales_stage.slice(1) : 'Awareness'}
                         </span>
                       </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={`text-xs ${hotnessColors[lead.final_hotness]}`}
+                          className={`text-xs ${hotnessColors[lead.final_hotness] || hotnessColors.warm}`}
                         >
-                          {lead.final_hotness}
+                          {lead.final_hotness || 'warm'}
                         </Badge>
                       </TableCell>
                       <TableCell>

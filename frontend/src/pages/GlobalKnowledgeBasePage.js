@@ -89,7 +89,8 @@ const GlobalKnowledgeBasePage = () => {
     try {
       await axios.post(`${API}/documents/global`, {
         title: newDoc.title,
-        content: newDoc.content
+        content: newDoc.content,
+        category: isPolicyDoc ? 'policy' : 'knowledge'
       });
       toast.success('Global document added successfully');
       setNewDoc({ title: '', content: '' });

@@ -209,7 +209,7 @@ function CRMDashboardPageInner() {
     if (config?.onboarding_state === 'complete') {
       loadDashboardData();
     }
-  }, [dateRange]);
+  }, [dateRange, config, loadDashboardData]);
 
   // Auto-refresh every 2 hours (incremental sync + reload)
   useEffect(() => {

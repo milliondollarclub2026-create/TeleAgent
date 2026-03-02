@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams } from 'react-router-dom';
+import { UNSAFE_NavigationContext as NavigationContext } from 'react-router';
 import axios from 'axios';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -39,12 +40,14 @@ import {
   FileText,
   X,
   Plus,
-  ChevronDown,
   Shield,
-  Percent,
   CreditCard,
-  Tag
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '../components/ui/dialog';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -67,6 +70,9 @@ const AgentSettingsPage = () => {
   const { agentId } = useParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const savedConfigRef = useRef(null);
+  const [pendingNav, setPendingNav] = useState(null);
+  const { navigator } = useContext(NavigationContext);
 
   // Data collection field definitions - grouped by category
   const DATA_COLLECTION_FIELDS = [
@@ -133,21 +139,57 @@ const AgentSettingsPage = () => {
     collect_notes: false,
     vertical: 'default',
     // Sales Constraints (Anti-Hallucination)
-    discount_authority: 'none',
     payment_plans_enabled: false,
-    promo_codes: []
-  });
-
-  // New promo code form state
-  const [newPromoCode, setNewPromoCode] = useState({
-    code: '',
-    discount_percent: '',
-    valid_until: ''
   });
 
   // Count active collection fields
   const activeFieldCount = DATA_COLLECTION_FIELDS.filter(f => config[f.key]).length;
   const isAtLimit = activeFieldCount >= MAX_ACTIVE_FIELDS;
+
+  // Dirty state detection (must be after config state declaration)
+  const hasChanges = savedConfigRef.current !== null &&
+    JSON.stringify(config) !== JSON.stringify(savedConfigRef.current);
+  const hasChangesRef = useRef(false);
+  hasChangesRef.current = hasChanges;
+
+  // Intercept in-app navigation (sidebar links, navigate() calls)
+  useEffect(() => {
+    const origPush = navigator.push;
+    const origReplace = navigator.replace;
+
+    navigator.push = (...args) => {
+      if (hasChangesRef.current) {
+        setPendingNav({ fn: () => origPush.call(navigator, ...args) });
+      } else {
+        origPush.call(navigator, ...args);
+      }
+    };
+
+    navigator.replace = (...args) => {
+      if (hasChangesRef.current) {
+        setPendingNav({ fn: () => origReplace.call(navigator, ...args) });
+      } else {
+        origReplace.call(navigator, ...args);
+      }
+    };
+
+    return () => {
+      navigator.push = origPush;
+      navigator.replace = origReplace;
+    };
+  }, [navigator]);
+
+  // Block browser tab close / refresh
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasChangesRef.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   useEffect(() => {
     fetchConfig();
@@ -157,15 +199,16 @@ const AgentSettingsPage = () => {
     try {
       const response = await axios.get(`${API}/config`);
       if (response.data) {
-        setConfig(prev => ({
-          ...prev,
-          ...response.data,
-          secondary_languages: response.data.secondary_languages || ['ru', 'en'],
-          // Ensure new constraint fields have defaults
-          discount_authority: response.data.discount_authority || 'none',
-          payment_plans_enabled: response.data.payment_plans_enabled || false,
-          promo_codes: response.data.promo_codes || []
-        }));
+        setConfig(prev => {
+          const merged = {
+            ...prev,
+            ...response.data,
+            secondary_languages: response.data.secondary_languages || ['ru', 'en'],
+            payment_plans_enabled: response.data.payment_plans_enabled || false,
+          };
+          savedConfigRef.current = merged;
+          return merged;
+        });
       }
     } catch (error) {
       console.error('Failed to fetch config:', error);
@@ -178,6 +221,7 @@ const AgentSettingsPage = () => {
     setSaving(true);
     try {
       await axios.put(`${API}/config`, config);
+      savedConfigRef.current = { ...config };
       toast.success('Settings saved successfully');
     } catch (error) {
       toast.error('Failed to save settings');
@@ -200,29 +244,6 @@ const AgentSettingsPage = () => {
     );
   };
 
-  // Promo code management
-  const addPromoCode = () => {
-    if (!newPromoCode.code || !newPromoCode.discount_percent) {
-      toast.error('Please enter code and discount percentage');
-      return;
-    }
-    const promoToAdd = {
-      code: newPromoCode.code.toUpperCase(),
-      discount_percent: parseInt(newPromoCode.discount_percent),
-      valid_until: newPromoCode.valid_until || null
-    };
-    // Check for duplicate
-    if ((config.promo_codes || []).some(p => p.code === promoToAdd.code)) {
-      toast.error('This promo code already exists');
-      return;
-    }
-    handleChange('promo_codes', [...(config.promo_codes || []), promoToAdd]);
-    setNewPromoCode({ code: '', discount_percent: '', valid_until: '' });
-  };
-
-  const removePromoCode = (codeToRemove) => {
-    handleChange('promo_codes', (config.promo_codes || []).filter(p => p.code !== codeToRemove));
-  };
 
   if (loading) {
     return (
@@ -244,9 +265,13 @@ const AgentSettingsPage = () => {
           <p className="text-[13px] text-slate-500 mt-0.5">Configure your AI agent's behavior and personality</p>
         </div>
         <Button
-          className="bg-slate-900 hover:bg-slate-800 h-9 px-4 text-[13px] font-medium shadow-sm"
+          className={`h-9 px-4 text-[13px] font-medium shadow-sm transition-all duration-200 ${
+            hasChanges
+              ? 'bg-slate-900 hover:bg-slate-800 opacity-100'
+              : 'bg-slate-900 hover:bg-slate-800 opacity-40 cursor-default'
+          }`}
           onClick={saveConfig}
-          disabled={saving}
+          disabled={saving || !hasChanges}
           data-testid="save-settings-btn"
         >
           {saving ? (
@@ -254,7 +279,7 @@ const AgentSettingsPage = () => {
           ) : (
             <Save className="w-4 h-4 mr-2" strokeWidth={1.75} />
           )}
-          Save Changes
+          {hasChanges ? 'Save Changes' : 'Saved'}
         </Button>
       </div>
 
@@ -538,40 +563,6 @@ const AgentSettingsPage = () => {
                 description="Prevent AI from making unauthorized promises"
               />
               <div className="space-y-4">
-                {/* Discount Authority */}
-                <div className="space-y-1.5">
-                  <Label className="text-slate-700 text-[12px] font-medium">Discount Authority</Label>
-                  <Select
-                    value={config.discount_authority || 'none'}
-                    onValueChange={(v) => handleChange('discount_authority', v)}
-                  >
-                    <SelectTrigger className="h-9 text-[13px] border-slate-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">
-                        <div className="flex items-center gap-2">
-                          <span>No discounts</span>
-                          <span className="text-[11px] text-slate-400">- Agent cannot offer any discounts</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="manager_only">
-                        <div className="flex items-center gap-2">
-                          <span>Manager only</span>
-                          <span className="text-[11px] text-slate-400">- Refers to manager for pricing</span>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="agent_can_offer">
-                        <div className="flex items-center gap-2">
-                          <span>Agent can offer</span>
-                          <span className="text-[11px] text-slate-400">- Can offer configured promos</span>
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-slate-400">Controls whether AI can mention discounts or special pricing</p>
-                </div>
-
                 {/* Payment Plans Toggle */}
                 <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-50 border border-slate-100">
                   <div className="flex items-center gap-3">
@@ -587,93 +578,6 @@ const AgentSettingsPage = () => {
                   />
                 </div>
 
-                {/* Promo Codes */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-slate-700 text-[12px] font-medium">Active Promo Codes</Label>
-                    <span className="text-[11px] text-slate-400">
-                      {(config.promo_codes || []).length} active
-                    </span>
-                  </div>
-
-                  {/* Promo Code Chips */}
-                  {(config.promo_codes || []).length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {(config.promo_codes || []).map((promo) => (
-                        <div
-                          key={promo.code}
-                          className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 group hover:border-emerald-300 transition-colors"
-                        >
-                          <Tag className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />
-                          <span className="text-[12px] font-semibold text-emerald-700">{promo.code}</span>
-                          <span className="text-[11px] text-emerald-600">({promo.discount_percent}% off)</span>
-                          {promo.valid_until && (
-                            <span className="text-[10px] text-emerald-500">until {promo.valid_until}</span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => removePromoCode(promo.code)}
-                            className="w-5 h-5 rounded-full flex items-center justify-center text-emerald-400 hover:text-emerald-600 hover:bg-emerald-100 transition-colors ml-0.5"
-                            aria-label={`Remove ${promo.code}`}
-                          >
-                            <X className="w-3 h-3" strokeWidth={2} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Add Promo Code Form */}
-                  <div className="p-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
-                    <div className="grid grid-cols-3 gap-2 mb-2">
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-slate-500">Code</Label>
-                        <Input
-                          value={newPromoCode.code}
-                          onChange={(e) => setNewPromoCode(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
-                          placeholder="SAVE20"
-                          className="h-8 text-[12px] border-slate-200 uppercase"
-                          maxLength={20}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-slate-500">Discount %</Label>
-                        <Input
-                          type="number"
-                          value={newPromoCode.discount_percent}
-                          onChange={(e) => setNewPromoCode(prev => ({ ...prev, discount_percent: e.target.value }))}
-                          placeholder="20"
-                          className="h-8 text-[12px] border-slate-200"
-                          min={1}
-                          max={100}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-slate-500">Valid Until</Label>
-                        <Input
-                          type="date"
-                          value={newPromoCode.valid_until}
-                          onChange={(e) => setNewPromoCode(prev => ({ ...prev, valid_until: e.target.value }))}
-                          className="h-8 text-[12px] border-slate-200"
-                        />
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addPromoCode}
-                      className="w-full h-8 text-[12px] border-slate-200 hover:bg-slate-100"
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1.5" strokeWidth={2} />
-                      Add Promo Code
-                    </Button>
-                  </div>
-
-                  <p className="text-[11px] text-slate-400">
-                    The AI will only mention these promo codes when discount_authority allows it.
-                  </p>
-                </div>
               </div>
             </CardContent>
           </Card>
@@ -786,6 +690,65 @@ const AgentSettingsPage = () => {
           </Card>
         </div>
       </div>
+
+      {/* Unsaved Changes Navigation Blocker */}
+      <Dialog open={!!pendingNav} onOpenChange={() => setPendingNav(null)}>
+        <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden border-slate-200 gap-0">
+          <DialogTitle className="sr-only">Unsaved Changes</DialogTitle>
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-5 h-5 text-slate-600" strokeWidth={1.75} />
+              </div>
+              <div>
+                <h3 className="text-[15px] font-semibold text-slate-900">
+                  Unsaved Changes
+                </h3>
+                <p className="text-[12px] text-slate-500 mt-0.5">
+                  Your changes haven't been saved yet
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 mb-4">
+              <p className="text-[13px] text-slate-600 leading-relaxed">
+                You have unsaved changes that will be lost if you leave this page. Would you like to save before leaving?
+              </p>
+            </div>
+
+            <div className="flex gap-2.5">
+              <Button
+                variant="outline"
+                className="flex-1 h-10 border-slate-200 text-[13px] font-medium"
+                onClick={() => {
+                  const nav = pendingNav;
+                  setPendingNav(null);
+                  nav?.fn();
+                }}
+              >
+                Discard
+              </Button>
+              <Button
+                className="flex-1 h-10 bg-slate-900 hover:bg-slate-800 text-white text-[13px] font-medium"
+                onClick={async () => {
+                  await saveConfig();
+                  const nav = pendingNav;
+                  setPendingNav(null);
+                  nav?.fn();
+                }}
+                disabled={saving}
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" strokeWidth={2} />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" strokeWidth={1.75} />
+                )}
+                Save & Leave
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

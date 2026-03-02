@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Card, CardContent } from '../components/ui/card';
@@ -139,10 +139,6 @@ const AgentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('7');
 
-  useEffect(() => {
-    fetchData();
-  }, [agentId, period]);
-
   // Empty analytics structure for new agents
   const emptyAnalytics = {
     summary: {
@@ -163,7 +159,7 @@ const AgentDashboard = () => {
     daily_trend: []
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [analyticsRes, configRes, integrationsRes] = await Promise.all([
@@ -191,7 +187,11 @@ const AgentDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
+
+  useEffect(() => {
+    fetchData();
+  }, [agentId, fetchData]);
 
   if (loading) {
     return (

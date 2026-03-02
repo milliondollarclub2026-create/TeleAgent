@@ -53,14 +53,19 @@ import { toast } from 'sonner';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Status indicator component - refined green for light theme
-const StatusDot = ({ connected }) => (
-  <div className="flex items-center gap-2">
-    <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-600' : 'bg-slate-300'}`} />
-    <span className={`text-xs font-medium ${connected ? 'text-emerald-700' : 'text-slate-500'}`}>
-      {connected ? 'Connected' : 'Not connected'}
-    </span>
-  </div>
+// Status indicator component
+const StatusBadge = ({ connected }) => (
+  connected ? (
+    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-600/30 bg-emerald-50/50">
+      <div className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+      <span className="text-[11px] font-semibold text-emerald-700 tracking-wide">Connected</span>
+    </div>
+  ) : (
+    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-200 bg-slate-50/50">
+      <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+      <span className="text-[11px] font-medium text-slate-400 tracking-wide">Not connected</span>
+    </div>
+  )
 );
 
 const ConnectionsPage = () => {
@@ -112,7 +117,7 @@ const ConnectionsPage = () => {
       fetchHubspotStatus(),
       fetchZohoStatus(),
       fetchFreshsalesStatus(),
-    ]);
+    ]).finally(() => setLoading(false));
   }, []);
 
   const fetchIntegrations = async () => {
@@ -122,8 +127,6 @@ const ConnectionsPage = () => {
     } catch (error) {
       console.error('Failed to fetch integrations:', error);
       toast.error('Failed to load integrations');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -206,7 +209,7 @@ const ConnectionsPage = () => {
                   <p className="text-xs text-slate-500 mt-0.5">Receive and respond to messages</p>
                 </div>
               </div>
-              <StatusDot connected={integrations?.telegram?.connected} />
+              <StatusBadge connected={integrations?.telegram?.connected} />
             </div>
 
             {/* Content */}
@@ -242,7 +245,7 @@ const ConnectionsPage = () => {
                   Connect your Telegram bot to start receiving messages
                 </p>
                 <Button
-                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-slate-900 hover:bg-slate-800 text-white h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('telegram'))}
                   data-testid="setup-telegram-btn"
                 >
@@ -267,7 +270,7 @@ const ConnectionsPage = () => {
                   <p className="text-xs text-slate-500 mt-0.5">Automate direct messages</p>
                 </div>
               </div>
-              <StatusDot connected={integrations?.instagram?.connected} />
+              <StatusBadge connected={integrations?.instagram?.connected} />
             </div>
 
             {/* Content */}
@@ -303,7 +306,7 @@ const ConnectionsPage = () => {
                   Connect your Instagram to automate DM replies
                 </p>
                 <Button
-                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-slate-900 hover:bg-slate-800 text-white h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('instagram'))}
                   data-testid="setup-instagram-btn"
                 >
@@ -338,7 +341,7 @@ const ConnectionsPage = () => {
                   <p className="text-xs text-slate-500 mt-0.5">Sync leads and contacts</p>
                 </div>
               </div>
-              <StatusDot connected={bitrixStatus?.connected} />
+              <StatusBadge connected={bitrixStatus?.connected} />
             </div>
 
             {/* Content */}
@@ -372,7 +375,7 @@ const ConnectionsPage = () => {
                   Sync leads and contacts with your CRM
                 </p>
                 <Button
-                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-slate-900 hover:bg-slate-800 text-white h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('bitrix'))}
                   data-testid="setup-bitrix-btn"
                 >
@@ -397,7 +400,7 @@ const ConnectionsPage = () => {
                   <p className="text-xs text-slate-500 mt-0.5">Product catalog & lead tracking</p>
                 </div>
               </div>
-              <StatusDot connected={gSheetsStatus?.connected} />
+              <StatusBadge connected={gSheetsStatus?.connected} />
             </div>
 
             {/* Content */}
@@ -433,7 +436,7 @@ const ConnectionsPage = () => {
                   Set up product catalog & lead tracking with your Google Sheet
                 </p>
                 <Button
-                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-slate-900 hover:bg-slate-800 text-white h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('google-sheets'))}
                   data-testid="setup-gsheets-btn"
                 >
@@ -457,7 +460,7 @@ const ConnectionsPage = () => {
                   <p className="text-xs text-slate-500 mt-0.5">Contacts, deals & pipelines</p>
                 </div>
               </div>
-              <StatusDot connected={hubspotStatus?.connected} />
+              <StatusBadge connected={hubspotStatus?.connected} />
             </div>
 
             {hubspotStatus?.connected ? (
@@ -490,7 +493,7 @@ const ConnectionsPage = () => {
                   Sync contacts and deals with HubSpot
                 </p>
                 <Button
-                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-slate-900 hover:bg-slate-800 text-white h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('hubspot'))}
                 >
                   Connect
@@ -513,7 +516,7 @@ const ConnectionsPage = () => {
                   <p className="text-xs text-slate-500 mt-0.5">Leads, contacts & deals</p>
                 </div>
               </div>
-              <StatusDot connected={zohoStatus?.connected} />
+              <StatusBadge connected={zohoStatus?.connected} />
             </div>
 
             {zohoStatus?.connected ? (
@@ -546,7 +549,7 @@ const ConnectionsPage = () => {
                   Sync leads and contacts with Zoho CRM
                 </p>
                 <Button
-                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-slate-900 hover:bg-slate-800 text-white h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('zoho'))}
                 >
                   Connect
@@ -569,7 +572,7 @@ const ConnectionsPage = () => {
                   <p className="text-xs text-slate-500 mt-0.5">Contacts & deal tracking</p>
                 </div>
               </div>
-              <StatusDot connected={freshsalesStatus?.connected} />
+              <StatusBadge connected={freshsalesStatus?.connected} />
             </div>
 
             {freshsalesStatus?.connected ? (
@@ -602,7 +605,7 @@ const ConnectionsPage = () => {
                   Connect your Freshsales account for deal tracking
                 </p>
                 <Button
-                  className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-[13px] font-medium shadow-sm"
+                  className="bg-slate-900 hover:bg-slate-800 text-white h-9 px-4 text-[13px] font-medium shadow-sm"
                   onClick={() => navigate(getConnectionPath('freshsales'))}
                 >
                   Connect

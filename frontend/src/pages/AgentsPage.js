@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,7 +19,8 @@ import {
   Radio,
   UserCircle2,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Check
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -38,6 +39,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '../components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+} from '../components/ui/dialog';
 import { toast } from 'sonner';
 import AiOrb from '../components/Orb/AiOrb';
 
@@ -249,30 +254,6 @@ const boburTeamMembers = [
   },
 ];
 
-// Team modal CSS keyframes (injected once)
-const teamModalStyles = `
-@keyframes teamModalFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes teamModalSlideUp {
-  from { opacity: 0; transform: translateY(10px) scale(0.96); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes teamMemberFadeIn {
-  from { opacity: 0; transform: translateX(-6px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-`;
-
-// Inject styles once
-if (typeof document !== 'undefined' && !document.getElementById('team-modal-styles')) {
-  const style = document.createElement('style');
-  style.id = 'team-modal-styles';
-  style.textContent = teamModalStyles;
-  document.head.appendChild(style);
-}
-
 // Team Modal Component — Clean white panel with team roster (generic)
 const TeamModal = ({ open, onClose, onHire, teamName, teamLead, members }) => {
   if (!open) return null;
@@ -285,6 +266,11 @@ const TeamModal = ({ open, onClose, onHire, teamName, teamLead, members }) => {
       aria-modal="true"
       aria-label={teamName}
     >
+      <style>{`
+        @keyframes teamModalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes teamModalSlideUp { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes teamMemberFadeIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
+      `}</style>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/30 backdrop-blur-[6px]"
@@ -397,21 +383,140 @@ const TeamModal = ({ open, onClose, onHire, teamName, teamLead, members }) => {
   );
 };
 
+// ── Removal Overlay ──────────────────────────────────────────
+// 3-stage modal: confirm → removing (animated) → complete
+const REMOVAL_STAGES = { IDLE: 'idle', CONFIRM: 'confirm', REMOVING: 'removing', DONE: 'done' };
+
+const RemovalOverlay = ({ stage, itemName, itemType, onConfirm, onCancel, syncWarning }) => {
+  const isOpen = stage !== REMOVAL_STAGES.IDLE;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={() => { if (stage === REMOVAL_STAGES.CONFIRM) onCancel(); }}>
+      <DialogContent
+        className={`sm:max-w-[400px] p-0 overflow-hidden border-slate-200 gap-0 ${stage !== REMOVAL_STAGES.CONFIRM ? '[&>button]:hidden' : ''}`}
+        onInteractOutside={(e) => { if (stage !== REMOVAL_STAGES.CONFIRM) e.preventDefault(); }}
+        onEscapeKeyDown={(e) => { if (stage !== REMOVAL_STAGES.CONFIRM) e.preventDefault(); }}
+        onPointerDownOutside={(e) => { if (stage !== REMOVAL_STAGES.CONFIRM) e.preventDefault(); }}
+      >
+        {/* ── Confirm Stage ── */}
+        {stage === REMOVAL_STAGES.CONFIRM && (
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-5 h-5 text-red-500" strokeWidth={1.75} />
+              </div>
+              <div>
+                <h3 className="text-[15px] font-semibold text-slate-900">
+                  Remove {itemName}?
+                </h3>
+                <p className="text-[12px] text-slate-500 mt-0.5">
+                  {itemType === 'agent' ? 'This action cannot be undone' : 'This team will be deactivated'}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 mb-4">
+              <p className="text-[13px] text-slate-600 leading-relaxed">
+                {itemType === 'agent'
+                  ? `This will permanently delete "${itemName}" and all associated data including conversations, leads, and knowledge base documents.`
+                  : itemType === 'analytics'
+                    ? `This will remove the CRM Dashboard and delete all synced CRM data, dashboard configurations, and analytics history.`
+                    : `This will remove ${itemName} and their team from your workspace. You can re-hire them later.`
+                }
+              </p>
+            </div>
+
+            {syncWarning && (
+              <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200 mb-4">
+                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" strokeWidth={2} />
+                <p className="text-[12px] text-amber-800">
+                  CRM sync is currently active. Removing will immediately halt the sync.
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-2.5">
+              <Button
+                variant="outline"
+                className="flex-1 h-10 border-slate-200 text-[13px] font-medium"
+                onClick={onCancel}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 h-10 bg-red-600 hover:bg-red-700 text-white text-[13px] font-medium"
+                onClick={onConfirm}
+              >
+                Remove
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Removing Stage (animated) ── */}
+        {stage === REMOVAL_STAGES.REMOVING && (
+          <div className="py-12 px-6 flex flex-col items-center">
+            {/* Pulsing ring spinner */}
+            <div className="relative w-16 h-16 mb-5">
+              <div className="absolute inset-0 rounded-full border-2 border-slate-200" />
+              <div
+                className="absolute inset-0 rounded-full border-2 border-transparent border-t-red-500"
+                style={{ animation: 'spin 0.8s linear infinite' }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-slate-400" strokeWidth={1.75} />
+              </div>
+            </div>
+            <p className="text-[14px] font-medium text-slate-900 mb-1">
+              Removing {itemName}
+            </p>
+            <p className="text-[12px] text-slate-500">
+              Cleaning up data and connections...
+            </p>
+          </div>
+        )}
+
+        {/* ── Done Stage ── */}
+        {stage === REMOVAL_STAGES.DONE && (
+          <div className="py-12 px-6 flex flex-col items-center">
+            <div
+              className="w-16 h-16 rounded-full bg-emerald-700 flex items-center justify-center mb-5 shadow-lg shadow-emerald-900/20"
+              style={{ animation: 'scaleIn 0.3s ease-out' }}
+            >
+              <Check className="w-7 h-7 text-white" strokeWidth={2.5} />
+            </div>
+            <p className="text-[14px] font-medium text-slate-900 mb-1">
+              {itemName} removed
+            </p>
+            <p className="text-[12px] text-slate-500">
+              Your workspace has been updated
+            </p>
+          </div>
+        )}
+
+        <style>{`
+          @keyframes spin { to { transform: rotate(360deg); } }
+          @keyframes scaleIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        `}</style>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const AgentsPage = () => {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [agentToDelete, setAgentToDelete] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCards, setExpandedCards] = useState({});
   const [teamModalOpen, setTeamModalOpen] = useState(null); // null | 'sales' | 'analytics'
   const [hiredPrebuilt, setHiredPrebuilt] = useState([]);
   const [hireDialogOpen, setHireDialogOpen] = useState(false);
-  const [fireDialogOpen, setFireDialogOpen] = useState(false);
-  const [prebuiltToFire, setPrebuiltToFire] = useState(null);
-  const [syncActive, setSyncActive] = useState(false);
-  const [fireLoading, setFireLoading] = useState(false);
   const [prebuiltToHire, setPrebuiltToHire] = useState(null);
+
+  // Unified removal overlay state
+  const [removalStage, setRemovalStage] = useState(REMOVAL_STAGES.IDLE);
+  const [removalTarget, setRemovalTarget] = useState(null); // { name, type: 'agent'|'sales'|'analytics', data }
+  const [removalSyncWarning, setRemovalSyncWarning] = useState(false);
   const navigate = useNavigate();
   const { token, user, updateHiredPrebuilt } = useAuth();
 
@@ -507,23 +612,54 @@ const AgentsPage = () => {
   };
 
   const confirmDelete = (agent) => {
-    setAgentToDelete(agent);
-    setDeleteDialogOpen(true);
+    setRemovalTarget({ name: agent.name, type: 'agent', data: agent });
+    setRemovalSyncWarning(false);
+    setRemovalStage(REMOVAL_STAGES.CONFIRM);
   };
 
-  const deleteAgent = async () => {
-    if (!agentToDelete) return;
+  // Unified removal execution
+  const executeRemoval = useCallback(async () => {
+    if (!removalTarget) return;
+    setRemovalStage(REMOVAL_STAGES.REMOVING);
+
     try {
-      await axios.delete(`${API}/agents/${agentToDelete.id}`);
-      toast.success('AI Employee deleted');
-      fetchAgents();
+      if (removalTarget.type === 'agent') {
+        // Delete real agent
+        await axios.delete(`${API}/agents/${removalTarget.data.id}`);
+      } else {
+        // Fire prebuilt
+        const prebuilt = removalTarget.data;
+        const newHired = hiredPrebuilt.filter(id => id !== prebuilt.id);
+        persistHiredPrebuilt(newHired);
+
+        if (prebuilt.type === 'analytics') {
+          localStorage.removeItem(`analytics_chat_history_${user?.tenant_id || 'default'}`);
+          localStorage.removeItem(`analytics_pending_question_${user?.tenant_id || 'default'}`);
+          try { await axios.post(`${API}/crm/sync/stop`, {}, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+          try { await axios.post(`${API}/analytics/stop`, {}, { headers: { Authorization: `Bearer ${token}` } }); } catch {}
+        }
+      }
+
+      // Show done stage
+      setRemovalStage(REMOVAL_STAGES.DONE);
+
+      // Auto-close after 1.2s and refresh
+      setTimeout(() => {
+        setRemovalStage(REMOVAL_STAGES.IDLE);
+        setRemovalTarget(null);
+        setRemovalSyncWarning(false);
+        if (removalTarget.type === 'agent') {
+          fetchAgents();
+        }
+      }, 1200);
+
     } catch (error) {
-      toast.error('Failed to delete AI Employee');
-    } finally {
-      setDeleteDialogOpen(false);
-      setAgentToDelete(null);
+      console.error('Removal failed:', error);
+      toast.error(`Failed to remove ${removalTarget.name}`);
+      setRemovalStage(REMOVAL_STAGES.IDLE);
+      setRemovalTarget(null);
     }
-  };
+  }, [removalTarget, hiredPrebuilt, user, token]);
 
   const toggleExpand = (id) => {
     setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
@@ -567,52 +703,24 @@ const AgentsPage = () => {
   };
 
   const handleFirePrebuilt = async (prebuilt) => {
-    // For analytics prebuilt (Bobur), check if sync is active and show confirmation
+    const itemType = prebuilt.type === 'analytics' ? 'analytics' : 'sales';
+    setRemovalTarget({ name: prebuilt.name, type: itemType, data: prebuilt });
+
+    // For analytics, check sync status
     if (prebuilt.type === 'analytics') {
-      setPrebuiltToFire(prebuilt);
       try {
         const res = await axios.get(`${API}/crm/sync/active`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setSyncActive(res.data?.active || false);
+        setRemovalSyncWarning(res.data?.active || false);
       } catch {
-        setSyncActive(false);
+        setRemovalSyncWarning(false);
       }
-      setFireDialogOpen(true);
-      return;
+    } else {
+      setRemovalSyncWarning(false);
     }
 
-    // Non-analytics prebuilts fire immediately
-    await executeFirePrebuilt(prebuilt);
-  };
-
-  const executeFirePrebuilt = async (prebuilt) => {
-    const newHired = hiredPrebuilt.filter(id => id !== prebuilt.id);
-    persistHiredPrebuilt(newHired);
-
-    // Clear analytics chat history and stop background refresh when Analytics agent is removed
-    if (prebuilt.type === 'analytics') {
-      localStorage.removeItem(`analytics_chat_history_${user?.tenant_id || 'default'}`);
-      localStorage.removeItem(`analytics_pending_question_${user?.tenant_id || 'default'}`);
-
-      // Stop all syncs and analytics context
-      try {
-        await axios.post(`${API}/crm/sync/stop`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } catch (e) {
-        console.warn('Sync stop failed:', e);
-      }
-      try {
-        await axios.post(`${API}/analytics/stop`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      } catch (e) {
-        // Silently fail
-      }
-    }
-
-    toast.success(`${prebuilt.name} has been removed from your team`);
+    setRemovalStage(REMOVAL_STAGES.CONFIRM);
   };
 
   // Confirmation flow for hiring Bobur (analytics) — opens dialog
@@ -1237,27 +1345,6 @@ const AgentsPage = () => {
         }
       />
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="sm:max-w-[400px]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-slate-900">Delete this AI employee?</AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-500 text-[13px]">
-              This will permanently delete "{agentToDelete?.name}" and all associated data including conversations and leads.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="border-slate-200 text-[13px]">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white text-[13px]"
-              onClick={deleteAgent}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       {/* Hire Bobur Confirmation Dialog */}
       <AlertDialog open={hireDialogOpen} onOpenChange={setHireDialogOpen}>
         <AlertDialogContent className="sm:max-w-[420px]">
@@ -1285,50 +1372,19 @@ const AgentsPage = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Fire Bobur confirmation dialog */}
-      <AlertDialog open={fireDialogOpen} onOpenChange={(open) => { if (!fireLoading) setFireDialogOpen(open); }}>
-        <AlertDialogContent className="sm:max-w-[440px]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-slate-900">
-              <Trash2 className="w-5 h-5 text-red-500" strokeWidth={1.75} />
-              Remove {prebuiltToFire?.name}?
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="text-slate-500 text-[13px] leading-relaxed">
-                {syncActive && (
-                  <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200 mb-3">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" strokeWidth={2} />
-                    <p className="text-amber-800 text-[13px]">
-                      CRM data is currently syncing. Removing Bobur will immediately halt the sync and delete all synced CRM data.
-                    </p>
-                  </div>
-                )}
-                <p>This will remove the CRM Dashboard and delete all synced CRM data, dashboard configurations, and analytics history.</p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="border-slate-200 text-[13px]" disabled={fireLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white text-[13px]"
-              disabled={fireLoading}
-              onClick={async (e) => {
-                e.preventDefault();
-                setFireLoading(true);
-                await executeFirePrebuilt(prebuiltToFire);
-                setFireLoading(false);
-                setFireDialogOpen(false);
-                setPrebuiltToFire(null);
-              }}
-            >
-              {fireLoading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : null}
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Unified Removal Overlay (replaces delete + fire dialogs) */}
+      <RemovalOverlay
+        stage={removalStage}
+        itemName={removalTarget?.name || ''}
+        itemType={removalTarget?.type || 'agent'}
+        syncWarning={removalSyncWarning}
+        onConfirm={executeRemoval}
+        onCancel={() => {
+          setRemovalStage(REMOVAL_STAGES.IDLE);
+          setRemovalTarget(null);
+          setRemovalSyncWarning(false);
+        }}
+      />
     </div>
   );
 };

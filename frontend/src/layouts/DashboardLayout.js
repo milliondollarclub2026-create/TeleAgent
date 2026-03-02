@@ -1,9 +1,6 @@
 import React from 'react';
-import { Outlet, Navigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { Outlet } from 'react-router-dom';
 import Sidebar, { SidebarProvider, useSidebar } from '../components/Sidebar';
-import { Toaster } from '../components/ui/sonner';
-import { Loader2 } from 'lucide-react';
 
 const DashboardContent = () => {
   const { collapsed } = useSidebar();
@@ -21,29 +18,11 @@ const DashboardContent = () => {
       >
         <Outlet />
       </main>
-      <Toaster position="bottom-right" richColors />
     </div>
   );
 };
 
 const DashboardLayout = () => {
-  const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5F7F6]">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-6 h-6 animate-spin text-slate-400" strokeWidth={2} />
-          <p className="text-sm text-slate-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
   return (
     <SidebarProvider>
       <DashboardContent />

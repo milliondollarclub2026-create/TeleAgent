@@ -496,9 +496,7 @@ DEFAULT_REQUIRED_FIELDS = {
 
 # ============ Hard Constraints Defaults (Anti-Hallucination) ============
 DEFAULT_HARD_CONSTRAINTS = {
-    "promo_codes": [],  # [{"code": "SUMMER20", "discount_percent": 20, "valid_until": "2026-03-01"}]
     "payment_plans_enabled": False,
-    "discount_authority": "none",  # "none" | "manager_only" | "agent_can_offer"
 }
 
 # Multilingual objection keywords for detection
@@ -864,9 +862,7 @@ class TenantConfigUpdate(BaseModel):
     collect_reference: Optional[bool] = None
     collect_notes: Optional[bool] = None
     # Hard constraints for AI anti-hallucination
-    promo_codes: Optional[List[Dict]] = None  # [{"code": "SUMMER20", "discount_percent": 20, "valid_until": "2026-03-01"}]
     payment_plans_enabled: Optional[bool] = None
-    discount_authority: Optional[str] = Field(None, max_length=50)  # "none" | "manager_only" | "agent_can_offer"
     # Prebuilt agent type (e.g., 'sales' for Jasur)
     prebuilt_type: Optional[str] = Field(None, max_length=50)
     # Hired prebuilt employees (list of prebuilt IDs, e.g., ['prebuilt-sales', 'prebuilt-analytics'])
@@ -1908,6 +1904,10 @@ GOOGLE_SHEETS_FETCH_TIMEOUT = 10.0  # 10 second timeout
 # Instagram webhook message dedup cache {message_id: timestamp}
 _instagram_dedup_cache = {}
 INSTAGRAM_DEDUP_TTL = 300  # 5 minutes
+
+# Telegram webhook dedup cache {update_id: timestamp}
+_telegram_dedup_cache = {}
+TELEGRAM_DEDUP_TTL = 300  # 5 minutes
 
 
 async def fetch_google_sheet_csv(sheet_id: str) -> Optional[Dict]:
@@ -5986,6 +5986,9 @@ NEVER invent or assume products exist - only discuss what the customer mentions.
     }
     length_instruction = length_map.get(response_length, length_map['balanced'])
 
+    # Get user-provided FAQ & objection responses
+    faq_objections = config.get('faq_objections', '')
+
     # Get objection playbook (use 'or' to handle explicit None values from DB)
     objection_playbook = config.get('objection_playbook') or DEFAULT_OBJECTION_PLAYBOOK
     objection_text = "\n".join([f"- If customer says '{obj['objection']}': {obj['response_strategy']}" for obj in objection_playbook])
@@ -6000,7 +6003,16 @@ NEVER invent or assume products exist - only discuss what the customer mentions.
 
     # Current lead context
     current_stage = lead_context.get('sales_stage', 'awareness') if lead_context else 'awareness'
-    fields_collected = lead_context.get('fields_collected', {}) if lead_context else {}
+    raw_fields = lead_context.get('fields_collected', {}) if lead_context else {}
+    # Sanitize fields_collected before prompt injection: truncate values and strip control chars
+    fields_collected = {}
+    for k, v in (raw_fields if isinstance(raw_fields, dict) else {}).items():
+        key = str(k)[:50]
+        if v is None:
+            fields_collected[key] = None
+        else:
+            sanitized = str(v)[:200].replace('\n', ' ').replace('\r', ' ')
+            fields_collected[key] = sanitized
 
     missing_required = [k for k, v in required_fields.items() if v['required'] and not fields_collected.get(k)]
 
@@ -6022,6 +6034,7 @@ You are an expert AI sales agent for {business_name}. Your mission is to convert
 ## PRODUCTS/SERVICES
 {products_services}
 
+{f"## FAQ & COMMON OBJECTION RESPONSES{chr(10)}Use the following FAQ and objection-handling guidance provided by the business:{chr(10)}{faq_objections}" if faq_objections and faq_objections.strip() else ""}
 ## COMMUNICATION STYLE
 - Tone: {tone_description}
 - Languages: {'/'.join(all_languages)} - respond in the customer's language (default: {primary_lang_name})
@@ -6511,13 +6524,12 @@ async def log_handoff_request(
 
 def get_handoff_instructions(config: Dict) -> str:
     """Generate human handoff protocol instructions for system prompt."""
-    discount_authority = config.get('discount_authority', 'none')
 
-    return f"""## HUMAN HANDOFF PROTOCOL
+    return """## HUMAN HANDOFF PROTOCOL
 
 Set needs_human_handoff: true and provide handoff_reason when:
 1. Customer explicitly asks for human/manager ("I want to talk to a real person")
-2. Customer requests discount you cannot authorize (discount_authority: {discount_authority})
+2. Customer insists on discounts or special pricing after being politely declined
 3. Customer has complaint about past service or product quality
 4. Technical questions not covered in your knowledge base
 5. Legal questions, contract concerns, or warranty disputes
@@ -6546,18 +6558,12 @@ def validate_response_promises(
     violations = []
     response_lower = response.lower()
 
-    # Check 1: Discount promises when not authorized
-    discount_authority = config.get('discount_authority', 'none')
-    promo_codes = config.get('promo_codes', [])
-
+    # Check 1: Discount promises - always blocked (no discount functionality)
     discount_keywords = ['discount', 'скидка', 'chegirma', '% off', 'reduced price', 'special price']
     has_discount_mention = any(kw in response_lower for kw in discount_keywords)
 
     if has_discount_mention:
-        # Check if it's an authorized promo code
-        promo_mentioned = any(promo.get('code', '').lower() in response_lower for promo in promo_codes)
-        if not promo_mentioned and discount_authority == 'none':
-            violations.append('unauthorized_discount')
+        violations.append('unauthorized_discount')
 
     # Check 2: Payment plan promises when not enabled
     payment_plans_enabled = config.get('payment_plans_enabled', False)
@@ -6567,19 +6573,14 @@ def validate_response_promises(
         violations.append('unauthorized_payment_plan')
 
     # Check 3: Product hallucinations (if we have product lists)
+    # Only flag if we have known products and the AI mentions something not in them
     all_known_products = set()
     if crm_products:
         all_known_products.update(p.lower() for p in crm_products if p)
     if kb_products:
         all_known_products.update(p.lower() for p in kb_products if p)
-
-    # Common hallucination patterns to check
-    hallucination_patterns = ['iphone', 'samsung', 'apple watch', 'airpods', 'macbook']
-    for pattern in hallucination_patterns:
-        if pattern in response_lower and pattern not in ' '.join(all_known_products).lower():
-            # Only flag if we have a product list and this isn't in it
-            if all_known_products:
-                violations.append(f'possible_hallucination:{pattern}')
+    # Note: hallucination detection relies on system prompt constraints (get_enhanced_system_prompt)
+    # and the known_products set. No hardcoded brand list - that approach is incomplete by design.
 
     return (len(violations) == 0, violations)
 
@@ -6745,20 +6746,8 @@ def build_product_context(crm_products: List[Dict], kb_products: List[str], conf
     context_parts.append("- NEVER apologize for prices - they are fair and justified")
     context_parts.append("- If asked about a product not listed above, say 'I don't have information about that specific product, but I'd be happy to check with our team.'")
 
-    # Discount rules
-    discount_authority = config.get('discount_authority', 'none')
-    promo_codes = config.get('promo_codes', [])
-
-    if discount_authority == 'none':
-        context_parts.append("- You CANNOT offer discounts. If asked, refer to manager.")
-    elif discount_authority == 'manager_only':
-        context_parts.append("- Only managers can authorize discounts. You may say 'Let me connect you with our manager for special pricing.'")
-
-    if promo_codes:
-        context_parts.append("\n### ACTIVE PROMO CODES (You CAN mention these):")
-        for promo in promo_codes:
-            valid_until = promo.get('valid_until', 'Limited time')
-            context_parts.append(f"- Code: {promo.get('code')} - {promo.get('discount_percent')}% off (valid until {valid_until})")
+    # Discount rules - always deny discounts politely
+    context_parts.append("- You CANNOT offer discounts or special pricing. If asked, politely decline: 'Our prices reflect the quality of our products/services. I'd be happy to help you find the best option within your budget.'")
 
     payment_plans = config.get('payment_plans_enabled', False)
     if payment_plans:
@@ -6771,9 +6760,7 @@ def build_product_context(crm_products: List[Dict], kb_products: List[str], conf
 
 def get_hard_constraints_section(config: Dict) -> str:
     """Generate the hard constraints section for system prompt."""
-    discount_authority = config.get('discount_authority', 'none')
     payment_plans = config.get('payment_plans_enabled', False)
-    promo_codes = config.get('promo_codes', [])
 
     constraints = []
     constraints.append("## HARD CONSTRAINTS - NEVER VIOLATE\n")
@@ -6782,19 +6769,12 @@ def get_hard_constraints_section(config: Dict) -> str:
     constraints.append("2. Make up business services not in your context")
     constraints.append("3. Apologize for correct prices - CRM prices are FINAL and justified")
     constraints.append("4. Give wrong business identity - You represent ONLY this specific business")
-
-    if discount_authority == 'none':
-        constraints.append("5. Promise ANY discounts - You have NO discount authority")
-        constraints.append("   → If customer asks for discount: 'I understand budget is important. Let me connect you with our manager who may be able to help.'")
-    elif discount_authority == 'manager_only':
-        constraints.append("5. Promise discounts without manager - Only mention promo codes if configured")
+    constraints.append("5. Promise ANY discounts or special pricing - You have NO discount authority")
+    constraints.append("   → If customer asks for discount: 'I understand budget is important. Our prices reflect the quality we provide. I'd be happy to help find the best option for your needs.'")
 
     if not payment_plans:
         constraints.append("6. Offer payment plans or installments - This is NOT configured")
         constraints.append("   → If asked: 'Currently we accept full payment. I can check with management for options.'")
-
-    if promo_codes:
-        constraints.append(f"\nACTIVE PROMO CODES you CAN mention: {', '.join(p['code'] for p in promo_codes)}")
 
     constraints.append("\nWhen you cannot fulfill a request, set needs_human_handoff: true")
 
@@ -7181,6 +7161,27 @@ async def telegram_webhook_with_bot_id(bot_id: str, request: Request, background
             logger.debug("No valid message in update, ignoring")
             return {"ok": True}
 
+        # Only respond to private DMs - ignore group/supergroup/channel messages
+        chat_type = message.get("chat", {}).get("type", "")
+        if chat_type != "private":
+            logger.debug(f"Ignoring non-private message (chat.type={chat_type})")
+            return {"ok": True}
+
+        # Dedup: skip already-processed updates (Telegram may re-deliver on timeout)
+        update_id = update.get("update_id")
+        if update_id is not None:
+            now_ts = time.time()
+            if update_id in _telegram_dedup_cache:
+                if now_ts - _telegram_dedup_cache[update_id] < TELEGRAM_DEDUP_TTL:
+                    logger.debug(f"Skipping duplicate Telegram update {update_id}")
+                    return {"ok": True}
+            _telegram_dedup_cache[update_id] = now_ts
+            # Prune expired entries when cache gets large
+            if len(_telegram_dedup_cache) > 1000:
+                expired = [k for k, v in _telegram_dedup_cache.items() if now_ts - v >= TELEGRAM_DEDUP_TTL]
+                for k in expired:
+                    del _telegram_dedup_cache[k]
+
         text = message.get("text")
         if not text:
             logger.debug("No text in message, ignoring")
@@ -7216,6 +7217,8 @@ async def telegram_webhook_with_bot_id(bot_id: str, request: Request, background
             if not hmac.compare_digest(expected_secret, received_secret):
                 logger.warning(f"Telegram webhook secret mismatch for bot {redact_id(bot_id)}")
                 return {"ok": True}
+        else:
+            logger.warning(f"SECURITY: Bot {redact_id(bot_id)} has no webhook_secret configured - webhook verification skipped")
 
         logger.info(f"Processing message for tenant {redact_id(bot['tenant_id'])}")
 
@@ -7276,6 +7279,17 @@ async def process_channel_message(
     """
     try:
         logger.info(f"[{channel}] Processing message from user_{redact_id(sender_id)} [len={len(text)}] for tenant {redact_id(tenant_id)}")
+
+        # LLM rate limit / monthly cost cap check (non-raising version for background tasks)
+        if not llm_rate_limiter.is_allowed(tenant_id):
+            logger.warning(f"[{channel}] LLM rate limit exceeded for tenant {redact_id(tenant_id)}, dropping message")
+            await send_fn("Sorry, our system is temporarily unavailable. Please try again later.")
+            return
+        monthly_cost = _get_monthly_cost(tenant_id)
+        if monthly_cost >= LLM_MONTHLY_COST_CAP:
+            logger.warning(f"[{channel}] Monthly LLM cost cap reached for tenant {redact_id(tenant_id)} (${monthly_cost:.2f})")
+            await send_fn("Sorry, our system is temporarily unavailable. Please try again later.")
+            return
 
         # Send typing indicator if available
         if typing_fn:
@@ -7392,8 +7406,15 @@ async def process_channel_message(
         crm_product_names = []
         if crm_query_context:
             raw_products = (crm_context or {}).get('recent_products', [])
-            crm_product_dicts = [p for p in raw_products if p and isinstance(p, dict)]
-            crm_product_names = [p.get('name', p.get('NAME', '')) for p in crm_product_dicts]
+            for p in raw_products:
+                if not p:
+                    continue
+                if isinstance(p, dict):
+                    crm_product_dicts.append(p)
+                    crm_product_names.append(p.get('name', p.get('NAME', '')))
+                elif isinstance(p, str):
+                    crm_product_dicts.append({"name": p})
+                    crm_product_names.append(p)
 
         kb_products = []
         for ctx in business_context:
@@ -7411,7 +7432,7 @@ async def process_channel_message(
 
         # Enrich lead_context with score/hotness for FAQ responder freeze
         lead_context['score'] = current_score
-        lead_context['hotness'] = existing_lead.get('hotness', 'warm') if existing_lead else 'warm'
+        lead_context['hotness'] = existing_lead.get('final_hotness', 'warm') if existing_lead else 'warm'
 
         # Step 1: Check Python-side rules for forced full model
         force_full = should_force_full_model(
@@ -7565,6 +7586,8 @@ async def process_channel_message(
 
         # Finalize background CRM extraction for FAQ-routed messages
         # This runs AFTER the response is sent, so users don't wait for extraction
+        # NOTE: Extractor only updates fields_collected - never overwrites sales_stage/score/hotness
+        # set by the main pipeline to avoid race conditions
         if crm_extraction_task:
             try:
                 extraction_result = await asyncio.wait_for(crm_extraction_task, timeout=10.0)
@@ -7574,14 +7597,7 @@ async def process_channel_message(
                         if v is not None and v != "":
                             merged_fields[k] = v
                     lead_update_data = {"fields_collected": merged_fields}
-                    if extraction_result.get("sales_stage_suggestion"):
-                        lead_update_data["sales_stage"] = extraction_result["sales_stage_suggestion"]
-                    if extraction_result.get("score_adjustment", 0) != 0:
-                        base_score = existing_lead.get("score", 50) if existing_lead else 50
-                        lead_update_data["score"] = min(100, max(0, base_score + extraction_result["score_adjustment"]))
-                    if extraction_result.get("hotness_suggestion"):
-                        lead_update_data["hotness"] = extraction_result["hotness_suggestion"]
-                    # Update lead with extracted CRM fields
+                    # Update lead with extracted CRM fields only
                     if existing_lead:
                         supabase.table('leads').update(lead_update_data).eq('id', existing_lead['id']).execute()
                     logger.info(f"CRM extractor updated lead with {len(extraction_result['fields_collected'])} fields")
@@ -8375,11 +8391,17 @@ async def get_agent_analytics(days: int = 7, current_user: Dict = Depends(get_cu
 
 # ============ Token Usage Logs Endpoints ============
 
+# Map agent_type to the request_types that belong to that agent
+AGENT_TYPE_REQUEST_TYPES = {
+    'sales': ['sales_agent', 'sales_agent_faq', 'sales_agent_escalated', 'intent_classifier', 'embedding', 'summarization'],
+}
+
 @api_router.get("/usage/logs")
 async def get_usage_logs(
     days: int = 7,
     model: Optional[str] = None,
     request_type: Optional[str] = None,
+    agent_type: Optional[str] = None,
     page: int = 1,
     limit: int = 50,
     current_user: Dict = Depends(get_current_user)
@@ -8403,6 +8425,8 @@ async def get_usage_logs(
             query = query.eq('model', model)
         if request_type:
             query = query.eq('request_type', request_type)
+        if agent_type and agent_type in AGENT_TYPE_REQUEST_TYPES:
+            query = query.in_('request_type', AGENT_TYPE_REQUEST_TYPES[agent_type])
 
         result = query.order('created_at', desc=True).range(offset, offset + limit - 1).execute()
         total_count = result.count if result.count is not None else len(result.data or [])
@@ -8438,6 +8462,7 @@ async def get_usage_logs(
 @api_router.get("/usage/summary")
 async def get_usage_summary(
     days: int = 7,
+    agent_type: Optional[str] = None,
     current_user: Dict = Depends(get_current_user)
 ):
     """Get usage summary stats for dashboard cards"""
@@ -8449,7 +8474,10 @@ async def get_usage_summary(
         prev_start = start_date - timedelta(days=days)
 
         # Current period stats
-        result = supabase.table('token_usage_logs').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat()).execute()
+        query = supabase.table('token_usage_logs').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat())
+        if agent_type and agent_type in AGENT_TYPE_REQUEST_TYPES:
+            query = query.in_('request_type', AGENT_TYPE_REQUEST_TYPES[agent_type])
+        result = query.execute()
 
         current_logs = result.data or []
 
@@ -8467,7 +8495,10 @@ async def get_usage_summary(
         most_used_pct = round(model_counts.get(most_used_model, 0) / total_requests * 100) if total_requests > 0 else 0
 
         # Previous period for comparison
-        prev_result = supabase.table('token_usage_logs').select('*').eq('tenant_id', tenant_id).gte('created_at', prev_start.isoformat()).lt('created_at', start_date.isoformat()).execute()
+        prev_query = supabase.table('token_usage_logs').select('*').eq('tenant_id', tenant_id).gte('created_at', prev_start.isoformat()).lt('created_at', start_date.isoformat())
+        if agent_type and agent_type in AGENT_TYPE_REQUEST_TYPES:
+            prev_query = prev_query.in_('request_type', AGENT_TYPE_REQUEST_TYPES[agent_type])
+        prev_result = prev_query.execute()
 
         prev_logs = prev_result.data or []
         prev_tokens = sum(log.get("total_tokens", log["input_tokens"] + log["output_tokens"]) for log in prev_logs)
@@ -8515,6 +8546,7 @@ async def get_usage_summary(
 @api_router.get("/usage/chart")
 async def get_usage_chart(
     days: int = 7,
+    agent_type: Optional[str] = None,
     current_user: Dict = Depends(get_current_user)
 ):
     """Get daily token usage for chart visualization"""
@@ -8524,7 +8556,10 @@ async def get_usage_chart(
     try:
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
-        result = supabase.table('token_usage_logs').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat()).execute()
+        query = supabase.table('token_usage_logs').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat())
+        if agent_type and agent_type in AGENT_TYPE_REQUEST_TYPES:
+            query = query.in_('request_type', AGENT_TYPE_REQUEST_TYPES[agent_type])
+        result = query.execute()
 
         logs = result.data or []
 
@@ -8638,12 +8673,14 @@ async def get_conversation_stats(
 @api_router.get("/usage/model-distribution")
 async def get_model_distribution(
     days: int = 7,
+    agent_type: Optional[str] = None,
     current_user: Dict = Depends(get_current_user)
 ):
     """Model usage breakdown with costs."""
     tenant_id = current_user["tenant_id"]
     days = max(1, min(days, 365))  # Bound days to 1-365
     start_date = datetime.now(timezone.utc) - timedelta(days=days)
+    allowed_types = AGENT_TYPE_REQUEST_TYPES.get(agent_type) if agent_type else None
 
     try:
         # Use server-side aggregation via Supabase RPC to avoid PostgREST row limits
@@ -8662,6 +8699,10 @@ async def get_model_distribution(
             count = int(row.get('cnt', 0))
             tokens = int(row.get('total_tokens', 0))
             cost = float(row.get('total_cost', 0))
+
+            # Filter by agent_type if specified
+            if allowed_types and rt not in allowed_types:
+                continue
 
             # Skip escalation markers from model counts (they have 0 tokens
             # and would inflate request counts; actual tokens are in the
@@ -9134,9 +9175,7 @@ async def get_tenant_config(current_user: Dict = Depends(get_current_user)):
             "objection_playbook": DEFAULT_OBJECTION_PLAYBOOK,
             "closing_scripts": DEFAULT_CLOSING_SCRIPTS,
             "required_fields": DEFAULT_REQUIRED_FIELDS,
-            "promo_codes": [],
             "payment_plans_enabled": False,
-            "discount_authority": "none"
         }
     
     config = result.data[0]
@@ -9180,9 +9219,7 @@ async def get_tenant_config(current_user: Dict = Depends(get_current_user)):
         "required_fields": config.get("required_fields") or DEFAULT_REQUIRED_FIELDS,
         "active_promotions": config.get("active_promotions") or [],
         # Hard constraints (anti-hallucination)
-        "promo_codes": config.get("promo_codes") or [],
         "payment_plans_enabled": config.get("payment_plans_enabled", False),
-        "discount_authority": config.get("discount_authority", "none"),
         # AI Capabilities
         "image_responses_enabled": config.get("image_responses_enabled", False),
         # Hired prebuilt employees
@@ -9207,7 +9244,7 @@ async def update_tenant_config(request: TenantConfigUpdate, current_user: Dict =
         'collect_location', 'collect_preferred_time', 'collect_urgency',
         'collect_reference', 'collect_notes',
         # Hard constraints (anti-hallucination)
-        'promo_codes', 'payment_plans_enabled', 'discount_authority',
+        'payment_plans_enabled',
         # Prebuilt agent type (e.g., 'sales' for Jasur)
         'prebuilt_type',
         # Hired prebuilt employees
@@ -9229,7 +9266,7 @@ async def update_tenant_config(request: TenantConfigUpdate, current_user: Dict =
         update_data["tenant_id"] = current_user["tenant_id"]
         supabase.table('tenant_configs').insert(update_data).execute()
     
-    return {"success": True}
+    return {"success": True, "tenant_id": current_user["tenant_id"]}
 
 
 @api_router.get("/config/defaults")
@@ -10772,6 +10809,12 @@ async def periodic_cleanup():
                             if now - ts > INSTAGRAM_DEDUP_TTL]
             for mid in expired_dedup:
                 del _instagram_dedup_cache[mid]
+
+            # Clean Telegram dedup cache
+            expired_tg_dedup = [uid for uid, ts in _telegram_dedup_cache.items()
+                               if now - ts > TELEGRAM_DEDUP_TTL]
+            for uid in expired_tg_dedup:
+                del _telegram_dedup_cache[uid]
 
             # Clean auth rate limiter (includes lockout entries)
             expired_auth = [ip for ip, entry in auth_rate_limiter.items()

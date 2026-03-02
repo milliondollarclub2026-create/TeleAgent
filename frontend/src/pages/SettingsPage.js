@@ -9,14 +9,11 @@ import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import {
   Settings,
-  Bell,
-  Globe,
   Database,
   Trash2,
   AlertTriangle,
   Loader2,
   User,
-  Download,
   ChevronRight,
   Shield,
   Sparkles,
@@ -44,11 +41,7 @@ export default function SettingsPage() {
   const [confirmText, setConfirmText] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [exporting, setExporting] = useState(false);
 
-  // Preferences state (stored locally for now)
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [leadAlerts, setLeadAlerts] = useState(true);
 
   // AI Capabilities state
   const [imageResponsesEnabled, setImageResponsesEnabled] = useState(false);
@@ -137,18 +130,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleExportData = async () => {
-    setExporting(true);
-    try {
-      // Simulate export - in production this would call an API endpoint
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      toast.success('Export started. You will receive an email with your data.');
-    } catch (error) {
-      toast.error('Failed to start export');
-    } finally {
-      setExporting(false);
-    }
-  };
+
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-500" data-testid="settings-page">
@@ -157,43 +139,6 @@ export default function SettingsPage() {
         <h1 className="text-xl font-bold text-slate-900 tracking-tight">Settings</h1>
         <p className="text-[13px] text-slate-500 mt-0.5">Manage your preferences and data</p>
       </div>
-
-      {/* Notifications Section */}
-      <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center">
-              <Bell className="w-4 h-4 text-white" strokeWidth={2} />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">Notifications</h2>
-              <p className="text-xs text-slate-500">Control how you receive updates</p>
-            </div>
-          </div>
-        </div>
-        <CardContent className="p-6 space-y-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-900">Email Notifications</p>
-              <p className="text-xs text-slate-500 mt-0.5">Receive updates about your account</p>
-            </div>
-            <Switch
-              checked={emailNotifications}
-              onCheckedChange={setEmailNotifications}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-900">Lead Alerts</p>
-              <p className="text-xs text-slate-500 mt-0.5">Get notified when new hot leads arrive</p>
-            </div>
-            <Switch
-              checked={leadAlerts}
-              onCheckedChange={setLeadAlerts}
-            />
-          </div>
-        </CardContent>
-      </Card>
 
       {/* AI Capabilities Section */}
       <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
@@ -238,54 +183,6 @@ export default function SettingsPage() {
                 className="data-[state=checked]:bg-emerald-600"
               />
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Data Management Section */}
-      <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center">
-              <Database className="w-4 h-4 text-white" strokeWidth={2} />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">Data Management</h2>
-              <p className="text-xs text-slate-500">Export or manage your data</p>
-            </div>
-          </div>
-        </div>
-        <CardContent className="p-6 space-y-5">
-          {/* Export Data */}
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <Download className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
-                <p className="text-sm font-medium text-slate-900">Export Data</p>
-              </div>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                Download all your leads, conversations, and settings as a CSV file.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportData}
-              disabled={exporting}
-              className="h-9 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 flex-shrink-0"
-            >
-              {exporting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Exporting...
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4 mr-2" strokeWidth={1.75} />
-                  Export
-                </>
-              )}
-            </Button>
           </div>
         </CardContent>
       </Card>

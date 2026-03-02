@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent } from '../components/ui/card';
@@ -12,7 +12,6 @@ import {
   LogOut,
   Shield,
   ChevronRight,
-  Loader2,
   Check,
   Building2
 } from 'lucide-react';
@@ -21,8 +20,6 @@ import { toast } from 'sonner';
 export default function AccountPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [saving, setSaving] = useState(false);
-
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -193,7 +190,7 @@ export default function AccountPage() {
 
       {/* Footer note */}
       <p className="text-center text-[11px] text-slate-400">
-        Need help? Contact us at support@leadrelay.io
+        Need help? Contact us at support@leadrelay.net
       </p>
     </div>
   );
