@@ -1560,9 +1560,14 @@ async def delete_account(request: AccountDeleteRequest, current_user: Dict = Dep
         except Exception as e:
             logger.warning(f"Could not delete agent_document_overrides: {e}")
 
-        # 6. Delete documents (safe now that overrides are gone)
+        # 6. Delete documents and clear embeddings cache
         try:
             supabase.table('documents').delete().eq('tenant_id', tenant_id).execute()
+            global document_embeddings_cache, _cache_loaded_tenants
+            keys_to_delete = [k for k in document_embeddings_cache if k.startswith(tenant_id)]
+            for k in keys_to_delete:
+                del document_embeddings_cache[k]
+            _cache_loaded_tenants.discard(tenant_id)
             logger.info(f"Deleted documents for tenant {tenant_id}")
         except Exception as e:
             logger.warning(f"Could not delete documents: {e}")
@@ -1584,15 +1589,18 @@ async def delete_account(request: AccountDeleteRequest, current_user: Dict = Dep
         except Exception as e:
             logger.warning(f"Could not delete crm_connections: {e}")
 
-        # 10. Delete additional tenant-owned tables
-        for extra_table in ['media_library', 'instagram_accounts', 'token_usage_logs']:
+        # 10. Delete media files from Supabase Storage + media_library table
+        await _cleanup_media_storage(tenant_id)
+
+        # 11. Delete additional tenant-owned tables
+        for extra_table in ['instagram_accounts', 'token_usage_logs']:
             try:
                 supabase.table(extra_table).delete().eq('tenant_id', tenant_id).execute()
                 logger.info(f"Deleted {extra_table} for tenant {tenant_id}")
             except Exception as e:
                 logger.warning(f"Could not delete {extra_table}: {e}")
 
-        # 11. Disconnect and delete telegram bot
+        # 12. Disconnect and delete telegram bot
         try:
             tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
             if tg_result.data:
@@ -1602,7 +1610,7 @@ async def delete_account(request: AccountDeleteRequest, current_user: Dict = Dep
         except Exception as e:
             logger.warning(f"Could not delete telegram bot: {e}")
 
-        # 10. Delete tenant config
+        # 13. Delete tenant config
         try:
             supabase.table('tenant_configs').delete().eq('tenant_id', tenant_id).execute()
             logger.info(f"Deleted tenant config for tenant {tenant_id}")
@@ -1678,9 +1686,14 @@ async def delete_account_data(current_user: Dict = Depends(get_current_user)):
         except Exception as e:
             logger.warning(f"Could not delete agent_document_overrides: {e}")
 
-        # 6. Delete documents
+        # 6. Delete documents and clear embeddings cache
         try:
             supabase.table('documents').delete().eq('tenant_id', tenant_id).execute()
+            global document_embeddings_cache, _cache_loaded_tenants
+            keys_to_delete = [k for k in document_embeddings_cache if k.startswith(tenant_id)]
+            for k in keys_to_delete:
+                del document_embeddings_cache[k]
+            _cache_loaded_tenants.discard(tenant_id)
         except Exception as e:
             logger.warning(f"Could not delete documents: {e}")
 
@@ -1699,21 +1712,54 @@ async def delete_account_data(current_user: Dict = Depends(get_current_user)):
         except Exception as e:
             logger.warning(f"Could not delete crm_connections: {e}")
 
-        # 10. Delete additional tenant-owned data tables
-        for extra_table in ['media_library', 'instagram_accounts', 'token_usage_logs']:
+        # 10. Delete media files from Supabase Storage + media_library table
+        await _cleanup_media_storage(tenant_id)
+
+        # 11. Delete additional tenant-owned data tables
+        for extra_table in ['instagram_accounts', 'token_usage_logs']:
             try:
                 supabase.table(extra_table).delete().eq('tenant_id', tenant_id).execute()
             except Exception as e:
                 logger.warning(f"Could not delete {extra_table}: {e}")
 
-        # 9. Reset tenant config (but don't delete)
+        # 12. Reset tenant config (but don't delete)
         try:
             supabase.table('tenant_configs').update({
                 "business_name": None,
                 "business_description": None,
                 "products_services": None,
+                "faq_objections": None,
+                "greeting_message": None,
+                "closing_message": None,
                 "bitrix_webhook_url": None,
                 "bitrix_connected_at": None,
+                "agent_tone": None,
+                "response_length": None,
+                "emoji_usage": None,
+                "primary_language": None,
+                "secondary_languages": None,
+                "min_response_delay": None,
+                "max_messages_per_minute": None,
+                "vertical": None,
+                "prebuilt_type": None,
+                "google_sheet_id": None,
+                "collect_name": True,
+                "collect_phone": True,
+                "collect_email": False,
+                "collect_product": True,
+                "collect_budget": False,
+                "collect_timeline": False,
+                "collect_quantity": False,
+                "collect_company": False,
+                "collect_job_title": False,
+                "collect_team_size": False,
+                "collect_location": False,
+                "collect_preferred_time": False,
+                "collect_urgency": False,
+                "collect_reference": False,
+                "collect_notes": False,
+                "payment_plans_enabled": False,
+                "image_responses_enabled": False,
                 "hired_prebuilt": "[]",
             }).eq('tenant_id', tenant_id).execute()
         except Exception as e:
@@ -2468,6 +2514,30 @@ async def _cleanup_crm_data(tenant_id: str, crm_source: str = None):
                 logger.warning(f"Could not clean {table} for tenant {tenant_id}: {e}")
 
     logger.info(f"CRM data cleanup complete for tenant {tenant_id} (crm_source={crm_source})")
+
+
+async def _cleanup_media_storage(tenant_id: str):
+    """Delete all media files from Supabase Storage and the media_library table for a tenant."""
+    try:
+        # Fetch all media records to get storage paths
+        result = supabase.table('media_library').select('id, storage_path').eq('tenant_id', tenant_id).execute()
+        media_items = result.data or []
+
+        if media_items:
+            # Delete files from Supabase Storage bucket
+            storage_paths = [m['storage_path'] for m in media_items if m.get('storage_path')]
+            if storage_paths:
+                try:
+                    supabase.storage.from_(MEDIA_STORAGE_BUCKET).remove(storage_paths)
+                    logger.info(f"Deleted {len(storage_paths)} files from storage for tenant {tenant_id}")
+                except Exception as e:
+                    logger.warning(f"Could not delete storage files for tenant {tenant_id}: {e}")
+
+        # Delete all media_library DB rows
+        supabase.table('media_library').delete().eq('tenant_id', tenant_id).execute()
+        logger.info(f"Deleted media_library rows for tenant {tenant_id}")
+    except Exception as e:
+        logger.warning(f"Could not cleanup media storage for tenant {tenant_id}: {e}")
 
 
 @api_router.post("/bitrix-crm/disconnect")
@@ -10289,6 +10359,9 @@ async def delete_agent(agent_id: str, current_user: Dict = Depends(get_current_u
         raise HTTPException(status_code=403, detail="You can only delete your own agent")
 
     try:
+        # 0. Cancel all active syncs immediately
+        await stop_all_syncs(tenant_id)
+
         # 1. Delete messages (via conversation_id since messages has no tenant_id)
         try:
             conv_result = supabase.table('conversations').select('id').eq('tenant_id', tenant_id).execute()
@@ -10321,10 +10394,16 @@ async def delete_agent(agent_id: str, current_user: Dict = Depends(get_current_u
         except Exception as e:
             logger.warning(f"Could not delete customers: {e}")
 
-        # 5. Delete documents and clear embeddings cache
+        # 5. Delete agent_document_overrides BEFORE documents (FK constraint)
+        try:
+            supabase.table('agent_document_overrides').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted agent_document_overrides for agent {agent_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete agent_document_overrides: {e}")
+
+        # 6. Delete documents and clear embeddings cache
         try:
             supabase.table('documents').delete().eq('tenant_id', tenant_id).execute()
-            # Clear embeddings cache for this tenant
             global document_embeddings_cache, _cache_loaded_tenants
             keys_to_delete = [k for k in document_embeddings_cache if k.startswith(tenant_id)]
             for k in keys_to_delete:
@@ -10334,14 +10413,35 @@ async def delete_agent(agent_id: str, current_user: Dict = Depends(get_current_u
         except Exception as e:
             logger.warning(f"Could not delete documents: {e}")
 
-        # 6. Delete event logs
+        # 7. Delete media files from Supabase Storage + media_library table
+        await _cleanup_media_storage(tenant_id)
+
+        # 8. Delete event logs
         try:
             supabase.table('event_logs').delete().eq('tenant_id', tenant_id).execute()
             logger.info(f"Deleted event logs for agent {agent_id}")
         except Exception as e:
             logger.warning(f"Could not delete event logs: {e}")
 
-        # 7. Disconnect and delete telegram bot
+        # 9. Delete ALL CRM synced data + dashboard data
+        await _cleanup_crm_data(tenant_id)
+
+        # 10. Delete CRM connections
+        try:
+            supabase.table('crm_connections').delete().eq('tenant_id', tenant_id).execute()
+            logger.info(f"Deleted crm_connections for agent {agent_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete crm_connections: {e}")
+
+        # 11. Delete additional tenant-owned tables
+        for extra_table in ['instagram_accounts', 'token_usage_logs']:
+            try:
+                supabase.table(extra_table).delete().eq('tenant_id', tenant_id).execute()
+                logger.info(f"Deleted {extra_table} for agent {agent_id}")
+            except Exception as e:
+                logger.warning(f"Could not delete {extra_table}: {e}")
+
+        # 12. Disconnect and delete telegram bot
         try:
             tg_result = supabase.table('telegram_bots').select('*').eq('tenant_id', tenant_id).execute()
             if tg_result.data:
@@ -10351,23 +10451,11 @@ async def delete_agent(agent_id: str, current_user: Dict = Depends(get_current_u
         except Exception as e:
             logger.warning(f"Could not delete telegram bot: {e}")
 
-        # 8. Clear Bitrix webhook from cache
-        try:
-            if tenant_id in _bitrix_webhooks_cache:
-                del _bitrix_webhooks_cache[tenant_id]
-            logger.info(f"Cleared Bitrix cache for agent {agent_id}")
-        except Exception as e:
-            logger.warning(f"Could not clear Bitrix cache: {e}")
+        # 13. Clear Bitrix webhook from cache
+        if tenant_id in _bitrix_webhooks_cache:
+            del _bitrix_webhooks_cache[tenant_id]
 
-        # 9. Cancel syncs and clean CRM data
-        await stop_all_syncs(tenant_id)
-        await _cleanup_crm_data(tenant_id)
-        try:
-            supabase.table('crm_connections').delete().eq('tenant_id', tenant_id).execute()
-        except Exception as e:
-            logger.warning(f"Could not delete crm_connections: {e}")
-
-        # 10. Reset the config (but don't delete tenant)
+        # 14. Full config reset to factory defaults (complete fresh start)
         try:
             supabase.table('tenant_configs').update({
                 "business_name": None,
@@ -10377,9 +10465,40 @@ async def delete_agent(agent_id: str, current_user: Dict = Depends(get_current_u
                 "greeting_message": None,
                 "closing_message": None,
                 "bitrix_webhook_url": None,
-                "bitrix_connected_at": None
+                "bitrix_connected_at": None,
+                "agent_tone": None,
+                "response_length": None,
+                "emoji_usage": None,
+                "primary_language": None,
+                "secondary_languages": None,
+                "min_response_delay": None,
+                "max_messages_per_minute": None,
+                "vertical": None,
+                "prebuilt_type": None,
+                "google_sheet_id": None,
+                # Data collection fields - reset to defaults
+                "collect_name": True,
+                "collect_phone": True,
+                "collect_email": False,
+                "collect_product": True,
+                "collect_budget": False,
+                "collect_timeline": False,
+                "collect_quantity": False,
+                "collect_company": False,
+                "collect_job_title": False,
+                "collect_team_size": False,
+                "collect_location": False,
+                "collect_preferred_time": False,
+                "collect_urgency": False,
+                "collect_reference": False,
+                "collect_notes": False,
+                # Hard constraints / AI capabilities
+                "payment_plans_enabled": False,
+                "image_responses_enabled": False,
+                # Hired prebuilt employees
+                "hired_prebuilt": "[]",
             }).eq('tenant_id', tenant_id).execute()
-            logger.info(f"Reset config for agent {agent_id}")
+            logger.info(f"Full config reset for agent {agent_id}")
         except Exception as e:
             logger.warning(f"Could not reset config: {e}")
 

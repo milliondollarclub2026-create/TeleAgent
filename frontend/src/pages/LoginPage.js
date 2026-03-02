@@ -20,6 +20,89 @@ import AiOrb from '../components/Orb/AiOrb';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+// Extracted outside LoginPage so React preserves the instance across parent re-renders (typing, etc.)
+const GradientPanel = ({ mounted }) => (
+  <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-white border-r border-slate-100">
+    {/* Bottom gradient fade */}
+    <div className="absolute bottom-0 left-0 right-0 h-[50%] pointer-events-none z-[1]" style={{ background: 'linear-gradient(to top, rgba(5,150,105,0.08) 0%, rgba(5,150,105,0.03) 40%, transparent 100%)' }} />
+
+    {/* Ultra-subtle ambient color hints behind orb positions */}
+    <div className="absolute top-[28%] left-[22%] w-[280px] h-[280px] bg-emerald-50/40 rounded-full blur-[100px]" />
+    <div className="absolute top-[40%] left-[45%] w-[220px] h-[220px] bg-indigo-50/30 rounded-full blur-[90px]" />
+    <div className="absolute top-[28%] right-[8%] w-[240px] h-[240px] bg-amber-50/30 rounded-full blur-[90px]" />
+
+    {/* Logo — pinned top-left */}
+    <div className="absolute top-0 left-0 z-20 px-8 py-6">
+      <div className="flex items-center gap-2.5">
+        <img
+          src="/logo.svg"
+          alt="LeadRelay"
+          className="h-9 w-9"
+          style={{ objectFit: 'contain' }}
+        />
+        <span className="text-2xl font-bold font-['Plus_Jakarta_Sans'] tracking-tight">
+          <span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span>
+        </span>
+      </div>
+    </div>
+
+    {/* Centered story content */}
+    <div className="relative z-10 flex flex-col items-center justify-center w-full px-12 xl:px-16">
+      {/* Headline */}
+      <div className={`text-center mb-16 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <h1 className="text-3xl xl:text-[40px] font-bold font-['Plus_Jakarta_Sans'] mb-3 leading-[1.15] tracking-tight">
+          <span className="text-slate-900">Your </span>
+          <span className="text-emerald-600">AI sales team.</span>
+          <br />
+          <span className="text-slate-900">Always closing.</span>
+        </h1>
+        <p className="text-slate-400 text-[15px] leading-relaxed max-w-sm mx-auto">
+          Three agents. <span className="text-slate-600 font-medium">Qualifying, answering, closing.</span><br />Every hour. Every language.
+        </p>
+      </div>
+
+      {/* AI Team */}
+      <div className="flex items-start justify-center gap-16 xl:gap-20">
+        {/* Sales Agent */}
+        <div className={`flex flex-col items-center transition-all duration-700 delay-[400ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+          <div className="login-agent-float-1">
+            <AiOrb size={88} colors={['#10b981', '#059669', '#14b8a6']} />
+          </div>
+          <span className="mt-4 text-xs font-semibold text-slate-700 tracking-wide">Sales</span>
+          <div className="flex items-center gap-1 mt-1">
+            <span className="w-1 h-1 rounded-full bg-emerald-500 login-active-dot" />
+            <span className="text-[10px] text-slate-400">Active</span>
+          </div>
+        </div>
+
+        {/* Support Agent */}
+        <div className={`flex flex-col items-center transition-all duration-700 delay-[600ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+          <div className="login-agent-float-2">
+            <AiOrb size={88} colors={['#6366f1', '#8b5cf6', '#3b82f6']} />
+          </div>
+          <span className="mt-4 text-xs font-semibold text-slate-700 tracking-wide">Support</span>
+          <div className="flex items-center gap-1 mt-1">
+            <span className="w-1 h-1 rounded-full bg-indigo-500 login-active-dot" />
+            <span className="text-[10px] text-slate-400">Active</span>
+          </div>
+        </div>
+
+        {/* Analytics Agent */}
+        <div className={`flex flex-col items-center transition-all duration-700 delay-[800ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+          <div className="login-agent-float-3">
+            <AiOrb size={88} colors={['#f97316', '#ea580c', '#f59e0b']} />
+          </div>
+          <span className="mt-4 text-xs font-semibold text-slate-700 tracking-wide">Analytics</span>
+          <div className="flex items-center gap-1 mt-1">
+            <span className="w-1 h-1 rounded-full bg-amber-500 login-active-dot" />
+            <span className="text-[10px] text-slate-400">Active</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -121,94 +204,11 @@ const LoginPage = () => {
     }
   };
 
-  // Story-driven left panel — "Meet Your AI Team"
-  const GradientPanel = () => (
-    <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-white border-r border-slate-100">
-      {/* Bottom gradient fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-[50%] pointer-events-none z-[1]" style={{ background: 'linear-gradient(to top, rgba(5,150,105,0.08) 0%, rgba(5,150,105,0.03) 40%, transparent 100%)' }} />
-
-      {/* Ultra-subtle ambient color hints behind orb positions */}
-      <div className="absolute top-[28%] left-[22%] w-[280px] h-[280px] bg-emerald-50/40 rounded-full blur-[100px]" />
-      <div className="absolute top-[40%] left-[45%] w-[220px] h-[220px] bg-indigo-50/30 rounded-full blur-[90px]" />
-      <div className="absolute top-[28%] right-[8%] w-[240px] h-[240px] bg-amber-50/30 rounded-full blur-[90px]" />
-
-      {/* Logo — pinned top-left */}
-      <div className="absolute top-0 left-0 z-20 px-8 py-6">
-        <div className="flex items-center gap-2.5">
-          <img
-            src="/logo.svg"
-            alt="LeadRelay"
-            className="h-9 w-9"
-            style={{ objectFit: 'contain' }}
-          />
-          <span className="text-2xl font-bold font-['Plus_Jakarta_Sans'] tracking-tight">
-            <span className="text-emerald-600">Lead</span><span className="text-slate-900">Relay</span>
-          </span>
-        </div>
-      </div>
-
-      {/* Centered story content */}
-      <div className="relative z-10 flex flex-col items-center justify-center w-full px-12 xl:px-16">
-        {/* Headline */}
-        <div className={`text-center mb-16 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          <h1 className="text-3xl xl:text-[40px] font-bold font-['Plus_Jakarta_Sans'] mb-3 leading-[1.15] tracking-tight">
-            <span className="text-slate-900">Your </span>
-            <span className="text-emerald-600">AI sales team.</span>
-            <br />
-            <span className="text-slate-900">Always closing.</span>
-          </h1>
-          <p className="text-slate-400 text-[15px] leading-relaxed max-w-sm mx-auto">
-            Three agents. <span className="text-slate-600 font-medium">Qualifying, answering, closing.</span><br />Every hour. Every language.
-          </p>
-        </div>
-
-        {/* AI Team */}
-        <div className="flex items-start justify-center gap-16 xl:gap-20">
-          {/* Sales Agent */}
-          <div className={`flex flex-col items-center transition-all duration-700 delay-[400ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-            <div className="login-agent-float-1">
-              <AiOrb size={88} colors={['#10b981', '#059669', '#14b8a6']} />
-            </div>
-            <span className="mt-4 text-xs font-semibold text-slate-700 tracking-wide">Sales</span>
-            <div className="flex items-center gap-1 mt-1">
-              <span className="w-1 h-1 rounded-full bg-emerald-500 login-active-dot" />
-              <span className="text-[10px] text-slate-400">Active</span>
-            </div>
-          </div>
-
-          {/* Support Agent */}
-          <div className={`flex flex-col items-center transition-all duration-700 delay-[600ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-            <div className="login-agent-float-2">
-              <AiOrb size={88} colors={['#6366f1', '#8b5cf6', '#3b82f6']} />
-            </div>
-            <span className="mt-4 text-xs font-semibold text-slate-700 tracking-wide">Support</span>
-            <div className="flex items-center gap-1 mt-1">
-              <span className="w-1 h-1 rounded-full bg-indigo-500 login-active-dot" />
-              <span className="text-[10px] text-slate-400">Active</span>
-            </div>
-          </div>
-
-          {/* Analytics Agent */}
-          <div className={`flex flex-col items-center transition-all duration-700 delay-[800ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-            <div className="login-agent-float-3">
-              <AiOrb size={88} colors={['#f97316', '#ea580c', '#f59e0b']} />
-            </div>
-            <span className="mt-4 text-xs font-semibold text-slate-700 tracking-wide">Analytics</span>
-            <div className="flex items-center gap-1 mt-1">
-              <span className="w-1 h-1 rounded-full bg-amber-500 login-active-dot" />
-              <span className="text-[10px] text-slate-400">Active</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   // Show confirmation message after registration
   if (showConfirmationMessage) {
     return (
       <div className="min-h-screen flex bg-white relative overflow-hidden">
-        <GradientPanel />
+        <GradientPanel mounted={mounted} />
 
         <div className="flex-1 flex items-center justify-center p-6 relative">
           <div className={`w-full max-w-sm transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
@@ -252,7 +252,7 @@ const LoginPage = () => {
   if (showForgotPassword) {
     return (
       <div className="min-h-screen flex bg-white relative overflow-hidden">
-        <GradientPanel />
+        <GradientPanel mounted={mounted} />
 
         <div className="flex-1 flex items-center justify-center p-6 relative">
           <div className={`w-full max-w-sm transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
@@ -292,7 +292,7 @@ const LoginPage = () => {
                         type="email"
                         placeholder="you@example.com"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => setEmail(e.target.value.replace(/\s/g, ''))}
                         className="pl-10 h-11 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 rounded-xl"
                         required
                       />
@@ -335,7 +335,7 @@ const LoginPage = () => {
   return (
     <div className="min-h-screen flex bg-white relative overflow-hidden">
       {/* Left side - Gradient brand panel */}
-      <GradientPanel />
+      <GradientPanel mounted={mounted} />
 
       {/* Right side - Form */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
@@ -414,7 +414,7 @@ const LoginPage = () => {
                   data-testid="login-email-input"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value.replace(/\s/g, ''))}
                   className="pl-10 h-11 border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 rounded-xl"
                   required
                 />

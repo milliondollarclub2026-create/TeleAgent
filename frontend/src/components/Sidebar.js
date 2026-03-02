@@ -10,17 +10,13 @@ import {
   LogOut,
   Menu,
   X,
-  Zap,
   ChevronLeft,
   ChevronRight,
-  LayoutDashboard,
   ArrowLeft,
   MessageSquare,
-  MessageCircle,
   MessagesSquare,
   ChevronDown,
   User,
-  Globe,
   Activity,
   BarChart3
 } from 'lucide-react';
@@ -36,27 +32,26 @@ import {
 export const SidebarContext = createContext();
 export const useSidebar = () => useContext(SidebarContext);
 
-const alwaysVisibleNavItems = [
+const mainNavItems_base = [
   { path: '/app/agents', icon: Bot, label: 'AI Employees' },
   { path: '/app/connections', icon: Plug, label: 'Connections' },
 ];
 
-const salesNavItems = [
-  { path: '/app/leads', icon: Users, label: 'All Leads' },
-  { path: '/app/dialogue', icon: MessagesSquare, label: 'Dialogue' },
-  { path: '/app/global-knowledge', icon: Globe, label: 'Shared Knowledge' },
-];
-
 const agentNavItems = [
-  { path: '', icon: LayoutDashboard, label: 'Dashboard', relative: true },
-  { path: '/leads', icon: Users, label: 'Leads', relative: true },
   { path: '/settings', icon: Settings, label: 'Settings', relative: true },
-  { path: '/knowledge', icon: FileText, label: 'Knowledge Base', relative: true },
   { path: '/connections', icon: Plug, label: 'Connections', relative: true },
+  { path: '/knowledge', icon: FileText, label: 'Knowledge Base', relative: true },
+  { path: '/leads', icon: Users, label: 'Leads', relative: true },
 ];
 
 const chatNavItems = [
   { path: '/test-chat', icon: MessageSquare, label: 'Test Bot', relative: true },
+  { path: '/dialogue', icon: MessagesSquare, label: 'Dialogue', relative: true },
+];
+
+const analyticsNavItems = [
+  { path: '', icon: BarChart3, label: 'Analytics', relative: true },
+  { path: '/usage', icon: Activity, label: 'Usage Logs', relative: true },
 ];
 
 export const SidebarProvider = ({ children }) => {
@@ -78,16 +73,14 @@ const Sidebar = () => {
   const { collapsed, toggleSidebar } = useSidebar();
 
   // Build nav items dynamically based on hired prebuilt agents
-  const hasSales = hiredPrebuilt?.includes('prebuilt-sales');
   const hasAnalytics = hiredPrebuilt?.includes('prebuilt-analytics');
 
   const mainNavItems = [
-    alwaysVisibleNavItems[0], // AI Employees
-    ...(hasSales ? salesNavItems : []),
+    mainNavItems_base[0], // AI Employees
     ...(hasAnalytics
       ? [{ path: '/app/crm-dashboard', icon: BarChart3, label: 'CRM Dashboard' }]
       : []),
-    alwaysVisibleNavItems[1], // Connections
+    mainNavItems_base[1], // Connections
   ];
 
   // Check if we're viewing a specific agent
@@ -145,53 +138,38 @@ const Sidebar = () => {
 
       {/* Navigation */}
       <nav className="flex-1 py-3 px-2 overflow-y-auto">
-        {/* Primary Nav */}
-        <div className="space-y-0.5">
-          {mainNavItems.map(({ path, icon: Icon, label }) => (
-            <NavLink
-              key={path}
-              to={path}
-              onClick={() => setMobileOpen(false)}
-              title={collapsed ? label : undefined}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition-all duration-150 group relative ${
-                  isActive
-                    ? 'bg-slate-100 text-slate-900'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
-                } ${collapsed ? 'justify-center' : ''}`
-              }
-              data-testid={`nav-${label.toLowerCase().replace(' ', '-')}`}
+        {isInAgentContext ? (
+          <>
+            {/* Back to AI Employees */}
+            <button
+              onClick={() => { navigate('/app/agents'); setMobileOpen(false); }}
+              title={collapsed ? 'Back to AI Employees' : undefined}
+              className={`w-full flex items-center gap-2 px-2.5 py-2 mb-1 rounded-md text-[12px] font-medium text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all duration-150 group relative ${collapsed ? 'justify-center' : ''}`}
+              data-testid="nav-back-to-agents"
             >
-              <Icon className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.75} />
-              {!collapsed && <span>{label}</span>}
+              <ArrowLeft className="w-4 h-4 flex-shrink-0" strokeWidth={2} />
+              {!collapsed && <span>AI Employees</span>}
               {collapsed && (
                 <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg pointer-events-none">
-                  {label}
+                  Back to AI Employees
                 </div>
               )}
-            </NavLink>
-          ))}
-        </div>
+            </button>
 
-        {/* Agent Context Nav */}
-        {isInAgentContext && (
-          <>
-            <div className="mt-4 pt-4 border-t border-slate-100">
+            {/* Agent Configuration */}
+            <div className="mt-1 pt-2 border-t border-slate-100">
               {!collapsed && (
                 <p className="px-2.5 mb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Agent
+                  Agent Configuration
                 </p>
               )}
-
               <div className="space-y-0.5">
                 {agentNavItems.map(({ path, icon: Icon, label, relative }) => {
                   const fullPath = relative ? `/app/agents/${currentAgentId}${path}` : path;
-
                   return (
                     <NavLink
-                      key={path || 'dashboard'}
+                      key={path}
                       to={fullPath}
-                      end={path === ''}
                       onClick={() => setMobileOpen(false)}
                       title={collapsed ? label : undefined}
                       className={({ isActive }) =>
@@ -216,18 +194,16 @@ const Sidebar = () => {
               </div>
             </div>
 
-            {/* Chats Category */}
+            {/* Chats */}
             <div className="mt-4 pt-4 border-t border-slate-100">
               {!collapsed && (
                 <p className="px-2.5 mb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                   Chats
                 </p>
               )}
-
               <div className="space-y-0.5">
                 {chatNavItems.map(({ path, icon: Icon, label, relative }) => {
                   const fullPath = relative ? `/app/agents/${currentAgentId}${path}` : path;
-
                   return (
                     <NavLink
                       key={path}
@@ -255,7 +231,74 @@ const Sidebar = () => {
                 })}
               </div>
             </div>
+
+            {/* Analytics & Usage */}
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              {!collapsed && (
+                <p className="px-2.5 mb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Analytics & Usage
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {analyticsNavItems.map(({ path, icon: Icon, label, relative }) => {
+                  const fullPath = relative ? `/app/agents/${currentAgentId}${path}` : path;
+                  return (
+                    <NavLink
+                      key={path || 'analytics-home'}
+                      to={fullPath}
+                      end={path === ''}
+                      onClick={() => setMobileOpen(false)}
+                      title={collapsed ? label : undefined}
+                      className={({ isActive }) =>
+                        `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition-all duration-150 group relative ${
+                          isActive
+                            ? 'bg-slate-100 text-slate-900'
+                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                        } ${collapsed ? 'justify-center' : ''}`
+                      }
+                      data-testid={`nav-analytics-${label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <Icon className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.75} />
+                      {!collapsed && <span>{label}</span>}
+                      {collapsed && (
+                        <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg pointer-events-none">
+                          {label}
+                        </div>
+                      )}
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
           </>
+        ) : (
+          /* Main Nav (when NOT inside an agent) */
+          <div className="space-y-0.5">
+            {mainNavItems.map(({ path, icon: Icon, label }) => (
+              <NavLink
+                key={path}
+                to={path}
+                onClick={() => setMobileOpen(false)}
+                title={collapsed ? label : undefined}
+                className={({ isActive }) =>
+                  `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition-all duration-150 group relative ${
+                    isActive
+                      ? 'bg-slate-100 text-slate-900'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                  } ${collapsed ? 'justify-center' : ''}`
+                }
+                data-testid={`nav-${label.toLowerCase().replace(' ', '-')}`}
+              >
+                <Icon className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.75} />
+                {!collapsed && <span>{label}</span>}
+                {collapsed && (
+                  <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-slate-900 text-white text-xs font-medium rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 shadow-lg pointer-events-none">
+                    {label}
+                  </div>
+                )}
+              </NavLink>
+            ))}
+          </div>
         )}
       </nav>
 

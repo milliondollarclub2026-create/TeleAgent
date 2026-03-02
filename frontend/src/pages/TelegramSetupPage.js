@@ -171,17 +171,6 @@ const TelegramSetupPage = () => {
                   </div>
                 </div>
 
-                {/* Local Dev Notice */}
-                {window.location.hostname === 'localhost' && (
-                  <p className="text-xs text-slate-500 leading-relaxed mb-5">
-                    <span className="font-medium text-slate-700">Local mode:</span> Use Test Bot in the sidebar or{' '}
-                    <a href="https://ngrok.com" target="_blank" rel="noopener noreferrer" className="text-slate-700 underline underline-offset-2">
-                      ngrok
-                    </a>{' '}
-                    for live webhooks.
-                  </p>
-                )}
-
                 {/* Actions */}
                 <div className="flex gap-2.5">
                   <Button

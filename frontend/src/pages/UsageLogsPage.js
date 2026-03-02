@@ -235,7 +235,7 @@ const ChartSkeleton = () => (
   </div>
 );
 
-const UsageLogsPage = () => {
+const UsageLogsPage = ({ agentType }) => {
   const navigate = useNavigate();
   const [summary, setSummary] = useState(null);
   const [chartData, setChartData] = useState([]);
@@ -264,12 +264,14 @@ const UsageLogsPage = () => {
   const [typeFilter, setTypeFilter] = useState('all');
 
   // Fetch all data
+  const agentParam = agentType ? `&agent_type=${agentType}` : '';
+
   const fetchData = useCallback(async () => {
     const daysNum = parseInt(days);
 
     // Fetch summary
     try {
-      const summaryRes = await axios.get(`${API}/usage/summary?days=${daysNum}`);
+      const summaryRes = await axios.get(`${API}/usage/summary?days=${daysNum}${agentParam}`);
       setSummary(summaryRes.data);
     } catch (error) {
       console.error('Failed to fetch summary:', error);
@@ -279,7 +281,7 @@ const UsageLogsPage = () => {
     // Fetch chart data
     setChartLoading(true);
     try {
-      const chartRes = await axios.get(`${API}/usage/chart?days=${daysNum}`);
+      const chartRes = await axios.get(`${API}/usage/chart?days=${daysNum}${agentParam}`);
       setChartData(chartRes.data.chart_data || []);
     } catch (error) {
       console.error('Failed to fetch chart:', error);
@@ -290,14 +292,14 @@ const UsageLogsPage = () => {
 
     setLoading(false);
     setRefreshing(false);
-  }, [days]);
+  }, [days, agentParam]);
 
   // Fetch logs with pagination and filters
   const fetchLogs = useCallback(async (page = 1) => {
     setLogsLoading(true);
     try {
       const daysNum = parseInt(days);
-      let url = `${API}/usage/logs?days=${daysNum}&page=${page}&limit=${pagination.limit}`;
+      let url = `${API}/usage/logs?days=${daysNum}&page=${page}&limit=${pagination.limit}${agentParam}`;
 
       if (modelFilter !== 'all') url += `&model=${modelFilter}`;
       if (typeFilter !== 'all') url += `&request_type=${typeFilter}`;
@@ -334,7 +336,7 @@ const UsageLogsPage = () => {
     setModelDistLoading(true);
     try {
       const daysNum = parseInt(days);
-      const res = await axios.get(`${API}/usage/model-distribution?days=${daysNum}`);
+      const res = await axios.get(`${API}/usage/model-distribution?days=${daysNum}${agentParam}`);
       setModelDist(res.data);
     } catch (error) {
       console.error('Failed to fetch model distribution:', error);
@@ -380,20 +382,26 @@ const UsageLogsPage = () => {
   return (
     <div className="min-h-screen bg-[#F5F7F6]">
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="group flex items-center gap-1.5 text-[13px] text-slate-500 hover:text-slate-700 transition-colors duration-200 mb-4"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-200" strokeWidth={1.75} />
-          <span>Back to Dashboard</span>
-        </button>
+        {/* Back Button — only show on global usage page */}
+        {!agentType && (
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="group flex items-center gap-1.5 text-[13px] text-slate-500 hover:text-slate-700 transition-colors duration-200 mb-4"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-200" strokeWidth={1.75} />
+            <span>Back to Dashboard</span>
+          </button>
+        )}
 
         {/* Header */}
         <div className="flex items-start justify-between mb-8">
           <div>
-            <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight">Usage Logs</h1>
-            <p className="text-[13px] text-slate-500 mt-1">Monitor your AI token consumption and costs</p>
+            <h1 className="text-[22px] font-semibold text-slate-900 tracking-tight">
+              {agentType ? 'Agent Usage Logs' : 'Usage Logs'}
+            </h1>
+            <p className="text-[13px] text-slate-500 mt-1">
+              {agentType ? 'Token consumption and costs for this agent' : 'Monitor your AI token consumption and costs'}
+            </p>
           </div>
           <Button
             variant="outline"

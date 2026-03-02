@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -65,6 +66,7 @@ const InstagramIcon = ({ className }) => (
 const AgentOnboarding = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [agentId, setAgentId] = useState(null);
@@ -229,12 +231,11 @@ const AgentOnboarding = () => {
   };
 
   const goToAgentSettings = () => {
-    // Navigate to the agent's settings/dashboard view
-    // This is the detailed agent view with knowledge base, connections, etc.
-    if (agentId) {
-      navigate(`/app/agents/${agentId}/settings`);
+    // Navigate to the agent's settings page
+    const id = agentId || user?.tenant_id;
+    if (id) {
+      navigate(`/app/agents/${id}/settings`);
     } else {
-      // Fallback: go to agents list where they can click into the agent
       navigate('/app/agents');
     }
   };
@@ -550,12 +551,12 @@ const AgentOnboarding = () => {
                   </div>
 
                   <h2 className="text-2xl font-semibold text-slate-900 mb-2">
-                    {prebuiltInfo?.name || businessInfo.name || 'Your Agent'} is Ready!
+                    Your AI Team is Ready!
                   </h2>
                   <p className="text-[15px] text-slate-500 max-w-sm mx-auto mb-8">
                     {(connected || igConnected)
-                      ? `${prebuiltInfo?.name || 'Your AI sales agent'} is live and ready to handle messages.`
-                      : `${prebuiltInfo?.name || 'Your agent'} is set up. Connect a channel in settings to start receiving messages.`
+                      ? `${prebuiltInfo?.name || 'Your AI sales agent'} and the team are live and ready to handle messages.`
+                      : `${prebuiltInfo?.name || 'Your agent'} and the team are set up. Connect a channel in settings to start receiving messages.`
                     }
                   </p>
 
