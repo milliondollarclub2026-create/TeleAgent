@@ -25,7 +25,7 @@
         --destructive-foreground: 0 0% 100%;
         --border: 214 20% 89%;
         --input: 214 20% 89%;
-        --ring: 160 84% 39%;
+        --ring: 220 14% 10%;
         --chart-1: 160 84% 39%;
         --chart-2: 217 91% 60%;
         --chart-3: 38 92% 50%;
@@ -123,5 +123,5 @@
 
 /* Custom focus ring */
 .focus-ring {
-    @apply focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2;
+    @apply focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2;
 }
