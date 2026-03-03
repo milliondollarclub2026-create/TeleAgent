@@ -8,6 +8,23 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+# --- Vertex AI credential setup (must run before litellm import) ---
+# Decodes base64-encoded service account JSON from env var and writes
+# to a temp file so that Google Cloud SDK can authenticate.
+import base64
+import tempfile
+
+_vertex_b64 = os.environ.get('VERTEX_SERVICE_ACCOUNT_B64', '').strip()
+if _vertex_b64:
+    try:
+        _sa_json = base64.b64decode(_vertex_b64)
+        _cred_fd, _cred_path = tempfile.mkstemp(suffix='.json', prefix='vertex_sa_')
+        with os.fdopen(_cred_fd, 'wb') as _f:
+            _f.write(_sa_json)
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = _cred_path
+    except Exception as _e:
+        print(f"WARNING: Failed to set up Vertex AI credentials: {_e}")
+
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, Request, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from starlette.middleware.cors import CORSMiddleware
@@ -263,11 +280,13 @@ def _litellm_model_name(model: str) -> str:
 
 # Startup warnings for missing provider API keys
 _anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
-_google_key = os.environ.get('GOOGLE_API_KEY', '').strip()
+_vertex_creds = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '').strip()
+_vertexai_project = os.environ.get('VERTEXAI_PROJECT', '').strip()
 if not _anthropic_key:
     logging.warning("ANTHROPIC_API_KEY not set — Claude models will not work")
-if not _google_key:
-    logging.warning("GOOGLE_API_KEY not set — Gemini models will not work")
+if not _vertex_creds or not _vertexai_project:
+    logging.warning("Vertex AI credentials incomplete — Gemini models will not work. "
+                     "Set VERTEX_SERVICE_ACCOUNT_B64 and VERTEXAI_PROJECT.")
 
 # ============ Input Sanitization ============
 def sanitize_html(text: str) -> str:
