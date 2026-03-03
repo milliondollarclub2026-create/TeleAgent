@@ -7145,6 +7145,59 @@ async def call_sales_agent(
 # Categories eligible for the mini (gpt-4o-mini) model
 MINI_ELIGIBLE_CATEGORIES = {'faq', 'greeting', 'chitchat'}
 
+# Affirmative emojis that map to "yes" in conversation context
+_AFFIRMATIVE_EMOJIS = {'👍', '👌', '✅', '🙌', '💪', '🤝', '👏', '🫡', '✔️', '☑️', '🆗', '💯'}
+# Negative emojis that map to "no" or dissatisfaction
+_NEGATIVE_EMOJIS = {'👎', '❌', '😡', '🤬', '😤', '💔', '🚫', '⛔', '🙅', '🙅‍♂️', '🙅‍♀️'}
+
+import unicodedata as _unicodedata
+
+def _strip_emoji_and_whitespace(text: str) -> str:
+    """Return only non-emoji, non-whitespace characters from text."""
+    result = []
+    for ch in text:
+        if ch.isspace():
+            continue
+        cat = _unicodedata.category(ch)
+        # So = Symbol Other (most emoji), Sk = Symbol Modifier, Cn = Not Assigned
+        if cat in ('So', 'Sk', 'Cn'):
+            continue
+        # Variation selectors, ZWJ, skin tone modifiers
+        cp = ord(ch)
+        if 0xFE00 <= cp <= 0xFE0F or cp == 0x200D or 0x1F3FB <= cp <= 0x1F3FF:
+            continue
+        # Regional indicators (flags)
+        if 0x1F1E0 <= cp <= 0x1F1FF:
+            continue
+        # Miscellaneous symbols, dingbats, emoticons, transport, supplemental
+        if 0x2600 <= cp <= 0x27BF or 0x1F600 <= cp <= 0x1FAFF:
+            continue
+        result.append(ch)
+    return ''.join(result)
+
+
+def classify_emoji_message(text: str) -> Optional[str]:
+    """Classify an emoji-only message.
+
+    Returns:
+        'affirmative' - thumbs up, ok, etc. (treat as "yes")
+        'negative'    - thumbs down, X, etc. (treat as "no")
+        'ignore'      - random emoji, sticker placeholder, GIF
+        None          - message contains real text, not emoji-only
+    """
+    stripped = _strip_emoji_and_whitespace(text)
+    # If there's real text beyond emoji/whitespace, it's a normal message
+    if stripped:
+        return None
+
+    # It's emoji-only — classify the type
+    emojis_in_msg = set(text.strip())
+    if emojis_in_msg & _AFFIRMATIVE_EMOJIS:
+        return 'affirmative'
+    if emojis_in_msg & _NEGATIVE_EMOJIS:
+        return 'negative'
+    return 'ignore'
+
 
 def should_force_full_model(
     detected_objection: Dict = None,
@@ -7918,6 +7971,23 @@ async def process_channel_message(
 
         # Save incoming message
         supabase.table('messages').insert({"id": str(uuid.uuid4()), "conversation_id": conversation['id'], "sender_type": "user", "text": text, "created_at": now}).execute()
+
+        # ── Emoji-Only Message Handling ──────────────────────────────
+        # Detect emoji-only messages BEFORE the LLM pipeline to avoid
+        # generic bot-like "How can I help you?" responses to random emoji.
+        emoji_class = classify_emoji_message(text)
+        if emoji_class == 'ignore':
+            # Random emoji (fish, guitar, etc.) or GIF — don't respond
+            logger.info(f"[{channel}] Emoji-only message (ignore): '{text[:20]}' — skipping LLM pipeline")
+            return
+        elif emoji_class in ('affirmative', 'negative'):
+            # Thumbs up/down — rewrite as natural text so the LLM understands context
+            if emoji_class == 'affirmative':
+                text = "Yes, sounds good"
+                logger.info(f"[{channel}] Affirmative emoji detected — rewriting as '{text}'")
+            else:
+                text = "No, I'm not interested in that"
+                logger.info(f"[{channel}] Negative emoji detected — rewriting as '{text}'")
 
         # Get conversation history
         history_result = supabase.table('messages').select('*').eq('conversation_id', conversation['id']).order('created_at', desc=True).limit(10).execute()

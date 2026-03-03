@@ -317,25 +317,20 @@ const AgentSettingsPage = () => {
 
       {/* Main Content - Tabbed Layout */}
       <Tabs defaultValue="business" className="w-full max-w-2xl mx-auto">
-        <TabsList className="w-full justify-center bg-slate-100 p-1 rounded-lg h-auto flex-wrap">
-          <TabsTrigger value="business" className="text-[13px] data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            <Building2 className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
+        <TabsList className="w-full max-w-xl mx-auto flex justify-center bg-slate-100/70 p-1 rounded-full h-auto border border-slate-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]">
+          <TabsTrigger value="business" className="flex-1 text-[13px] font-medium py-2 px-4 rounded-full text-slate-500 transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm data-[state=active]:shadow-slate-200/80 hover:text-slate-700">
             Business
           </TabsTrigger>
-          <TabsTrigger value="personality" className="text-[13px] data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            <Smile className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
+          <TabsTrigger value="personality" className="flex-1 text-[13px] font-medium py-2 px-4 rounded-full text-slate-500 transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm data-[state=active]:shadow-slate-200/80 hover:text-slate-700">
             Personality
           </TabsTrigger>
-          <TabsTrigger value="data" className="text-[13px] data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            <User className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
-            Data Collection
+          <TabsTrigger value="data" className="flex-1 text-[13px] font-medium py-2 px-4 rounded-full text-slate-500 transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm data-[state=active]:shadow-slate-200/80 hover:text-slate-700">
+            Data
           </TabsTrigger>
-          <TabsTrigger value="controls" className="text-[13px] data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            <Clock className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
+          <TabsTrigger value="controls" className="flex-1 text-[13px] font-medium py-2 px-4 rounded-full text-slate-500 transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm data-[state=active]:shadow-slate-200/80 hover:text-slate-700">
             Controls
           </TabsTrigger>
-          <TabsTrigger value="model" className="text-[13px] data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            <Cpu className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
+          <TabsTrigger value="model" className="flex-1 text-[13px] font-medium py-2 px-4 rounded-full text-slate-500 transition-all duration-200 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm data-[state=active]:shadow-slate-200/80 hover:text-slate-700">
             Model
           </TabsTrigger>
         </TabsList>
