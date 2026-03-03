@@ -1920,7 +1920,7 @@ async def telegram_business_generate_code(current_user: Dict = Depends(get_curre
     if not LEADRELAY_BOT_TOKEN:
         raise HTTPException(status_code=503, detail="Telegram Business integration is not configured")
     code = generate_link_code(tenant_id)
-    return {"code": code, "expires_in": LINK_CODE_TTL, "bot_username": "LeadRelayBot"}
+    return {"code": code, "expires_in": LINK_CODE_TTL, "bot_username": "TheLeadRelayBot"}
 
 
 @api_router.get("/telegram/business/status")
@@ -7775,7 +7775,7 @@ async def handle_shared_bot_dm(message: dict):
                 await send_telegram_message(LEADRELAY_BOT_TOKEN, chat_id,
                     "Your account has been linked to LeadRelay!\n\n"
                     "Now go to Telegram Settings > Telegram Business > Chatbots "
-                    "and add @LeadRelayBot to complete the setup.")
+                    "and add @TheLeadRelayBot to complete the setup.")
                 return
             else:
                 await send_telegram_message(LEADRELAY_BOT_TOKEN, chat_id,

@@ -248,7 +248,7 @@ const AgentOnboarding = () => {
     try {
       const response = await axios.post(`${API}/telegram/business/generate-link-code`);
       setLinkCode(response.data.code);
-      toast.success('Link code generated! Send it to @LeadRelayBot');
+      toast.success('Link code generated! Send it to @TheLeadRelayBot');
       startBusinessPolling();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to generate link code');
@@ -563,7 +563,7 @@ const AgentOnboarding = () => {
                                   </Button>
                                 </div>
                                 <p className="text-[11px] text-slate-500">
-                                  Send this code to <span className="font-medium text-[#0088cc]">@LeadRelayBot</span>, then add the bot in Telegram Business settings.
+                                  Send this code to <a href="https://t.me/TheLeadRelayBot" target="_blank" rel="noopener noreferrer" className="font-medium text-[#0088cc] hover:underline">@TheLeadRelayBot</a>, then add the bot in Telegram Business settings.
                                 </p>
                                 {pollingBusiness && (
                                   <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200">

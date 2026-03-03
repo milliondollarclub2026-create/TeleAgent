@@ -387,7 +387,7 @@ const TelegramSetupPage = () => {
                   /* Generate Code */
                   <div className="space-y-4">
                     <p className="text-[13px] text-slate-600 leading-relaxed">
-                      Generate a link code and send it to <span className="font-medium text-slate-900">@LeadRelayBot</span> on Telegram to connect your business account.
+                      Generate a link code and send it to <a href="https://t.me/TheLeadRelayBot" target="_blank" rel="noopener noreferrer" className="font-medium text-[#0088cc] hover:underline">@TheLeadRelayBot</a> on Telegram to connect your business account.
                     </p>
                     <Button
                       className="bg-slate-900 hover:bg-slate-800 h-10 px-5 text-[13px] font-medium shadow-sm"
@@ -457,7 +457,7 @@ const TelegramSetupPage = () => {
                         <span className="text-[11px] font-semibold text-white">1</span>
                       </div>
                       <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
-                        Open <a href="https://t.me/LeadRelayBot" target="_blank" rel="noopener noreferrer" className="font-medium text-[#0088cc] hover:underline">@LeadRelayBot</a> in Telegram
+                        Open <a href="https://t.me/TheLeadRelayBot" target="_blank" rel="noopener noreferrer" className="font-medium text-[#0088cc] hover:underline">@TheLeadRelayBot</a> in Telegram
                       </p>
                     </div>
                     <div className="flex gap-4">
@@ -481,7 +481,7 @@ const TelegramSetupPage = () => {
                         <span className="text-[11px] font-semibold text-white">4</span>
                       </div>
                       <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
-                        Add <span className="font-medium text-[#0088cc]">@LeadRelayBot</span> as your business chatbot
+                        Add <span className="font-medium text-[#0088cc]">@TheLeadRelayBot</span> as your business chatbot
                       </p>
                     </div>
                     <div className="flex gap-4">
