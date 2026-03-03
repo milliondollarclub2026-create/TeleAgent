@@ -274,24 +274,19 @@ def _litellm_model_name(model: str) -> str:
     if model.startswith('claude-'):
         return f"anthropic/{model}"
     if model.startswith('gemini-'):
-        # Use gemini/ prefix (Google AI Studio via GOOGLE_API_KEY).
-        # Falls back to vertex_ai/ if Vertex credentials are configured.
-        _google_key = os.environ.get('GOOGLE_API_KEY', '').strip()
-        if _google_key:
-            return f"gemini/{model}"
-        return f"vertex_ai/{model}"
+        # Always use gemini/ prefix (Google AI Studio) — requires GEMINI_API_KEY
+        # or GOOGLE_API_KEY. This is simpler than Vertex AI and works with plain API keys.
+        return f"gemini/{model}"
     return model  # OpenAI models pass through as-is
 
 # Startup warnings for missing provider API keys
 _anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
-_google_api_key = os.environ.get('GOOGLE_API_KEY', '').strip()
-_vertex_creds = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '').strip()
-_vertexai_project = os.environ.get('VERTEXAI_PROJECT', '').strip()
+_gemini_key = os.environ.get('GEMINI_API_KEY', '').strip() or os.environ.get('GOOGLE_API_KEY', '').strip()
 if not _anthropic_key:
     logging.warning("ANTHROPIC_API_KEY not set — Claude models will not work")
-if not _google_api_key and (not _vertex_creds or not _vertexai_project):
-    logging.warning("No Google AI credentials — Gemini models will not work. "
-                     "Set GOOGLE_API_KEY or (VERTEX_SERVICE_ACCOUNT_B64 + VERTEXAI_PROJECT).")
+if not _gemini_key:
+    logging.warning("No Gemini API key — Gemini models will not work. "
+                     "Set GEMINI_API_KEY (from https://aistudio.google.com/apikey).")
 
 # ============ Input Sanitization ============
 def sanitize_html(text: str) -> str:
