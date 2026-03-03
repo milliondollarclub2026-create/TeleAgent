@@ -6236,9 +6236,9 @@ NEVER invent or assume products exist - only discuss what the customer mentions.
 
     # Response length instructions
     length_map = {
-        'concise': 'Keep responses SHORT (1-2 sentences max).',
-        'balanced': 'Use moderate length (2-4 sentences).',
-        'detailed': 'Provide thorough responses with details.'
+        'concise': 'CRITICAL: Keep EVERY response to 1-2 SHORT sentences maximum. Never exceed 2 sentences. Be direct, brief, and to the point.',
+        'balanced': 'Keep responses moderate length (2-4 sentences). Be helpful but not verbose.',
+        'detailed': 'Provide thorough, detailed responses with full explanations and context.'
     }
     length_instruction = length_map.get(response_length, length_map['balanced'])
 
@@ -7277,12 +7277,42 @@ async def call_faq_responder(
         business_name = config.get('business_name', 'our company')
         business_description = config.get('business_description', '')
         agent_name = config.get('agent_name', 'AI Assistant')
-        agent_tone = config.get('agent_tone', 'professional and friendly')
+        agent_tone = config.get('agent_tone', 'friendly_professional')
+        emoji_usage = config.get('emoji_usage', 'moderate')
+        response_length = config.get('response_length', 'balanced')
+
+        # Map tone to natural description
+        tone_map = {
+            'professional': 'formal and business-like',
+            'friendly_professional': 'warm but professional',
+            'casual': 'relaxed and conversational',
+            'luxury': 'elegant and sophisticated'
+        }
+        tone_description = tone_map.get(agent_tone, agent_tone)
+
+        # Emoji instructions
+        emoji_map = {
+            'never': 'Do NOT use any emojis in your response.',
+            'minimal': 'Use emojis very sparingly (max 1 per 3-4 messages).',
+            'moderate': 'Use emojis occasionally (1-2 per message).',
+            'frequent': 'Use emojis freely (2-3 per message).'
+        }
+        emoji_instruction = emoji_map.get(emoji_usage, emoji_map['moderate'])
+
+        # Response length instructions
+        length_map = {
+            'concise': 'IMPORTANT: Keep your response to 1-2 SHORT sentences maximum. Be direct and brief.',
+            'balanced': 'Keep responses moderate length (2-4 sentences).',
+            'detailed': 'Provide thorough, detailed responses with explanations.'
+        }
+        length_instruction = length_map.get(response_length, length_map['balanced'])
 
         # Build compact system prompt for FAQ handling
         prompt_parts = [
             f"You are {agent_name}, a helpful assistant for {business_name}.",
-            f"Tone: {agent_tone}.",
+            f"Tone: {tone_description}.",
+            f"{length_instruction}",
+            f"{emoji_instruction}",
         ]
         if business_description:
             prompt_parts.append(f"About the business: {business_description[:300]}")
@@ -7292,8 +7322,7 @@ async def call_faq_responder(
             "\nRULES:\n"
             "- Only mention products/services from the context below\n"
             "- Never invent prices, discounts, or products\n"
-            "- If unsure, say you'll check and set needs_human_handoff: true\n"
-            "- Keep responses concise and helpful"
+            "- If unsure, say you'll check and set needs_human_handoff: true"
         )
 
         # RAG context
