@@ -100,8 +100,6 @@ const modelBadgeStyles = {
   'claude-haiku-4-5-20251001': 'bg-amber-50 text-amber-600 border-amber-200/80',
   'claude-3-5-sonnet-20241022': 'bg-amber-50 text-amber-700 border-amber-200/80',
   'claude-3-5-haiku-20241022': 'bg-amber-50 text-amber-600 border-amber-200/80',
-  'gemini-2.0-flash': 'bg-blue-50 text-blue-700 border-blue-200/80',
-  'gemini-2.5-pro': 'bg-blue-50 text-blue-700 border-blue-200/80',
   'whisper-1': 'bg-purple-50 text-purple-700 border-purple-200/80',
   'default': 'bg-slate-50 text-slate-600 border-slate-200/80'
 };

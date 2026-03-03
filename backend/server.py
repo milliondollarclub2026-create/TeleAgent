@@ -265,7 +265,6 @@ VALID_SALES_MODELS = {
     'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini',
     'claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001',
     'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022',
-    'gemini-2.0-flash', 'gemini-2.5-pro',
 }
 DEFAULT_SALES_MODEL = 'gpt-4o'
 
@@ -273,20 +272,12 @@ def _litellm_model_name(model: str) -> str:
     """Map model name to litellm provider-prefixed string."""
     if model.startswith('claude-'):
         return f"anthropic/{model}"
-    if model.startswith('gemini-'):
-        # Always use gemini/ prefix (Google AI Studio) — requires GEMINI_API_KEY
-        # or GOOGLE_API_KEY. This is simpler than Vertex AI and works with plain API keys.
-        return f"gemini/{model}"
     return model  # OpenAI models pass through as-is
 
 # Startup warnings for missing provider API keys
 _anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
-_gemini_key = os.environ.get('GEMINI_API_KEY', '').strip() or os.environ.get('GOOGLE_API_KEY', '').strip()
 if not _anthropic_key:
     logging.warning("ANTHROPIC_API_KEY not set — Claude models will not work")
-if not _gemini_key:
-    logging.warning("No Gemini API key — Gemini models will not work. "
-                     "Set GEMINI_API_KEY (from https://aistudio.google.com/apikey).")
 
 # ============ Input Sanitization ============
 def sanitize_html(text: str) -> str:

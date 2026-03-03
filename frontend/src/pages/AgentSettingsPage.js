@@ -122,8 +122,6 @@ const AgentSettingsPage = () => {
     { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'Anthropic', inputCost: '0.08', outputCost: '0.4', badge: 'Fast', capabilities: ['text', 'vision'] },
     { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', inputCost: '0.3', outputCost: '1.5', badge: 'Multilingual', capabilities: ['text', 'vision'] },
     { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', provider: 'Anthropic', inputCost: '0.08', outputCost: '0.4', badge: null, capabilities: ['text'] },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Google', inputCost: '0.01', outputCost: '0.04', badge: 'Ultra-fast', capabilities: ['text'] },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', inputCost: '0.125', outputCost: '1.0', badge: null, capabilities: ['text', 'vision'] },
   ];
 
   const MODEL_PROVIDERS = [...new Set(AI_MODELS.map(m => m.provider))];

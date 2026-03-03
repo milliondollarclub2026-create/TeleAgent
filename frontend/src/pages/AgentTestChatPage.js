@@ -34,8 +34,6 @@ const MODEL_OPTIONS = [
   { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', provider: 'Anthropic' },
   { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', provider: 'Anthropic' },
   { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', provider: 'Anthropic' },
-  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', provider: 'Google' },
-  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'Google' },
 ];
 
 const getModelLabel = (modelId) => MODEL_OPTIONS.find(m => m.value === modelId)?.label || modelId;
