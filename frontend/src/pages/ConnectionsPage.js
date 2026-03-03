@@ -7,7 +7,9 @@ import {
   Bot,
   Link2,
   Check,
-  Loader2
+  Loader2,
+  Crown,
+  Wrench,
 } from 'lucide-react';
 
 // Google Sheets icon (official-style)
@@ -195,7 +197,7 @@ const ConnectionsPage = () => {
       {/* Messaging Channels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {/* Telegram Bot Card */}
+        {/* Telegram Card */}
         <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="telegram-connection">
           <div className="p-5">
             {/* Header */}
@@ -205,15 +207,42 @@ const ConnectionsPage = () => {
                   <Bot className="w-5 h-5 text-[#0088cc]" strokeWidth={1.75} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-slate-900 text-sm">Telegram Bot</h3>
+                  <h3 className="font-semibold text-slate-900 text-sm">Telegram</h3>
                   <p className="text-xs text-slate-500 mt-0.5">Receive and respond to messages</p>
                 </div>
               </div>
-              <StatusBadge connected={integrations?.telegram?.connected} />
+              <StatusBadge connected={integrations?.telegram?.connected || integrations?.telegram_business?.connected} />
             </div>
 
             {/* Content */}
-            {integrations?.telegram?.connected ? (
+            {integrations?.telegram_business?.connected ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                    <Check className="w-4 h-4 text-white" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">
+                      {integrations.telegram_business.telegram_first_name || integrations.telegram_business.telegram_username || 'Business Connected'}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700">
+                        <Crown className="w-3 h-3" strokeWidth={2} />
+                        Premium Business
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs border-slate-200"
+                  onClick={() => navigate(getConnectionPath('telegram'))}
+                >
+                  Manage
+                </Button>
+              </div>
+            ) : integrations?.telegram?.connected ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
                   <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
@@ -223,11 +252,17 @@ const ConnectionsPage = () => {
                     <p className="text-sm font-medium text-slate-900 truncate">
                       @{integrations.telegram.bot_username}
                     </p>
-                    {integrations.telegram.last_webhook_at && (
-                      <p className="text-xs text-slate-500">
-                        Last activity: {new Date(integrations.telegram.last_webhook_at).toLocaleDateString()}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+                        <Wrench className="w-3 h-3" strokeWidth={2} />
+                        BotFather
+                      </span>
+                      {integrations.telegram.last_webhook_at && (
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(integrations.telegram.last_webhook_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <Button
@@ -242,7 +277,7 @@ const ConnectionsPage = () => {
             ) : (
               <div className="space-y-4">
                 <p className="text-[13px] text-slate-500">
-                  Connect your Telegram bot to start receiving messages
+                  Connect Telegram to start receiving messages
                 </p>
                 <Button
                   className="bg-slate-900 hover:bg-slate-800 text-white h-9 px-4 text-[13px] font-medium shadow-sm"

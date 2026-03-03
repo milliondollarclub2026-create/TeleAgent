@@ -213,6 +213,10 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 TELEGRAM_API_BASE = "https://api.telegram.org/bot"
 
+# Shared LeadRelay bot for Telegram Business connections
+LEADRELAY_BOT_TOKEN = (os.environ.get('LEADRELAY_BOT_TOKEN') or '').strip() or None
+LEADRELAY_BOT_WEBHOOK_SECRET = (os.environ.get('LEADRELAY_BOT_WEBHOOK_SECRET') or '').strip() or None
+
 # Instagram / Meta config
 META_APP_ID = (os.environ.get('META_APP_ID') or '').strip()
 META_APP_SECRET = (os.environ.get('META_APP_SECRET') or '').strip()
@@ -1375,9 +1379,9 @@ async def get_bot_info(bot_token: str) -> Optional[Dict]:
         logger.error(f"Failed to get bot info: {e}")
         return None
 
-async def set_telegram_webhook(bot_token: str, webhook_url: str, secret_token: str = None) -> Dict:
+async def set_telegram_webhook(bot_token: str, webhook_url: str, secret_token: str = None, allowed_updates: list = None) -> Dict:
     try:
-        payload = {"url": webhook_url, "allowed_updates": ["message"], "drop_pending_updates": True}
+        payload = {"url": webhook_url, "allowed_updates": allowed_updates or ["message"], "drop_pending_updates": True}
         if secret_token:
             payload["secret_token"] = secret_token
         async with httpx.AsyncClient() as client:
@@ -1414,49 +1418,59 @@ def sanitize_telegram_html(text: str) -> str:
     return re.sub(r'<(/?\w[^>]*)>', replace_tag, text)
 
 
-async def send_telegram_message(bot_token: str, chat_id: int, text: str) -> bool:
-    """Send a message via Telegram Bot API"""
+async def send_telegram_message(bot_token: str, chat_id: int, text: str, business_connection_id: str = None) -> bool:
+    """Send a message via Telegram Bot API. If business_connection_id is provided, sends as the business account."""
     try:
         text = sanitize_telegram_html(text)
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML"
+        }
+        if business_connection_id:
+            payload["business_connection_id"] = business_connection_id
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{TELEGRAM_API_BASE}{bot_token}/sendMessage",
-                json={
-                    "chat_id": chat_id,
-                    "text": text,
-                    "parse_mode": "HTML"
-                }, 
+                json=payload,
                 timeout=30.0
             )
             result = response.json()
-            
+
             if not result.get("ok"):
                 logger.error(f"Telegram API error: {result}")
-                
+
                 # If HTML parse mode failed, try without it
                 if "can't parse" in str(result.get("description", "")).lower():
+                    fallback_payload = {"chat_id": chat_id, "text": text}
+                    if business_connection_id:
+                        fallback_payload["business_connection_id"] = business_connection_id
                     response = await client.post(
-                        f"{TELEGRAM_API_BASE}{bot_token}/sendMessage", 
-                        json={"chat_id": chat_id, "text": text}, 
+                        f"{TELEGRAM_API_BASE}{bot_token}/sendMessage",
+                        json=fallback_payload,
                         timeout=30.0
                     )
                     result = response.json()
-                    
+
             return result.get("ok", False)
     except Exception as e:
         logger.exception("Failed to send Telegram message")
         return False
 
-async def send_typing_action(bot_token: str, chat_id: int):
+async def send_typing_action(bot_token: str, chat_id: int, business_connection_id: str = None):
     try:
+        payload = {"chat_id": chat_id, "action": "typing"}
+        if business_connection_id:
+            payload["business_connection_id"] = business_connection_id
         async with httpx.AsyncClient() as client:
-            await client.post(f"{TELEGRAM_API_BASE}{bot_token}/sendChatAction", json={"chat_id": chat_id, "action": "typing"}, timeout=10.0)
+            await client.post(f"{TELEGRAM_API_BASE}{bot_token}/sendChatAction", json=payload, timeout=10.0)
     except Exception:
         pass
 
 
-async def send_telegram_photo(bot_token: str, chat_id: int, photo_url: str, caption: str = None) -> bool:
-    """Send a photo via Telegram Bot API"""
+async def send_telegram_photo(bot_token: str, chat_id: int, photo_url: str, caption: str = None, business_connection_id: str = None) -> bool:
+    """Send a photo via Telegram Bot API. If business_connection_id is provided, sends as the business account."""
     try:
         async with httpx.AsyncClient() as client:
             payload = {
@@ -1466,6 +1480,8 @@ async def send_telegram_photo(bot_token: str, chat_id: int, photo_url: str, capt
             if caption:
                 payload["caption"] = caption[:1024]  # Telegram caption limit
                 payload["parse_mode"] = "HTML"
+            if business_connection_id:
+                payload["business_connection_id"] = business_connection_id
 
             response = await client.post(
                 f"{TELEGRAM_API_BASE}{bot_token}/sendPhoto",
@@ -1525,11 +1541,13 @@ async def send_telegram_response_with_images(
     bot_token: str,
     chat_id: int,
     text: str,
-    tenant_id: str
+    tenant_id: str,
+    business_connection_id: str = None
 ) -> bool:
     """
     Send Telegram response with images.
     Extracts [[image:name]] references, sends photos first, then text.
+    If business_connection_id is provided, sends as the business account.
     """
     clean_text, image_names = extract_images_from_response(text, tenant_id)
 
@@ -1539,7 +1557,7 @@ async def send_telegram_response_with_images(
     for image_name in image_names:
         image_url = await get_image_url_by_name(tenant_id, image_name)
         if image_url:
-            photo_sent = await send_telegram_photo(bot_token, chat_id, image_url)
+            photo_sent = await send_telegram_photo(bot_token, chat_id, image_url, business_connection_id=business_connection_id)
             if photo_sent:
                 logger.info(f"Sent image '{image_name}' to chat {chat_id}")
             else:
@@ -1549,7 +1567,7 @@ async def send_telegram_response_with_images(
 
     # Send text message
     if clean_text:
-        text_sent = await send_telegram_message(bot_token, chat_id, clean_text)
+        text_sent = await send_telegram_message(bot_token, chat_id, clean_text, business_connection_id=business_connection_id)
         if not text_sent:
             success = False
 
@@ -1893,6 +1911,60 @@ async def disconnect_telegram_bot(current_user: Dict = Depends(get_current_user)
     return {"success": True}
 
 
+# ============ Telegram Business Connection Endpoints ============
+
+@api_router.post("/telegram/business/generate-link-code")
+async def telegram_business_generate_code(current_user: Dict = Depends(get_current_user)):
+    """Generate a 6-char link code for the tenant to send to @LeadRelayBot."""
+    tenant_id = current_user["tenant_id"]
+    if not LEADRELAY_BOT_TOKEN:
+        raise HTTPException(status_code=503, detail="Telegram Business integration is not configured")
+    code = generate_link_code(tenant_id)
+    return {"code": code, "expires_in": LINK_CODE_TTL, "bot_username": "LeadRelayBot"}
+
+
+@api_router.get("/telegram/business/status")
+async def telegram_business_status(current_user: Dict = Depends(get_current_user)):
+    """Check if a Telegram Business connection exists for this tenant."""
+    tenant_id = current_user["tenant_id"]
+    try:
+        result = supabase.table('telegram_business_connections').select('*').eq('tenant_id', tenant_id).eq('is_enabled', True).eq('is_linked', True).execute()
+        conn = result.data[0] if result.data else None
+    except Exception:
+        conn = None
+
+    if conn:
+        return {
+            "connected": True,
+            "telegram_username": conn.get("telegram_username"),
+            "telegram_first_name": conn.get("telegram_first_name"),
+            "can_reply": conn.get("can_reply", True),
+            "connected_at": conn.get("connected_at"),
+        }
+    return {"connected": False}
+
+
+@api_router.delete("/telegram/business/disconnect")
+async def telegram_business_disconnect(current_user: Dict = Depends(get_current_user)):
+    """Disable the Telegram Business connection for this tenant."""
+    tenant_id = current_user["tenant_id"]
+    try:
+        result = supabase.table('telegram_business_connections').select('id').eq('tenant_id', tenant_id).eq('is_enabled', True).execute()
+        if result.data:
+            supabase.table('telegram_business_connections').update({
+                "is_enabled": False,
+                "disconnected_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
+            }).eq('id', result.data[0]['id']).execute()
+            return {"success": True}
+        raise HTTPException(status_code=404, detail="No active business connection found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error disconnecting business connection: {e}")
+        raise HTTPException(status_code=500, detail="Failed to disconnect")
+
+
 # ============ Bitrix24 OAuth Endpoints ============
 # Note: integrations_bitrix table may not exist in Supabase schema yet
 # These endpoints will return placeholder responses until the table is created
@@ -2011,6 +2083,39 @@ INSTAGRAM_DEDUP_TTL = 300  # 5 minutes
 # Telegram webhook dedup cache {update_id: timestamp}
 _telegram_dedup_cache = {}
 TELEGRAM_DEDUP_TTL = 300  # 5 minutes
+
+# Telegram Business link codes {code: {"tenant_id": str, "created_at": float}}
+_telegram_link_codes = {}
+LINK_CODE_TTL = 600  # 10 minutes
+
+
+def generate_link_code(tenant_id: str) -> str:
+    """Generate a unique 6-char link code for tenant-to-Telegram mapping."""
+    now = time.time()
+    # Clean expired codes
+    expired = [k for k, v in _telegram_link_codes.items() if now - v["created_at"] > LINK_CODE_TTL]
+    for k in expired:
+        del _telegram_link_codes[k]
+    # Generate unique code
+    while True:
+        code = secrets.token_urlsafe(6)[:6].upper()
+        if code not in _telegram_link_codes:
+            break
+    _telegram_link_codes[code] = {"tenant_id": tenant_id, "created_at": now}
+    return code
+
+
+def verify_link_code(code: str) -> Optional[Dict]:
+    """Verify and consume a link code. Returns {"tenant_id": ...} or None."""
+    entry = _telegram_link_codes.get(code)
+    if not entry:
+        return None
+    if time.time() - entry["created_at"] > LINK_CODE_TTL:
+        del _telegram_link_codes[code]
+        return None
+    # Consume the code (one-time use)
+    del _telegram_link_codes[code]
+    return entry
 
 
 async def fetch_google_sheet_csv(sheet_id: str) -> Optional[Dict]:
@@ -7399,6 +7504,293 @@ async def telegram_webhook_legacy(request: Request):
     return {"ok": True}
 
 
+# ============ Telegram Business Webhook Handler ============
+@api_router.post("/telegram/business-webhook")
+async def telegram_business_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Handle incoming webhooks for the shared LeadRelay bot (Telegram Business connections)."""
+    try:
+        # SECURITY: Verify webhook secret
+        if LEADRELAY_BOT_WEBHOOK_SECRET:
+            received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+            if not hmac.compare_digest(LEADRELAY_BOT_WEBHOOK_SECRET, received_secret):
+                logger.warning("Business webhook secret verification failed")
+                return {"ok": True}
+
+        update = await request.json()
+        logger.info(f"Received Telegram Business update: {list(update.keys())}")
+
+        # Dedup check (same pattern as BotFather webhook)
+        update_id = update.get("update_id")
+        if update_id is not None:
+            now_ts = time.time()
+            if update_id in _telegram_dedup_cache:
+                if now_ts - _telegram_dedup_cache[update_id] < TELEGRAM_DEDUP_TTL:
+                    logger.debug(f"Skipping duplicate business update {update_id}")
+                    return {"ok": True}
+            _telegram_dedup_cache[update_id] = now_ts
+            if len(_telegram_dedup_cache) > 1000:
+                expired = [k for k, v in _telegram_dedup_cache.items() if now_ts - v >= TELEGRAM_DEDUP_TTL]
+                for k in expired:
+                    del _telegram_dedup_cache[k]
+
+        # Route by update type
+        if "business_connection" in update:
+            background_tasks.add_task(handle_business_connection, update["business_connection"])
+            return {"ok": True}
+
+        if "business_message" in update:
+            background_tasks.add_task(handle_business_message, update["business_message"])
+            return {"ok": True}
+
+        if "edited_business_message" in update:
+            logger.info(f"Business message edited (connection: {update['edited_business_message'].get('business_connection_id')})")
+            return {"ok": True}
+
+        if "deleted_business_messages" in update:
+            logger.info(f"Business messages deleted (connection: {update['deleted_business_messages'].get('business_connection_id')})")
+            return {"ok": True}
+
+        # Regular DMs to @LeadRelayBot (link code verification, /start)
+        if "message" in update:
+            message = update["message"]
+            if message.get("chat", {}).get("type") == "private" and message.get("text"):
+                background_tasks.add_task(handle_shared_bot_dm, message)
+            return {"ok": True}
+
+        logger.debug(f"Unknown business update type: {list(update.keys())}")
+        return {"ok": True}
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in business webhook: {e}")
+        return {"ok": True}
+    except Exception as e:
+        logger.exception("Business webhook error")
+        return {"ok": True}
+
+
+async def handle_business_connection(connection_data: dict):
+    """Handle business_connection updates from Telegram (connection lifecycle)."""
+    try:
+        connection_id = connection_data.get("id")
+        user = connection_data.get("user", {})
+        is_enabled = connection_data.get("is_enabled", False)
+        can_reply = connection_data.get("can_reply", False)
+        telegram_user_id = user.get("id")
+
+        if not connection_id or not telegram_user_id:
+            logger.warning(f"Malformed business_connection data: {connection_data}")
+            return
+
+        logger.info(f"Business connection event: connection={connection_id}, user={telegram_user_id}, enabled={is_enabled}")
+
+        if is_enabled:
+            # Check if this Telegram user has already been linked via link code
+            existing = supabase.table("telegram_business_connections") \
+                .select("*").eq("telegram_user_id", telegram_user_id) \
+                .eq("is_linked", True).execute()
+
+            if existing.data:
+                # User was previously linked via code -- update with real connection_id
+                supabase.table("telegram_business_connections") \
+                    .update({
+                        "connection_id": connection_id,
+                        "can_reply": can_reply,
+                        "is_enabled": True,
+                        "telegram_username": user.get("username"),
+                        "telegram_first_name": user.get("first_name"),
+                        "connected_at": now_iso(),
+                        "disconnected_at": None,
+                        "updated_at": now_iso()
+                    }).eq("telegram_user_id", telegram_user_id).eq("is_linked", True).execute()
+                logger.info(f"Updated linked business connection: {connection_id} for user {telegram_user_id}")
+            else:
+                # UNLINKED connection -- store as pending (tenant_id unknown)
+                supabase.table("telegram_business_connections").upsert({
+                    "connection_id": connection_id,
+                    "tenant_id": None,
+                    "telegram_user_id": telegram_user_id,
+                    "telegram_username": user.get("username"),
+                    "telegram_first_name": user.get("first_name"),
+                    "can_reply": can_reply,
+                    "is_enabled": True,
+                    "is_linked": False,
+                    "connected_at": now_iso(),
+                    "updated_at": now_iso()
+                }, on_conflict="connection_id").execute()
+                logger.info(f"Stored unlinked business connection: {connection_id} (user {telegram_user_id})")
+        else:
+            # Connection disabled by business owner
+            supabase.table("telegram_business_connections") \
+                .update({
+                    "is_enabled": False,
+                    "disconnected_at": now_iso(),
+                    "updated_at": now_iso()
+                }).eq("connection_id", connection_id).execute()
+            logger.info(f"Business connection disabled: {connection_id}")
+
+    except Exception as e:
+        logger.exception(f"Error handling business connection: {e}")
+
+
+async def handle_business_message(message: dict):
+    """Handle business_message updates -- customer DMs to a connected business."""
+    try:
+        connection_id = message.get("business_connection_id")
+        sender = message.get("from")
+        chat = message.get("chat")
+        text = message.get("text", "")
+
+        if not connection_id or not sender or not chat:
+            logger.warning("Malformed business_message: missing required fields")
+            return
+
+        # Look up connection by business_connection_id
+        conn_result = supabase.table("telegram_business_connections") \
+            .select("*").eq("connection_id", connection_id).execute()
+
+        if not conn_result.data:
+            logger.warning(f"Unknown business connection: {connection_id}")
+            return
+
+        conn = conn_result.data[0]
+
+        # Check connection state
+        if not conn.get("is_enabled"):
+            logger.debug(f"Ignoring message for disabled connection: {connection_id}")
+            return
+
+        if not conn.get("is_linked") or not conn.get("tenant_id"):
+            logger.warning(f"Unlinked business connection {connection_id} received message -- ignoring")
+            return
+
+        # Detect business owner manual reply -- skip AI
+        if sender.get("id") == conn.get("telegram_user_id"):
+            logger.info(f"Business owner manual reply on connection {connection_id} -- skipping AI")
+            return
+
+        # Check if bot can reply
+        if not conn.get("can_reply"):
+            logger.debug(f"Bot cannot reply on connection {connection_id} (can_reply=false)")
+            return
+
+        if not text:
+            logger.debug("No text in business message, ignoring")
+            return
+
+        # CRITICAL: Message length validation (same as BotFather handler)
+        MAX_MESSAGE_LENGTH = 4000
+        if len(text) > MAX_MESSAGE_LENGTH:
+            text = text[:MAX_MESSAGE_LENGTH] + "..."
+
+        tenant_id = conn["tenant_id"]
+        chat_id = chat["id"]
+        bot_token = LEADRELAY_BOT_TOKEN
+
+        # Build send/typing closures with business_connection_id
+        async def send_fn(reply_text):
+            return await send_telegram_message(bot_token, chat_id, reply_text, business_connection_id=connection_id)
+
+        async def typing_fn():
+            await send_typing_action(bot_token, chat_id, business_connection_id=connection_id)
+
+        # Route to channel-agnostic pipeline with correct tenant
+        await process_channel_message(
+            tenant_id=tenant_id,
+            channel="telegram_business",
+            sender_id=str(sender["id"]),
+            sender_username=sender.get("username"),
+            sender_name=sender.get("first_name"),
+            text=text,
+            language_code=sender.get("language_code"),
+            send_fn=send_fn,
+            typing_fn=typing_fn,
+            bot_token=bot_token,
+            chat_id=chat_id
+        )
+
+    except Exception as e:
+        logger.exception(f"Error handling business message: {e}")
+
+
+async def handle_shared_bot_dm(message: dict):
+    """Handle DMs sent directly to @LeadRelayBot (link code verification, /start)."""
+    try:
+        chat_id = message["chat"]["id"]
+        user_id = message["from"]["id"]
+        text = (message.get("text") or "").strip()
+
+        if not LEADRELAY_BOT_TOKEN:
+            return
+
+        # Handle /start command
+        if text == "/start":
+            await send_telegram_message(LEADRELAY_BOT_TOKEN, chat_id,
+                "Welcome to LeadRelay!\n\n"
+                "If you're setting up a Business connection, paste your 6-character "
+                "link code here.\n\n"
+                "Need help? Visit https://leadrelay.com/docs/telegram-business")
+            return
+
+        # Check if this is a link code (6 alphanumeric characters)
+        if len(text) == 6 and text.replace(" ", "").isalnum():
+            code = text.upper().strip()
+            code_entry = verify_link_code(code)
+
+            if code_entry:
+                tenant_id = code_entry["tenant_id"]
+
+                # Check if an unlinked connection already exists for this user
+                existing_unlinked = supabase.table("telegram_business_connections") \
+                    .select("*").eq("telegram_user_id", user_id).eq("is_linked", False).execute()
+
+                if existing_unlinked.data:
+                    # Update the existing unlinked connection with tenant_id
+                    supabase.table("telegram_business_connections") \
+                        .update({
+                            "tenant_id": tenant_id,
+                            "is_linked": True,
+                            "telegram_username": message["from"].get("username"),
+                            "telegram_first_name": message["from"].get("first_name"),
+                            "updated_at": now_iso()
+                        }).eq("telegram_user_id", user_id).eq("is_linked", False).execute()
+                    logger.info(f"Linked existing business connection for user {user_id} to tenant {redact_id(tenant_id)}")
+                else:
+                    # Create a pre-linked record (connection_id will come when they connect in Telegram)
+                    try:
+                        supabase.table("telegram_business_connections").insert({
+                            "connection_id": f"pending_{user_id}_{int(time.time())}",
+                            "tenant_id": tenant_id,
+                            "telegram_user_id": user_id,
+                            "telegram_username": message["from"].get("username"),
+                            "telegram_first_name": message["from"].get("first_name"),
+                            "is_linked": True,
+                            "is_enabled": False,
+                            "created_at": now_iso(),
+                            "updated_at": now_iso()
+                        }).execute()
+                        logger.info(f"Pre-linked user {user_id} to tenant {redact_id(tenant_id)} (awaiting business_connection)")
+                    except Exception as e:
+                        logger.warning(f"Could not create pre-linked record: {e}")
+
+                await send_telegram_message(LEADRELAY_BOT_TOKEN, chat_id,
+                    "Your account has been linked to LeadRelay!\n\n"
+                    "Now go to Telegram Settings > Telegram Business > Chatbots "
+                    "and add @LeadRelayBot to complete the setup.")
+                return
+            else:
+                await send_telegram_message(LEADRELAY_BOT_TOKEN, chat_id,
+                    "Invalid or expired code. Please generate a new code from your "
+                    "LeadRelay dashboard and try again.")
+                return
+
+        # Unknown message
+        await send_telegram_message(LEADRELAY_BOT_TOKEN, chat_id,
+            "I'm the LeadRelay business bot. Send /start for setup instructions.")
+
+    except Exception as e:
+        logger.exception(f"Error handling shared bot DM: {e}")
+
+
 async def process_channel_message(
     tenant_id: str,
     channel: str,
@@ -7457,7 +7849,7 @@ async def process_channel_message(
         now = now_iso()
 
         # Channel-specific customer lookup
-        if channel == "telegram":
+        if channel in ("telegram", "telegram_business"):
             customer_result = supabase.table('customers').select('*').eq('tenant_id', tenant_id).eq('telegram_user_id', sender_id).execute()
         else:
             customer_result = supabase.table('customers').select('*').eq('tenant_id', tenant_id).eq('instagram_user_id', sender_id).execute()
@@ -7469,7 +7861,7 @@ async def process_channel_message(
                 "name": sender_name, "primary_language": primary_lang,
                 "segments": [], "first_seen_at": now, "last_seen_at": now
             }
-            if channel == "telegram":
+            if channel in ("telegram", "telegram_business"):
                 customer["telegram_user_id"] = sender_id
                 customer["telegram_username"] = sender_username
             else:
@@ -10338,8 +10730,23 @@ async def get_integrations_status(current_user: Dict = Depends(get_current_user)
     except Exception:
         ig_account = None
 
+    # Get Telegram Business connection status
+    tg_biz_conn = None
+    try:
+        tg_biz_result = supabase.table('telegram_business_connections').select('*').eq('tenant_id', tenant_id).eq('is_enabled', True).eq('is_linked', True).execute()
+        tg_biz_conn = tg_biz_result.data[0] if tg_biz_result.data else None
+    except Exception:
+        tg_biz_conn = None
+
     return {
         "telegram": {"connected": telegram_bot is not None, "bot_username": telegram_bot.get("bot_username") if telegram_bot else None, "last_webhook_at": telegram_bot.get("last_webhook_at") if telegram_bot else None},
+        "telegram_business": {
+            "connected": tg_biz_conn is not None,
+            "telegram_username": tg_biz_conn.get("telegram_username") if tg_biz_conn else None,
+            "telegram_first_name": tg_biz_conn.get("telegram_first_name") if tg_biz_conn else None,
+            "can_reply": tg_biz_conn.get("can_reply", True) if tg_biz_conn else None,
+            "connected_at": tg_biz_conn.get("connected_at") if tg_biz_conn else None,
+        },
         "instagram": {
             "connected": ig_account is not None,
             "username": ig_account.get("instagram_username") if ig_account else None,
@@ -10996,6 +11403,34 @@ async def start_instagram_token_refresh():
     if META_APP_ID and META_APP_SECRET:
         asyncio.create_task(refresh_instagram_tokens_loop())
         logger.info("Instagram token refresh loop started")
+
+@app.on_event("startup")
+async def register_shared_bot_webhook():
+    """Register webhook for the shared LeadRelay bot used for Telegram Business connections."""
+    if LEADRELAY_BOT_TOKEN:
+        try:
+            backend_url = os.environ.get('BACKEND_PUBLIC_URL') or os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000')
+            webhook_url = f"{backend_url}/api/telegram/business-webhook"
+            result = await set_telegram_webhook(
+                LEADRELAY_BOT_TOKEN,
+                webhook_url,
+                secret_token=LEADRELAY_BOT_WEBHOOK_SECRET,
+                allowed_updates=[
+                    "message",
+                    "business_connection",
+                    "business_message",
+                    "edited_business_message",
+                    "deleted_business_messages"
+                ]
+            )
+            if result.get("ok"):
+                logger.info(f"Shared LeadRelay bot webhook registered: {webhook_url}")
+            else:
+                logger.error(f"Failed to register shared bot webhook: {result}")
+        except Exception as e:
+            logger.error(f"Error registering shared bot webhook: {e}")
+    else:
+        logger.info("LEADRELAY_BOT_TOKEN not set, skipping shared bot webhook registration")
 
 
 async def periodic_cleanup():

@@ -185,3 +185,23 @@ CREATE TABLE IF NOT EXISTS event_logs (
 CREATE INDEX IF NOT EXISTS idx_event_logs_tenant_id ON event_logs(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_event_logs_event_type ON event_logs(event_type);
 CREATE INDEX IF NOT EXISTS idx_event_logs_created_at ON event_logs(created_at);
+
+-- Telegram Business Connections table (for Telegram Premium Business integration)
+CREATE TABLE IF NOT EXISTS telegram_business_connections (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,  -- NULL until linked via code
+    connection_id TEXT UNIQUE NOT NULL,
+    telegram_user_id BIGINT NOT NULL,
+    telegram_username TEXT,
+    telegram_first_name TEXT,
+    can_reply BOOLEAN DEFAULT TRUE,
+    is_enabled BOOLEAN DEFAULT TRUE,
+    is_linked BOOLEAN DEFAULT FALSE,
+    connected_at TIMESTAMPTZ DEFAULT NOW(),
+    disconnected_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tg_biz_conn_connection_id ON telegram_business_connections(connection_id);
+CREATE INDEX IF NOT EXISTS idx_tg_biz_conn_tenant_id ON telegram_business_connections(tenant_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tg_biz_conn_telegram_user ON telegram_business_connections(telegram_user_id) WHERE is_enabled = TRUE;

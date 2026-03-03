@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Card } from '../components/ui/card';
@@ -16,6 +16,10 @@ import {
   MessageSquare,
   Zap,
   Globe,
+  Crown,
+  Copy,
+  RefreshCw,
+  Wrench,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -43,39 +47,57 @@ const TelegramSetupPage = () => {
   const { agentId } = useParams();
   const navigate = useNavigate();
 
-  // State
+  // Connection status
+  const [botStatus, setBotStatus] = useState({ connected: false });
+  const [businessStatus, setBusinessStatus] = useState({ connected: false });
+  const [loadingStatus, setLoadingStatus] = useState(true);
+
+  // Mode: 'select' | 'business' | 'botfather'
+  const [mode, setMode] = useState('select');
+
+  // BotFather state
   const [botToken, setBotToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [status, setStatus] = useState({ connected: false });
-  const [loadingStatus, setLoadingStatus] = useState(true);
 
-  useEffect(() => {
-    fetchStatus();
-  }, []);
+  // Business state
+  const [linkCode, setLinkCode] = useState('');
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [codeExpiresAt, setCodeExpiresAt] = useState(null);
+  const [pollingBusiness, setPollingBusiness] = useState(false);
+  const pollIntervalRef = useRef(null);
 
-  const fetchStatus = async () => {
+  const isConnected = botStatus.connected || businessStatus.connected;
+  const connectionType = businessStatus.connected ? 'business' : botStatus.connected ? 'botfather' : null;
+
+  const fetchStatus = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/integrations/status`);
-      setStatus(response.data?.telegram || { connected: false });
+      setBotStatus(response.data?.telegram || { connected: false });
+      setBusinessStatus(response.data?.telegram_business || { connected: false });
     } catch (error) {
       console.error('Failed to fetch Telegram status:', error);
     } finally {
       setLoadingStatus(false);
     }
-  };
+  }, []);
 
+  useEffect(() => {
+    fetchStatus();
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, [fetchStatus]);
+
+  // BotFather handlers
   const handleConnect = async () => {
     if (!botToken.trim()) {
       toast.error('Please enter a bot token');
       return;
     }
-
     setConnecting(true);
     try {
-      const response = await axios.post(`${API}/telegram/bot`, {
-        bot_token: botToken,
-      });
+      const response = await axios.post(`${API}/telegram/bot`, { bot_token: botToken });
       toast.success(`Bot @${response.data.bot_username} connected successfully!`);
       setBotToken('');
       fetchStatus();
@@ -86,14 +108,72 @@ const TelegramSetupPage = () => {
     }
   };
 
-  const handleDisconnect = async () => {
+  const handleDisconnectBot = async () => {
     try {
       await axios.delete(`${API}/telegram/bot`);
       toast.success('Telegram bot disconnected');
-      setStatus({ connected: false });
+      setBotStatus({ connected: false });
     } catch (error) {
       toast.error('Failed to disconnect bot');
     }
+  };
+
+  // Business handlers
+  const handleGenerateCode = async () => {
+    setGeneratingCode(true);
+    try {
+      const response = await axios.post(`${API}/telegram/business/generate-link-code`);
+      setLinkCode(response.data.code);
+      setCodeExpiresAt(Date.now() + (response.data.expires_in * 1000));
+      startPolling();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to generate link code');
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
+  const handleDisconnectBusiness = async () => {
+    try {
+      await axios.delete(`${API}/telegram/business/disconnect`);
+      toast.success('Telegram Business disconnected');
+      setBusinessStatus({ connected: false });
+    } catch (error) {
+      toast.error('Failed to disconnect');
+    }
+  };
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(linkCode);
+    toast.success('Code copied to clipboard');
+  };
+
+  const startPolling = () => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    setPollingBusiness(true);
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await axios.get(`${API}/telegram/business/status`);
+        if (response.data?.connected) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          setPollingBusiness(false);
+          setBusinessStatus(response.data);
+          setLinkCode('');
+          toast.success('Telegram Business connected!');
+        }
+      } catch {
+        // Silently continue polling
+      }
+    }, 4000);
+    // Stop polling after 10 minutes
+    setTimeout(() => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+        setPollingBusiness(false);
+      }
+    }, 600000);
   };
 
   if (loadingStatus) {
@@ -123,22 +203,21 @@ const TelegramSetupPage = () => {
               <Bot className="w-5.5 h-5.5 text-[#0088cc]" strokeWidth={1.75} />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Telegram Bot</h1>
-              <p className="text-sm text-slate-500 mt-0.5">Connect your Telegram bot to receive messages</p>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Telegram</h1>
+              <p className="text-sm text-slate-500 mt-0.5">Connect Telegram to receive and reply to messages</p>
             </div>
           </div>
           <div className="flex items-center gap-2 mt-1">
-            <div className={`w-2 h-2 rounded-full ${status.connected ? 'bg-emerald-600' : 'bg-slate-300'}`} />
-            <span className={`text-xs font-medium ${status.connected ? 'text-emerald-700' : 'text-slate-500'}`}>
-              {status.connected ? 'Connected' : 'Not connected'}
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+            <span className={`text-xs font-medium ${isConnected ? 'text-emerald-700' : 'text-slate-500'}`}>
+              {isConnected ? 'Connected' : 'Not connected'}
             </span>
           </div>
         </div>
 
-        {status.connected ? (
+        {isConnected ? (
           /* ============ CONNECTED STATE ============ */
           <div className="space-y-5">
-            {/* Status Card */}
             <Card className="bg-white border-slate-200 shadow-sm">
               <div className="p-6">
                 <div className="flex items-center gap-3.5 mb-5">
@@ -147,13 +226,34 @@ const TelegramSetupPage = () => {
                   </div>
                   <div>
                     <h2 className="font-semibold text-slate-900">
-                      @{status.bot_username || 'Bot Connected'}
+                      {connectionType === 'business'
+                        ? (businessStatus.telegram_first_name || businessStatus.telegram_username || 'Business Connected')
+                        : `@${botStatus.bot_username || 'Bot Connected'}`
+                      }
                     </h2>
-                    {status.last_webhook_at && (
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Last activity: {new Date(status.last_webhook_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {connectionType === 'business' ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-[10px] font-semibold text-amber-700">
+                          <Crown className="w-3 h-3" strokeWidth={2} />
+                          Premium Business
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px] font-semibold text-slate-600">
+                          <Wrench className="w-3 h-3" strokeWidth={2} />
+                          BotFather
+                        </span>
+                      )}
+                      {connectionType === 'botfather' && botStatus.last_webhook_at && (
+                        <span className="text-xs text-slate-500">
+                          Last activity: {new Date(botStatus.last_webhook_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      )}
+                      {connectionType === 'business' && businessStatus.connected_at && (
+                        <span className="text-xs text-slate-500">
+                          Since {new Date(businessStatus.connected_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -169,19 +269,26 @@ const TelegramSetupPage = () => {
                     <span className="text-xs font-medium text-white">AI Replies</span>
                     <span className="text-[10px] text-emerald-100 uppercase tracking-wide">Auto</span>
                   </div>
+                  {connectionType === 'business' && (
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+                      <Crown className="w-3.5 h-3.5 text-amber-500" strokeWidth={1.75} />
+                      <span className="text-xs font-medium text-slate-700">Replies as you</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions */}
                 <div className="flex gap-2.5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 text-[13px] border-slate-200"
-                    onClick={() => navigate(`/app/agents/${agentId}/test-chat`)}
-                  >
-                    Test Bot
-                  </Button>
-
+                  {connectionType === 'botfather' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 text-[13px] border-slate-200"
+                      onClick={() => navigate(`/app/agents/${agentId}/test-chat`)}
+                    >
+                      Test Bot
+                    </Button>
+                  )}
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
@@ -190,21 +297,26 @@ const TelegramSetupPage = () => {
                         className="h-9 text-[13px] text-red-600 border-slate-200 hover:bg-red-50 hover:border-red-200"
                         data-testid="disconnect-bot-btn"
                       >
-                        Disconnect Bot
+                        Disconnect
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Disconnect Telegram Bot?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                          Disconnect {connectionType === 'business' ? 'Telegram Business' : 'Telegram Bot'}?
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                          Your bot will stop receiving messages. You can reconnect anytime with a new token.
+                          {connectionType === 'business'
+                            ? 'Your AI will stop replying to messages in your Telegram Business account. You can reconnect anytime.'
+                            : 'Your bot will stop receiving messages. You can reconnect anytime with a new token.'
+                          }
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                           className="bg-red-600 hover:bg-red-700"
-                          onClick={handleDisconnect}
+                          onClick={connectionType === 'business' ? handleDisconnectBusiness : handleDisconnectBot}
                         >
                           Disconnect
                         </AlertDialogAction>
@@ -215,13 +327,194 @@ const TelegramSetupPage = () => {
               </div>
             </Card>
           </div>
-        ) : (
-          /* ============ SETUP STATE ============ */
+        ) : mode === 'select' ? (
+          /* ============ MODE SELECTOR ============ */
           <div className="space-y-5">
+            <p className="text-sm text-slate-600 mb-2">Choose how to connect Telegram:</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Business Mode Card */}
+              <button
+                onClick={() => setMode('business')}
+                className="text-left p-5 rounded-xl bg-white border-2 border-slate-200 hover:border-slate-400 shadow-sm hover:shadow transition-all group"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <Crown className="w-5 h-5 text-amber-500" strokeWidth={1.75} />
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Recommended
+                  </span>
+                </div>
+                <h3 className="font-semibold text-slate-900 text-[15px] mb-1">Telegram Premium</h3>
+                <p className="text-[12px] text-slate-500 leading-relaxed">
+                  AI replies as you, directly in your Telegram account. Requires Telegram Premium.
+                </p>
+              </button>
+
+              {/* BotFather Mode Card */}
+              <button
+                onClick={() => setMode('botfather')}
+                className="text-left p-5 rounded-xl bg-white border-2 border-slate-200 hover:border-slate-400 shadow-sm hover:shadow transition-all group"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <Wrench className="w-5 h-5 text-slate-500" strokeWidth={1.75} />
+                </div>
+                <h3 className="font-semibold text-slate-900 text-[15px] mb-1">BotFather Bot</h3>
+                <p className="text-[12px] text-slate-500 leading-relaxed">
+                  Create a dedicated bot via @BotFather. Customers message the bot directly.
+                </p>
+              </button>
+            </div>
+          </div>
+        ) : mode === 'business' ? (
+          /* ============ BUSINESS MODE SETUP ============ */
+          <div className="space-y-5">
+            <button
+              onClick={() => { setMode('select'); setLinkCode(''); setPollingBusiness(false); if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); }}
+              className="inline-flex items-center gap-1.5 text-[13px] text-slate-500 hover:text-slate-900 transition-colors mb-1"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Back to options
+            </button>
+
+            <Card className="bg-white border-slate-200 shadow-sm">
+              <div className="p-6">
+                <div className="flex items-center gap-2.5 mb-4">
+                  <Crown className="w-5 h-5 text-amber-500" strokeWidth={1.75} />
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Connect via Telegram Premium</h2>
+                </div>
+
+                {!linkCode ? (
+                  /* Generate Code */
+                  <div className="space-y-4">
+                    <p className="text-[13px] text-slate-600 leading-relaxed">
+                      Generate a link code and send it to <span className="font-medium text-slate-900">@LeadRelayBot</span> on Telegram to connect your business account.
+                    </p>
+                    <Button
+                      className="bg-slate-900 hover:bg-slate-800 h-10 px-5 text-[13px] font-medium shadow-sm"
+                      onClick={handleGenerateCode}
+                      disabled={generatingCode}
+                    >
+                      {generatingCode && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Generate Link Code
+                    </Button>
+                  </div>
+                ) : (
+                  /* Show Code + Instructions */
+                  <div className="space-y-5">
+                    {/* Code Display */}
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-slate-50 border border-slate-200">
+                      <div className="flex-1">
+                        <p className="text-[11px] text-slate-500 font-medium mb-1">Your link code</p>
+                        <p className="text-2xl font-bold text-slate-900 tracking-[0.15em] font-mono">{linkCode}</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 border-slate-200"
+                        onClick={copyCode}
+                      >
+                        <Copy className="w-4 h-4 mr-1.5" strokeWidth={1.75} />
+                        Copy
+                      </Button>
+                    </div>
+
+                    {/* Polling Status */}
+                    {pollingBusiness && (
+                      <div className="flex items-center gap-2.5 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-600" strokeWidth={2} />
+                        <span className="text-[13px] text-amber-800 font-medium">Waiting for connection...</span>
+                      </div>
+                    )}
+
+                    {/* Regenerate */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-[12px] border-slate-200"
+                      onClick={handleGenerateCode}
+                      disabled={generatingCode}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5" strokeWidth={1.75} />
+                      Generate New Code
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Business Setup Guide */}
+            <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100">
+                <h3 className="text-[15px] font-semibold text-slate-900">Setup Guide</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Connect your Telegram Business account</p>
+              </div>
+              <div className="p-6">
+                <div className="relative">
+                  <div className="absolute left-[11px] top-6 bottom-6 w-px bg-gradient-to-b from-slate-200 via-slate-200 to-transparent" />
+                  <div className="space-y-5">
+                    <div className="flex gap-4">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">1</span>
+                      </div>
+                      <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
+                        Open <a href="https://t.me/LeadRelayBot" target="_blank" rel="noopener noreferrer" className="font-medium text-[#0088cc] hover:underline">@LeadRelayBot</a> in Telegram
+                      </p>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">2</span>
+                      </div>
+                      <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
+                        Send your <span className="font-medium text-slate-900">link code</span> to the bot
+                      </p>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">3</span>
+                      </div>
+                      <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
+                        Go to Telegram <span className="font-medium text-slate-900">Settings &gt; Telegram Business &gt; Chatbots</span>
+                      </p>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <span className="text-[11px] font-semibold text-white">4</span>
+                      </div>
+                      <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
+                        Add <span className="font-medium text-[#0088cc]">@LeadRelayBot</span> as your business chatbot
+                      </p>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <Check className="w-3 h-3 text-white" strokeWidth={2.5} />
+                      </div>
+                      <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
+                        Done! AI will reply to customer messages <span className="font-medium text-slate-900">as you</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        ) : (
+          /* ============ BOTFATHER MODE SETUP ============ */
+          <div className="space-y-5">
+            <button
+              onClick={() => setMode('select')}
+              className="inline-flex items-center gap-1.5 text-[13px] text-slate-500 hover:text-slate-900 transition-colors mb-1"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Back to options
+            </button>
+
             {/* Connect Card */}
             <Card className="bg-white border-slate-200 shadow-sm">
               <div className="p-6">
-                <h2 className="font-semibold text-slate-900 text-[15px] mb-4">Connect your bot</h2>
+                <div className="flex items-center gap-2.5 mb-4">
+                  <Wrench className="w-5 h-5 text-slate-500" strokeWidth={1.75} />
+                  <h2 className="font-semibold text-slate-900 text-[15px]">Connect via BotFather</h2>
+                </div>
 
                 <div className="space-y-1.5 mb-4">
                   <div className="flex items-center gap-1.5">
@@ -268,9 +561,8 @@ const TelegramSetupPage = () => {
               </div>
             </Card>
 
-            {/* Setup Guide Card */}
+            {/* BotFather Setup Guide */}
             <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
-              {/* Header */}
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div>
                   <h3 className="text-[15px] font-semibold text-slate-900">Setup Guide</h3>
@@ -288,112 +580,55 @@ const TelegramSetupPage = () => {
                   @BotFather
                 </a>
               </div>
-
-              {/* Steps Timeline */}
               <div className="p-6">
                 <div className="relative">
-                  {/* Vertical connecting line */}
                   <div className="absolute left-[11px] top-6 bottom-6 w-px bg-gradient-to-b from-slate-200 via-slate-200 to-transparent" />
-
                   <div className="space-y-5">
-                    {/* Step 1 */}
-                    <div className="flex gap-4 group">
+                    <div className="flex gap-4">
                       <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <span className="text-[11px] font-semibold text-white">1</span>
                       </div>
-                      <div className="pt-0.5">
-                        <p className="text-[13px] text-slate-700 leading-relaxed">
-                          Open <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="font-medium text-[#0088cc] hover:underline">@BotFather</a> in Telegram
-                        </p>
-                      </div>
+                      <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
+                        Open <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="font-medium text-[#0088cc] hover:underline">@BotFather</a> in Telegram
+                      </p>
                     </div>
-
-                    {/* Step 2 */}
-                    <div className="flex gap-4 group">
+                    <div className="flex gap-4">
                       <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <span className="text-[11px] font-semibold text-white">2</span>
                       </div>
-                      <div className="pt-0.5">
-                        <p className="text-[13px] text-slate-700 leading-relaxed">
-                          Send the command
-                          <span className="inline-flex items-center ml-1.5 px-2 py-0.5 rounded bg-slate-100 text-[11px] font-mono text-slate-600">/newbot</span>
-                        </p>
-                      </div>
+                      <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
+                        Send the command
+                        <span className="inline-flex items-center ml-1.5 px-2 py-0.5 rounded bg-slate-100 text-[11px] font-mono text-slate-600">/newbot</span>
+                      </p>
                     </div>
-
-                    {/* Step 3 */}
-                    <div className="flex gap-4 group">
+                    <div className="flex gap-4">
                       <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <span className="text-[11px] font-semibold text-white">3</span>
                       </div>
-                      <div className="pt-0.5">
-                        <p className="text-[13px] text-slate-700 leading-relaxed">
-                          Choose a <span className="font-medium text-slate-900">name</span> and <span className="font-medium text-slate-900">username</span> for your bot
-                        </p>
-                      </div>
+                      <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
+                        Choose a <span className="font-medium text-slate-900">name</span> and <span className="font-medium text-slate-900">username</span> for your bot
+                      </p>
                     </div>
-
-                    {/* Step 4 */}
-                    <div className="flex gap-4 group">
+                    <div className="flex gap-4">
                       <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <span className="text-[11px] font-semibold text-white">4</span>
                       </div>
-                      <div className="pt-0.5">
-                        <p className="text-[13px] text-slate-700 leading-relaxed">
-                          Copy the <span className="font-medium text-slate-900">API token</span> BotFather provides
-                        </p>
-                      </div>
+                      <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
+                        Copy the <span className="font-medium text-slate-900">API token</span> BotFather provides
+                      </p>
                     </div>
-
-                    {/* Step 5 */}
-                    <div className="flex gap-4 group">
+                    <div className="flex gap-4">
                       <div className="relative z-10 w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <Check className="w-3 h-3 text-white" strokeWidth={2.5} />
                       </div>
-                      <div className="pt-0.5">
-                        <p className="text-[13px] text-slate-700 leading-relaxed">
-                          Paste your token above and click <span className="font-semibold text-[#0088cc]">Connect Bot</span>
-                        </p>
-                      </div>
+                      <p className="text-[13px] text-slate-700 leading-relaxed pt-0.5">
+                        Paste your token above and click <span className="font-semibold text-[#0088cc]">Connect Bot</span>
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
             </Card>
-
-            {/* What happens - Refined info section */}
-            <div className="rounded-xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-5">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-4">After connecting</p>
-              <div className="grid gap-4">
-                <div className="group flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
-                    <MessageSquare className="w-4 h-4 text-white" strokeWidth={1.75} />
-                  </div>
-                  <div>
-                    <p className="text-[13px] font-medium text-slate-900">Receive messages instantly</p>
-                    <p className="text-[12px] text-slate-500 mt-0.5">All Telegram messages forwarded to your AI</p>
-                  </div>
-                </div>
-                <div className="group flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
-                    <Zap className="w-4 h-4 text-white" strokeWidth={1.75} />
-                  </div>
-                  <div>
-                    <p className="text-[13px] font-medium text-slate-900">Auto-reply with AI</p>
-                    <p className="text-[12px] text-slate-500 mt-0.5">Responses based on your knowledge base</p>
-                  </div>
-                </div>
-                <div className="group flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-slate-900 group-hover:bg-emerald-600 transition-colors flex items-center justify-center flex-shrink-0">
-                    <Globe className="w-4 h-4 text-white" strokeWidth={1.75} />
-                  </div>
-                  <div>
-                    <p className="text-[13px] font-medium text-slate-900">Track & qualify leads</p>
-                    <p className="text-[12px] text-slate-500 mt-0.5">Automatic lead scoring and tracking</p>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>
