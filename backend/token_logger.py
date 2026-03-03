@@ -51,6 +51,14 @@ PRICING = {
         "input": 0.00015,   # $0.15 per 1M input tokens
         "output": 0.0006,   # $0.60 per 1M output tokens
     },
+    "gpt-4.1": {
+        "input": 0.002,     # $2.00 per 1M input tokens
+        "output": 0.008,    # $8.00 per 1M output tokens
+    },
+    "gpt-4.1-mini": {
+        "input": 0.0004,    # $0.40 per 1M input tokens
+        "output": 0.0016,   # $1.60 per 1M output tokens
+    },
     "text-embedding-3-small": {
         "input": 0.00002,   # $0.02 per 1M tokens
         "output": 0,        # Embeddings don't have output tokens
@@ -65,6 +73,14 @@ PRICING = {
         "output": 0.015,    # $15.00 per 1M output tokens
     },
     "claude-haiku-4-5-20251001": {
+        "input": 0.0008,    # $0.80 per 1M input tokens
+        "output": 0.004,    # $4.00 per 1M output tokens
+    },
+    "claude-3-5-sonnet-20241022": {
+        "input": 0.003,     # $3.00 per 1M input tokens
+        "output": 0.015,    # $15.00 per 1M output tokens
+    },
+    "claude-3-5-haiku-20241022": {
         "input": 0.0008,    # $0.80 per 1M input tokens
         "output": 0.004,    # $4.00 per 1M output tokens
     },

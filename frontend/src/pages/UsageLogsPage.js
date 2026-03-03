@@ -93,9 +93,13 @@ const formatDateTime = (dateStr) => {
 const modelBadgeStyles = {
   'gpt-4o': 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
   'gpt-4o-mini': 'bg-sky-50 text-sky-700 border-sky-200/80',
+  'gpt-4.1': 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+  'gpt-4.1-mini': 'bg-sky-50 text-sky-700 border-sky-200/80',
   'text-embedding-3-small': 'bg-slate-50 text-slate-600 border-slate-200/80',
   'claude-sonnet-4-20250514': 'bg-amber-50 text-amber-700 border-amber-200/80',
   'claude-haiku-4-5-20251001': 'bg-amber-50 text-amber-600 border-amber-200/80',
+  'claude-3-5-sonnet-20241022': 'bg-amber-50 text-amber-700 border-amber-200/80',
+  'claude-3-5-haiku-20241022': 'bg-amber-50 text-amber-600 border-amber-200/80',
   'gemini-2.0-flash': 'bg-blue-50 text-blue-700 border-blue-200/80',
   'gemini-2.5-pro': 'bg-blue-50 text-blue-700 border-blue-200/80',
   'whisper-1': 'bg-purple-50 text-purple-700 border-purple-200/80',
@@ -637,7 +641,7 @@ const UsageLogsPage = ({ agentType }) => {
                                   variant="outline"
                                   className={`text-[11px] font-medium px-2 py-0.5 border ${modelBadgeStyles[log.model] || modelBadgeStyles.default}`}
                                 >
-                                  {{'text-embedding-3-small': 'embeddings', 'claude-sonnet-4-20250514': 'claude-sonnet-4', 'claude-haiku-4-5-20251001': 'claude-haiku-4.5', 'gemini-2.0-flash': 'gemini-flash', 'gemini-2.5-pro': 'gemini-pro', 'whisper-1': 'whisper'}[log.model] || log.model}
+                                  {{'text-embedding-3-small': 'embeddings', 'claude-sonnet-4-20250514': 'claude-sonnet-4', 'claude-haiku-4-5-20251001': 'claude-haiku-4.5', 'claude-3-5-sonnet-20241022': 'claude-3.5-sonnet', 'claude-3-5-haiku-20241022': 'claude-3.5-haiku', 'gemini-2.0-flash': 'gemini-flash', 'gemini-2.5-pro': 'gemini-pro', 'whisper-1': 'whisper'}[log.model] || log.model}
                                 </Badge>
                               </TableCell>
                               <TableCell className="py-3.5">
@@ -882,7 +886,7 @@ const UsageLogsPage = ({ agentType }) => {
                             variant="outline"
                             className={`text-[11px] font-medium px-2 py-0.5 border ${modelBadgeStyles[model] || modelBadgeStyles.default}`}
                           >
-                            {{'text-embedding-3-small': 'embeddings', 'claude-sonnet-4-20250514': 'claude-sonnet-4', 'claude-haiku-4-5-20251001': 'claude-haiku-4.5', 'gemini-2.0-flash': 'gemini-flash', 'gemini-2.5-pro': 'gemini-pro', 'whisper-1': 'whisper'}[model] || model}
+                            {{'text-embedding-3-small': 'embeddings', 'claude-sonnet-4-20250514': 'claude-sonnet-4', 'claude-haiku-4-5-20251001': 'claude-haiku-4.5', 'claude-3-5-sonnet-20241022': 'claude-3.5-sonnet', 'claude-3-5-haiku-20241022': 'claude-3.5-haiku', 'gemini-2.0-flash': 'gemini-flash', 'gemini-2.5-pro': 'gemini-pro', 'whisper-1': 'whisper'}[model] || model}
                           </Badge>
                           <span className="text-[12px] text-slate-500 font-medium">
                             {modelDist.total_requests > 0

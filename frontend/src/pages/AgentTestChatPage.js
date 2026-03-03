@@ -28,8 +28,12 @@ import { toast } from 'sonner';
 const MODEL_OPTIONS = [
   { value: 'gpt-4o', label: 'GPT-4o', provider: 'OpenAI' },
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'OpenAI' },
+  { value: 'gpt-4.1', label: 'GPT-4.1', provider: 'OpenAI' },
+  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', provider: 'OpenAI' },
   { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', provider: 'Anthropic' },
   { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', provider: 'Anthropic' },
+  { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', provider: 'Anthropic' },
+  { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', provider: 'Anthropic' },
   { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', provider: 'Google' },
   { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'Google' },
 ];

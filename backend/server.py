@@ -262,8 +262,9 @@ litellm.drop_params = True  # Silently drop unsupported params per provider
 
 # Valid sales models and provider mapping
 VALID_SALES_MODELS = {
-    'gpt-4o', 'gpt-4o-mini',
+    'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini',
     'claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001',
+    'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022',
     'gemini-2.0-flash', 'gemini-2.5-pro',
 }
 DEFAULT_SALES_MODEL = 'gpt-4o'
@@ -273,20 +274,24 @@ def _litellm_model_name(model: str) -> str:
     if model.startswith('claude-'):
         return f"anthropic/{model}"
     if model.startswith('gemini-'):
-        # Use vertex_ai/ prefix — supports Vertex AI API keys (service-account-bound)
-        # as well as standard GOOGLE_API_KEY. Falls back gracefully.
+        # Use gemini/ prefix (Google AI Studio via GOOGLE_API_KEY).
+        # Falls back to vertex_ai/ if Vertex credentials are configured.
+        _google_key = os.environ.get('GOOGLE_API_KEY', '').strip()
+        if _google_key:
+            return f"gemini/{model}"
         return f"vertex_ai/{model}"
     return model  # OpenAI models pass through as-is
 
 # Startup warnings for missing provider API keys
 _anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
+_google_api_key = os.environ.get('GOOGLE_API_KEY', '').strip()
 _vertex_creds = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '').strip()
 _vertexai_project = os.environ.get('VERTEXAI_PROJECT', '').strip()
 if not _anthropic_key:
     logging.warning("ANTHROPIC_API_KEY not set — Claude models will not work")
-if not _vertex_creds or not _vertexai_project:
-    logging.warning("Vertex AI credentials incomplete — Gemini models will not work. "
-                     "Set VERTEX_SERVICE_ACCOUNT_B64 and VERTEXAI_PROJECT.")
+if not _google_api_key and (not _vertex_creds or not _vertexai_project):
+    logging.warning("No Google AI credentials — Gemini models will not work. "
+                     "Set GOOGLE_API_KEY or (VERTEX_SERVICE_ACCOUNT_B64 + VERTEXAI_PROJECT).")
 
 # ============ Input Sanitization ============
 def sanitize_html(text: str) -> str:
@@ -7204,7 +7209,7 @@ async def call_sales_agent(
     except asyncio.TimeoutError:
         logger.error(f"LLM call timed out after 55 seconds (model={model})")
         return {
-            "reply_text": "I apologize, I'm experiencing delays. Please try again in a moment.",
+            "reply_text": f"[DEBUG] LLM timeout after 55s (model={model}). The provider may be slow or unreachable.",
             "sales_stage": current_stage,
             "hotness": "warm",
             "score": 50,
@@ -7213,7 +7218,7 @@ async def call_sales_agent(
     except json.JSONDecodeError as e:
         logger.error(f"JSON parse error (model={model}): {e}")
         return {
-            "reply_text": "I apologize, please try again.",
+            "reply_text": f"[DEBUG] JSON parse error (model={model}): {e}",
             "sales_stage": current_stage,
             "hotness": "warm",
             "score": 50,
@@ -7222,7 +7227,7 @@ async def call_sales_agent(
     except Exception as e:
         logger.exception(f"LLM call failed (model={model})")
         return {
-            "reply_text": "I apologize, a technical error occurred. Please try again.",
+            "reply_text": f"[DEBUG] LLM error (model={model}): {type(e).__name__}: {e}",
             "sales_stage": current_stage,
             "hotness": "warm",
             "score": 50,
@@ -11664,7 +11669,7 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
         
     except Exception as e:
         logger.exception("Test chat error")
-        raise HTTPException(status_code=500, detail="An internal error occurred. Please try again.")
+        raise HTTPException(status_code=500, detail=f"[DEBUG] Test chat error: {type(e).__name__}: {e}")
 
 
 # ============ Instagram Integration ============
