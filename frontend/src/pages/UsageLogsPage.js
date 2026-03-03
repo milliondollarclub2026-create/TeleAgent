@@ -94,6 +94,11 @@ const modelBadgeStyles = {
   'gpt-4o': 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
   'gpt-4o-mini': 'bg-sky-50 text-sky-700 border-sky-200/80',
   'text-embedding-3-small': 'bg-slate-50 text-slate-600 border-slate-200/80',
+  'claude-sonnet-4-20250514': 'bg-amber-50 text-amber-700 border-amber-200/80',
+  'claude-haiku-4-5-20251001': 'bg-amber-50 text-amber-600 border-amber-200/80',
+  'gemini-2.0-flash': 'bg-blue-50 text-blue-700 border-blue-200/80',
+  'gemini-2.5-pro': 'bg-blue-50 text-blue-700 border-blue-200/80',
+  'whisper-1': 'bg-purple-50 text-purple-700 border-purple-200/80',
   'default': 'bg-slate-50 text-slate-600 border-slate-200/80'
 };
 
@@ -106,7 +111,8 @@ const requestTypeConfig = {
   'crm_extractor': { label: 'CRM Extract', pillClass: 'text-indigo-600 border-indigo-300 bg-indigo-50' },
   'crm_chat': { label: 'CRM Chat', pillClass: 'text-amber-600 border-amber-300 bg-amber-50' },
   'embedding': { label: 'Embedding', pillClass: 'text-slate-500 border-slate-200 bg-slate-50' },
-  'summarization': { label: 'Summary', pillClass: 'text-violet-600 border-violet-300 bg-violet-50' }
+  'summarization': { label: 'Summary', pillClass: 'text-violet-600 border-violet-300 bg-violet-50' },
+  'voice_transcription': { label: 'Voice', pillClass: 'text-purple-600 border-purple-300 bg-purple-50' }
 };
 
 // Premium StatCard matching AgentDashboard exactly
@@ -562,6 +568,11 @@ const UsageLogsPage = ({ agentType }) => {
                       <SelectItem value="all">All Models</SelectItem>
                       <SelectItem value="gpt-4o">GPT-4o</SelectItem>
                       <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                      <SelectItem value="claude-sonnet-4-20250514">Claude Sonnet 4</SelectItem>
+                      <SelectItem value="claude-haiku-4-5-20251001">Claude Haiku 4.5</SelectItem>
+                      <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
+                      <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+                      <SelectItem value="whisper-1">Whisper</SelectItem>
                       <SelectItem value="text-embedding-3-small">Embeddings</SelectItem>
                     </SelectContent>
                   </Select>
@@ -580,6 +591,7 @@ const UsageLogsPage = ({ agentType }) => {
                       <SelectItem value="crm_chat">CRM Chat</SelectItem>
                       <SelectItem value="embedding">Embedding</SelectItem>
                       <SelectItem value="summarization">Summary</SelectItem>
+                      <SelectItem value="voice_transcription">Voice</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -625,7 +637,7 @@ const UsageLogsPage = ({ agentType }) => {
                                   variant="outline"
                                   className={`text-[11px] font-medium px-2 py-0.5 border ${modelBadgeStyles[log.model] || modelBadgeStyles.default}`}
                                 >
-                                  {log.model === 'text-embedding-3-small' ? 'embeddings' : log.model}
+                                  {{'text-embedding-3-small': 'embeddings', 'claude-sonnet-4-20250514': 'claude-sonnet-4', 'claude-haiku-4-5-20251001': 'claude-haiku-4.5', 'gemini-2.0-flash': 'gemini-flash', 'gemini-2.5-pro': 'gemini-pro', 'whisper-1': 'whisper'}[log.model] || log.model}
                                 </Badge>
                               </TableCell>
                               <TableCell className="py-3.5">
@@ -870,7 +882,7 @@ const UsageLogsPage = ({ agentType }) => {
                             variant="outline"
                             className={`text-[11px] font-medium px-2 py-0.5 border ${modelBadgeStyles[model] || modelBadgeStyles.default}`}
                           >
-                            {model === 'text-embedding-3-small' ? 'embeddings' : model}
+                            {{'text-embedding-3-small': 'embeddings', 'claude-sonnet-4-20250514': 'claude-sonnet-4', 'claude-haiku-4-5-20251001': 'claude-haiku-4.5', 'gemini-2.0-flash': 'gemini-flash', 'gemini-2.5-pro': 'gemini-pro', 'whisper-1': 'whisper'}[model] || model}
                           </Badge>
                           <span className="text-[12px] text-slate-500 font-medium">
                             {modelDist.total_requests > 0
@@ -911,6 +923,11 @@ const UsageLogsPage = ({ agentType }) => {
                             'gpt-4o': 'bg-emerald-500',
                             'gpt-4o-mini': 'bg-sky-500',
                             'text-embedding-3-small': 'bg-slate-400',
+                            'claude-sonnet-4-20250514': 'bg-amber-500',
+                            'claude-haiku-4-5-20251001': 'bg-amber-400',
+                            'gemini-2.0-flash': 'bg-blue-500',
+                            'gemini-2.5-pro': 'bg-blue-600',
+                            'whisper-1': 'bg-purple-500',
                           };
                           return (
                             <div
@@ -929,12 +946,17 @@ const UsageLogsPage = ({ agentType }) => {
                             'gpt-4o': 'bg-emerald-500',
                             'gpt-4o-mini': 'bg-sky-500',
                             'text-embedding-3-small': 'bg-slate-400',
+                            'claude-sonnet-4-20250514': 'bg-amber-500',
+                            'claude-haiku-4-5-20251001': 'bg-amber-400',
+                            'gemini-2.0-flash': 'bg-blue-500',
+                            'gemini-2.5-pro': 'bg-blue-600',
+                            'whisper-1': 'bg-purple-500',
                           };
                           return (
                             <div key={model} className="flex items-center gap-1.5">
                               <div className={`w-2.5 h-2.5 rounded-full ${dotColors[model] || 'bg-slate-300'}`} />
                               <span className="text-[12px] text-slate-600">
-                                {model === 'text-embedding-3-small' ? 'Embeddings' : model} ({pct.toFixed(1)}%)
+                                {{'text-embedding-3-small': 'Embeddings', 'claude-sonnet-4-20250514': 'Claude Sonnet 4', 'claude-haiku-4-5-20251001': 'Claude Haiku 4.5', 'gemini-2.0-flash': 'Gemini Flash', 'gemini-2.5-pro': 'Gemini Pro', 'whisper-1': 'Whisper'}[model] || model} ({pct.toFixed(1)}%)
                               </span>
                             </div>
                           );

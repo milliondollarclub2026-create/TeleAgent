@@ -62,7 +62,7 @@ from google_sheets_service import (
 )
 
 # Import token usage logger for API billing/transparency
-from token_logger import log_token_usage_fire_and_forget
+from token_logger import log_token_usage_fire_and_forget, calculate_whisper_cost
 
 # Import Instagram Graph API service
 from instagram_service import (
@@ -238,6 +238,34 @@ def require_super_admin(current_user: Dict):
 # OpenAI client
 from llm_service import client as _llm_client
 openai_client = _llm_client  # Reuse the singleton from llm_service
+
+# Multi-model support via litellm
+import litellm
+litellm.drop_params = True  # Silently drop unsupported params per provider
+
+# Valid sales models and provider mapping
+VALID_SALES_MODELS = {
+    'gpt-4o', 'gpt-4o-mini',
+    'claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001',
+    'gemini-2.0-flash', 'gemini-2.5-pro',
+}
+DEFAULT_SALES_MODEL = 'gpt-4o'
+
+def _litellm_model_name(model: str) -> str:
+    """Map model name to litellm provider-prefixed string."""
+    if model.startswith('claude-'):
+        return f"anthropic/{model}"
+    if model.startswith('gemini-'):
+        return f"gemini/{model}"
+    return model  # OpenAI models pass through as-is
+
+# Startup warnings for missing provider API keys
+_anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
+_google_key = os.environ.get('GOOGLE_API_KEY', '').strip()
+if not _anthropic_key:
+    logging.warning("ANTHROPIC_API_KEY not set — Claude models will not work")
+if not _google_key:
+    logging.warning("GOOGLE_API_KEY not set — Gemini models will not work")
 
 # ============ Input Sanitization ============
 def sanitize_html(text: str) -> str:
@@ -930,6 +958,7 @@ class TenantConfigUpdate(BaseModel):
     hired_prebuilt: Optional[List[str]] = None
     # AI Capabilities
     image_responses_enabled: Optional[bool] = None
+    sales_model: Optional[str] = Field(None, max_length=50)
 
 class DocumentCreate(BaseModel):
     title: str
@@ -1888,7 +1917,7 @@ async def connect_telegram_bot(request: TelegramBotCreate, current_user: Dict = 
     else:
         supabase.table('telegram_bots').insert(bot_data).execute()
 
-    await set_telegram_webhook(request.bot_token, webhook_url, secret_token=webhook_secret)
+    await set_telegram_webhook(request.bot_token, webhook_url, secret_token=webhook_secret, allowed_updates=["message", "message_reaction"])
     logger.info(f"Set webhook for bot {bot_id} (tenant {tenant_id}): {webhook_url}")
     return {"id": bot_id, "bot_username": bot_info.get("username"), "is_active": True, "webhook_url": webhook_url}
 
@@ -7048,10 +7077,14 @@ async def call_sales_agent(
     contact_urgency: str = None,
     product_context: str = None,
     media_context: str = None,
-    conversation_id: str = None
+    conversation_id: str = None,
+    sales_model: str = None,
 ) -> Dict:
-    """Call LLM with enhanced sales pipeline, CRM awareness, and enforcement layers"""
+    """Call LLM with enhanced sales pipeline, CRM awareness, and enforcement layers.
+    Supports multiple LLM providers via litellm (OpenAI, Anthropic, Google)."""
     current_stage = lead_context.get('sales_stage', 'awareness') if lead_context else 'awareness'
+    model = sales_model if sales_model in VALID_SALES_MODELS else DEFAULT_SALES_MODEL
+    is_openai = model.startswith('gpt-')
 
     try:
         # Generate system prompt with all dynamic enforcement sections
@@ -7076,28 +7109,45 @@ async def call_sales_agent(
         if media_context:
             system_prompt += "\n\n" + media_context
 
+        # Non-OpenAI models don't support response_format=json_object reliably,
+        # so enforce JSON output via the system prompt instead
+        if not is_openai:
+            system_prompt += (
+                "\n\n## RESPONSE FORMAT\n"
+                "You MUST respond with a single valid JSON object (no markdown, no code fences, no extra text). "
+                "The JSON must contain these keys: reply_text, sales_stage, hotness, score, fields_collected, "
+                "needs_human_handoff, handoff_reason, objection_detected, closing_technique_used, "
+                "suggested_next_action, send_image."
+            )
+
         api_messages = [{"role": "system", "content": system_prompt}]
         for msg in messages:
             role = "assistant" if msg.get("role") == "assistant" else "user"
             api_messages.append({"role": role, "content": msg.get("text", "")})
 
+        # Build litellm call kwargs
+        litellm_model = _litellm_model_name(model)
+        call_kwargs = {
+            "model": litellm_model,
+            "messages": api_messages,
+            "temperature": 0.7,
+            "max_tokens": 1500,
+        }
+        # Only OpenAI supports response_format natively
+        if is_openai:
+            call_kwargs["response_format"] = {"type": "json_object"}
+
         # CRITICAL: Add timeout to prevent indefinite hangs
         response = await asyncio.wait_for(
-            openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=api_messages,
-                temperature=0.7,
-                max_tokens=1500,
-                response_format={"type": "json_object"}
-            ),
-            timeout=45.0  # 45 second timeout for LLM calls
+            litellm.acompletion(**call_kwargs),
+            timeout=55.0  # 55s timeout (non-OpenAI providers may be slightly slower)
         )
 
         # Log token usage for billing/transparency (fire-and-forget)
         if tenant_id and hasattr(response, 'usage') and response.usage:
             log_token_usage_fire_and_forget(
                 tenant_id=tenant_id,
-                model="gpt-4o",
+                model=model,
                 request_type="sales_agent",
                 input_tokens=response.usage.prompt_tokens,
                 output_tokens=response.usage.completion_tokens,
@@ -7105,14 +7155,33 @@ async def call_sales_agent(
             )
 
         content = response.choices[0].message.content
-        logger.info(f"LLM Response: model=gpt-4o tokens_in={response.usage.prompt_tokens} tokens_out={response.usage.completion_tokens} len={len(content)}")
+        usage = getattr(response, 'usage', None)
+        if usage:
+            logger.info(f"LLM Response: model={model} tokens_in={usage.prompt_tokens} tokens_out={usage.completion_tokens} len={len(content)}")
+        else:
+            logger.info(f"LLM Response: model={model} len={len(content)} (usage data unavailable)")
+
+        # Strip code fences that Claude/Gemini sometimes wrap around JSON
+        # Use regex to extract the first JSON object, handling nested fences robustly
+        stripped = content.strip()
+        if stripped.startswith("```"):
+            # Match ```<optional lang>\n ... \n```  (outermost only)
+            fence_match = re.match(r'^```\w*\s*\n(.*?)```\s*$', stripped, re.DOTALL)
+            if fence_match:
+                stripped = fence_match.group(1).strip()
+        # Fallback: if content starts with non-JSON char, try to find the JSON object
+        if stripped and stripped[0] not in ('{', '['):
+            json_start = stripped.find('{')
+            if json_start >= 0:
+                stripped = stripped[json_start:]
+        content = stripped
 
         result = json.loads(content)
         # Validate and sanitize LLM output
         return validate_llm_output(result, current_stage)
 
     except asyncio.TimeoutError:
-        logger.error("LLM call timed out after 45 seconds")
+        logger.error(f"LLM call timed out after 55 seconds (model={model})")
         return {
             "reply_text": "I apologize, I'm experiencing delays. Please try again in a moment.",
             "sales_stage": current_stage,
@@ -7121,7 +7190,7 @@ async def call_sales_agent(
             "fields_collected": {}
         }
     except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error: {e}")
+        logger.error(f"JSON parse error (model={model}): {e}")
         return {
             "reply_text": "I apologize, please try again.",
             "sales_stage": current_stage,
@@ -7130,7 +7199,7 @@ async def call_sales_agent(
             "fields_collected": {}
         }
     except Exception as e:
-        logger.exception("LLM call failed")
+        logger.exception(f"LLM call failed (model={model})")
         return {
             "reply_text": "I apologize, a technical error occurred. Please try again.",
             "sales_stage": current_stage,
@@ -7491,6 +7560,34 @@ async def telegram_webhook_with_bot_id(bot_id: str, request: Request, background
         update = await request.json()
         logger.info(f"Received Telegram update for bot {redact_id(bot_id)}")
 
+        # ── Handle message_reaction updates (emoji reactions to messages) ──
+        reaction_update = update.get("message_reaction")
+        if reaction_update:
+            # Only process private chat reactions
+            reaction_chat_type = reaction_update.get("chat", {}).get("type", "")
+            if reaction_chat_type != "private":
+                logger.debug(f"Ignoring non-private reaction (chat.type={reaction_chat_type})")
+                return {"ok": True}
+
+            # Look up the bot for tenant isolation + webhook secret verification
+            bot_result = supabase.table('telegram_bots').select('*').eq('id', bot_id).eq('is_active', True).execute()
+            if bot_result.data:
+                bot = bot_result.data[0]
+                # SECURITY: Verify webhook secret
+                expected_secret = decrypt_value(bot.get("webhook_secret") or "")
+                if expected_secret:
+                    received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+                    if not hmac.compare_digest(expected_secret, received_secret):
+                        logger.warning(f"Telegram webhook secret mismatch for reaction on bot {redact_id(bot_id)}")
+                        return {"ok": True}
+                background_tasks.add_task(
+                    process_telegram_reaction,
+                    bot["tenant_id"],
+                    decrypt_value(bot["bot_token"]),
+                    reaction_update
+                )
+            return {"ok": True}
+
         message = update.get("message")
         if not message or not isinstance(message, dict):
             logger.debug("No valid message in update, ignoring")
@@ -7516,6 +7613,43 @@ async def telegram_webhook_with_bot_id(bot_id: str, request: Request, background
                 expired = [k for k, v in _telegram_dedup_cache.items() if now_ts - v >= TELEGRAM_DEDUP_TTL]
                 for k in expired:
                     del _telegram_dedup_cache[k]
+
+        # ── Silently ignore stickers, GIFs, and video notes ──
+        if message.get("sticker"):
+            logger.debug("Sticker message received, ignoring")
+            return {"ok": True}
+        if message.get("animation"):
+            logger.debug("GIF/animation message received, ignoring")
+            return {"ok": True}
+        if message.get("video_note"):
+            logger.debug("Video note (round video) received, ignoring")
+            return {"ok": True}
+
+        # ── Voice message handling ──
+        if message.get("voice"):
+            # Rate limit check BEFORE background dispatch (consistent with text path)
+            voice_user_id = str(message.get("from", {}).get("id", "unknown"))
+            if not message_rate_limiter.is_allowed(voice_user_id):
+                logger.warning(f"Rate limit exceeded for voice message from user {voice_user_id}")
+                return {"ok": True}
+
+            bot_result = supabase.table('telegram_bots').select('*').eq('id', bot_id).eq('is_active', True).execute()
+            if bot_result.data:
+                bot = bot_result.data[0]
+                # Verify webhook secret
+                expected_secret = decrypt_value(bot.get("webhook_secret") or "")
+                if expected_secret:
+                    received_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+                    if not hmac.compare_digest(expected_secret, received_secret):
+                        logger.warning(f"Telegram webhook secret mismatch for bot {redact_id(bot_id)}")
+                        return {"ok": True}
+                background_tasks.add_task(
+                    process_telegram_voice_message,
+                    bot["tenant_id"],
+                    decrypt_value(bot["bot_token"]),
+                    update
+                )
+            return {"ok": True}
 
         text = message.get("text")
         if not text:
@@ -7885,6 +8019,7 @@ async def process_channel_message(
     typing_fn=None,
     bot_token: str = None,
     chat_id: int = None,
+    telegram_message_id: int = None,
 ):
     """Channel-agnostic message processing with enhanced sales pipeline.
 
@@ -7920,6 +8055,9 @@ async def process_channel_message(
         # Get tenant config
         config_result = supabase.table('tenant_configs').select('*').eq('tenant_id', tenant_id).execute()
         config = config_result.data[0] if config_result.data else {}
+
+        # Resolve tenant's preferred sales model
+        tenant_sales_model = config.get('sales_model', DEFAULT_SALES_MODEL)
 
         # Per-tenant message rate limit (0 = unlimited)
         tenant_max = config.get('max_messages_per_minute', 0)
@@ -7969,8 +8107,11 @@ async def process_channel_message(
         else:
             conversation = conv_result.data[0]
 
-        # Save incoming message
-        supabase.table('messages').insert({"id": str(uuid.uuid4()), "conversation_id": conversation['id'], "sender_type": "user", "text": text, "created_at": now}).execute()
+        # Save incoming message (include telegram_message_id in raw_payload if available)
+        msg_insert = {"id": str(uuid.uuid4()), "conversation_id": conversation['id'], "sender_type": "user", "text": text, "created_at": now}
+        if telegram_message_id:
+            msg_insert["raw_payload"] = {"telegram_message_id": telegram_message_id}
+        supabase.table('messages').insert(msg_insert).execute()
 
         # ── Emoji-Only Message Handling ──────────────────────────────
         # Detect emoji-only messages BEFORE the LLM pipeline to avoid
@@ -7981,8 +8122,22 @@ async def process_channel_message(
             logger.info(f"[{channel}] Emoji-only message (ignore): '{text[:20]}' — skipping LLM pipeline")
             return
         elif emoji_class in ('affirmative', 'negative'):
-            # Thumbs up/down — rewrite as natural text so the LLM understands context
-            if emoji_class == 'affirmative':
+            # Context-aware rewriting: find last bot message for richer context
+            sentiment = "positive/agreement" if emoji_class == 'affirmative' else "negative/disagreement"
+            last_bot_msg = None
+            try:
+                bot_msgs = supabase.table('messages').select('text').eq('conversation_id', conversation['id']).eq('sender_type', 'agent').order('created_at', desc=True).limit(1).execute()
+                if bot_msgs.data:
+                    raw_msg = (bot_msgs.data[0].get('text') or '')[:150]
+                    # Sanitize to prevent prompt injection via reflected content
+                    last_bot_msg = raw_msg.replace('[', '(').replace(']', ')').replace("'", "'")
+            except Exception:
+                pass
+
+            if last_bot_msg:
+                text = f"[User reacted with {sentiment} emoji to: '{last_bot_msg}']"
+                logger.info(f"[{channel}] {emoji_class} emoji with context — rewriting with bot message reference")
+            elif emoji_class == 'affirmative':
                 text = "Yes, sounds good"
                 logger.info(f"[{channel}] Affirmative emoji detected — rewriting as '{text}'")
             else:
@@ -8132,7 +8287,7 @@ async def process_channel_message(
                     messages_for_llm, config, lead_context, business_context,
                     tenant_id, text, crm_context, crm_query_context,
                     detected_objection, closing_script, contact_urgency, product_context,
-                    media_context, conv_id,
+                    media_context, conv_id, sales_model=tenant_sales_model,
                 )
             else:
                 # Start CRM extraction as background task (non-blocking)
@@ -8153,7 +8308,7 @@ async def process_channel_message(
                 messages_for_llm, config, lead_context, business_context,
                 tenant_id, text, crm_context, crm_query_context,
                 detected_objection, closing_script, contact_urgency, product_context,
-                media_context, conv_id,
+                media_context, conv_id, sales_model=tenant_sales_model,
             )
 
         # Response Validation
@@ -8279,6 +8434,7 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
     username = from_user.get("username")
     first_name = from_user.get("first_name")
     language_code = from_user.get("language_code")
+    tg_message_id = message.get("message_id")
 
     if not chat_id:
         logger.error("No chat_id in message")
@@ -8324,7 +8480,307 @@ async def process_telegram_message(tenant_id: str, bot_token: str, update: Dict)
         typing_fn=typing_fn,
         bot_token=bot_token,
         chat_id=chat_id,
+        telegram_message_id=tg_message_id,
     )
+
+
+import io as _io
+
+# ============ Voice Message Support ============
+
+# Known Whisper silence hallucinations (phrases generated from silence/noise,
+# NOT legitimate user phrases like "thank you" which are common in sales conversations)
+_WHISPER_HALLUCINATIONS = {
+    "thank you for watching", "thanks for watching", "subscribe",
+    "like and subscribe", "please subscribe",
+    "подписывайтесь", "спасибо за просмотр",
+    "you", "bye", "so",  # single-word Whisper noise artifacts
+}
+
+async def download_telegram_file(bot_token: str, file_id: str) -> Optional[bytes]:
+    """Download a file from Telegram servers by file_id."""
+    try:
+        async with httpx.AsyncClient() as client:
+            # Get file path
+            resp = await client.get(
+                f"https://api.telegram.org/bot{bot_token}/getFile",
+                params={"file_id": file_id},
+                timeout=30.0,
+            )
+            data = resp.json()
+            if not data.get("ok"):
+                logger.error(f"getFile failed: {data}")
+                return None
+            file_path = data["result"]["file_path"]
+
+            # Download the file
+            file_resp = await client.get(
+                f"https://api.telegram.org/file/bot{bot_token}/{file_path}",
+                timeout=30.0,
+            )
+            if file_resp.status_code == 200:
+                return file_resp.content
+            logger.error(f"File download failed: status={file_resp.status_code}")
+            return None
+    except Exception as e:
+        logger.error(f"Failed to download Telegram file: {e}")
+        return None
+
+
+async def transcribe_voice_message(audio_bytes: bytes, language: str = None) -> Tuple[str, bool]:
+    """Transcribe voice audio using OpenAI Whisper API.
+
+    Returns:
+        (transcript_text, api_success) — api_success=False means the API itself failed,
+        not that the audio was unclear.
+    """
+    try:
+        audio_file = _io.BytesIO(audio_bytes)
+        audio_file.name = "voice.ogg"  # Telegram sends OGG format natively
+
+        kwargs = {"model": "whisper-1", "file": audio_file}
+        # Language hint for better accuracy
+        if language:
+            lang_map = {"uz": "uz", "ru": "ru", "en": "en", "tr": "tr", "ar": "ar"}
+            whisper_lang = lang_map.get(language, language[:2] if language else None)
+            if whisper_lang:
+                kwargs["language"] = whisper_lang
+
+        transcript = await asyncio.wait_for(
+            openai_client.audio.transcriptions.create(**kwargs),
+            timeout=30.0,
+        )
+        text = transcript.text.strip() if transcript and transcript.text else ""
+        return text, True
+    except asyncio.TimeoutError:
+        logger.error("Whisper transcription timed out")
+        return "", False
+    except Exception as e:
+        logger.error(f"Whisper transcription failed: {e}")
+        return "", False
+
+
+def validate_transcript(transcript: str, duration_seconds: int) -> tuple:
+    """Validate a voice transcript for quality. Returns (is_valid, reason)."""
+    if not transcript or not transcript.strip():
+        return False, "empty"
+
+    words = transcript.split()
+    # Very short transcript for long audio = likely garbage
+    if len(words) < 3 and duration_seconds > 5:
+        return False, "too_few_words"
+
+    # Excessive character repetition (e.g., "aaaaaaa")
+    cleaned = transcript.lower().strip()
+    if len(cleaned) > 3 and len(set(cleaned.replace(" ", ""))) <= 2:
+        return False, "repetitive"
+
+    # Known Whisper silence hallucinations
+    if cleaned in _WHISPER_HALLUCINATIONS:
+        return False, "hallucination"
+
+    return True, "ok"
+
+
+async def process_telegram_voice_message(tenant_id: str, bot_token: str, update: Dict):
+    """Process a Telegram voice message: download, transcribe via Whisper, feed to sales agent."""
+    try:
+        message = update.get("message", {})
+        voice = message.get("voice", {})
+        file_id = voice.get("file_id")
+        duration = voice.get("duration", 0)
+        chat_id = message.get("chat", {}).get("id")
+        from_user = message.get("from", {})
+        user_id = str(from_user.get("id", ""))
+        username = from_user.get("username")
+        first_name = from_user.get("first_name")
+        language_code = from_user.get("language_code")
+        tg_message_id = message.get("message_id")
+
+        if not chat_id or not file_id:
+            return
+
+        # Rate limiting is handled in the webhook handler before dispatch.
+
+        # Duration cap: 5 minutes max
+        MAX_VOICE_DURATION = 300
+        if duration > MAX_VOICE_DURATION:
+            await send_telegram_message(
+                bot_token, chat_id,
+                "Voice messages longer than 5 minutes are not supported. Please send a shorter message or type your question."
+            )
+            return
+
+        # File size cap: 10MB to prevent memory issues
+        MAX_VOICE_FILE_SIZE = 10 * 1024 * 1024
+        file_size = voice.get("file_size", 0)
+        if file_size > MAX_VOICE_FILE_SIZE:
+            logger.warning(f"Voice file too large ({file_size} bytes), rejecting")
+            await send_telegram_message(
+                bot_token, chat_id,
+                "Your voice message is too large. Please send a shorter recording."
+            )
+            return
+
+        # Send typing indicator
+        await send_typing_action(bot_token, chat_id)
+
+        # Download audio
+        audio_bytes = await download_telegram_file(bot_token, file_id)
+        if not audio_bytes:
+            await send_telegram_message(
+                bot_token, chat_id,
+                "I couldn't download your voice message. Please try again or type your question."
+            )
+            return
+
+        # Transcribe
+        transcript, api_success = await transcribe_voice_message(audio_bytes, language=language_code)
+
+        # Log Whisper usage (even on failure — the API call was made)
+        whisper_cost = calculate_whisper_cost(duration)
+        log_token_usage_fire_and_forget(
+            tenant_id=tenant_id,
+            model="whisper-1",
+            request_type="voice_transcription",
+            input_tokens=duration,  # Store duration as "input_tokens" for reference
+            output_tokens=0,
+            cost_override=whisper_cost,
+        )
+
+        # Handle API failure separately from bad audio
+        if not api_success:
+            await send_telegram_message(
+                bot_token, chat_id,
+                "Sorry, voice processing is temporarily unavailable. Please type your question instead."
+            )
+            return
+
+        # Validate transcript
+        is_valid, reason = validate_transcript(transcript, duration)
+        if not is_valid:
+            logger.info(f"Voice transcript invalid (reason={reason}): '{transcript[:50]}'")
+            await send_telegram_message(
+                bot_token, chat_id,
+                "I couldn't clearly understand your voice message. Could you please type your question or try recording again?"
+            )
+            return
+
+        logger.info(f"Voice transcribed ({duration}s, {len(transcript)} chars): '{transcript[:80]}'")
+
+        # Feed transcript into the normal message pipeline
+        async def send_fn(reply_text):
+            return await send_telegram_message(bot_token, chat_id, reply_text)
+
+        async def typing_fn():
+            await send_typing_action(bot_token, chat_id)
+
+        await process_channel_message(
+            tenant_id=tenant_id,
+            channel="telegram",
+            sender_id=user_id,
+            sender_username=username,
+            sender_name=first_name,
+            text=transcript,
+            language_code=language_code,
+            send_fn=send_fn,
+            typing_fn=typing_fn,
+            bot_token=bot_token,
+            chat_id=chat_id,
+            telegram_message_id=tg_message_id,
+        )
+    except Exception as e:
+        logger.exception(f"Error processing voice message: {e}")
+        try:
+            chat_id = update.get("message", {}).get("chat", {}).get("id")
+            if chat_id:
+                await send_telegram_message(
+                    bot_token, chat_id,
+                    "Sorry, I had trouble processing your voice message. Please try typing your question instead."
+                )
+        except Exception:
+            pass
+
+
+async def process_telegram_reaction(tenant_id: str, bot_token: str, reaction_update: Dict):
+    """Handle Telegram message_reaction updates — user reacted to a bot message with an emoji."""
+    try:
+        chat = reaction_update.get("chat", {})
+        chat_id = chat.get("id")
+        user = reaction_update.get("user", {})
+        user_id = str(user.get("id", ""))
+        username = user.get("username")
+        first_name = user.get("first_name")
+        language_code = user.get("language_code")
+        reacted_message_id = reaction_update.get("message_id")
+
+        if not chat_id or not reacted_message_id:
+            return
+
+        # Extract the emoji from new_reaction list
+        new_reactions = reaction_update.get("new_reaction", [])
+        if not new_reactions:
+            logger.debug("Reaction removed (empty new_reaction), ignoring")
+            return
+        reaction_obj = new_reactions[0]
+        # Telegram supports both standard emoji and custom_emoji reactions
+        emoji = reaction_obj.get("emoji", "")
+        if not emoji:
+            # Custom emoji reaction (premium sticker) — no standard emoji to classify
+            logger.debug(f"Custom emoji reaction (type={reaction_obj.get('type')}), ignoring")
+            return
+
+        # Classify the reaction emoji
+        emoji_class = classify_emoji_message(emoji)
+        if emoji_class is None or emoji_class == 'ignore':
+            return  # Unknown or irrelevant emoji reaction
+
+        sentiment = "positive/agreement" if emoji_class == 'affirmative' else "negative/disagreement"
+
+        # Find the bot's last message in this user's conversation
+        original_text = None
+        try:
+            # Find conversation for this user+tenant
+            customer_result = supabase.table('customers').select('id').eq('tenant_id', tenant_id).eq('telegram_user_id', user_id).execute()
+            if customer_result.data:
+                customer_id = customer_result.data[0]['id']
+                conv_result = supabase.table('conversations').select('id').eq('tenant_id', tenant_id).eq('customer_id', customer_id).eq('status', 'active').order('last_message_at', desc=True).limit(1).execute()
+                if conv_result.data:
+                    conv_id = conv_result.data[0]['id']
+                    # Get the most recent agent message
+                    agent_msgs = supabase.table('messages').select('text').eq('conversation_id', conv_id).eq('sender_type', 'agent').order('created_at', desc=True).limit(1).execute()
+                    if agent_msgs.data:
+                        original_text = (agent_msgs.data[0].get('text') or '')[:150]
+        except Exception as e:
+            logger.warning(f"Could not look up original message for reaction: {e}")
+
+        if not original_text:
+            return  # Graceful degradation — can't find what they reacted to
+
+        # Build synthetic text and feed into the normal pipeline
+        synthetic_text = f"[User reacted with {emoji} ({sentiment}) to: '{original_text}']"
+
+        async def send_fn(reply_text):
+            return await send_telegram_message(bot_token, chat_id, reply_text)
+
+        async def typing_fn():
+            await send_typing_action(bot_token, chat_id)
+
+        await process_channel_message(
+            tenant_id=tenant_id,
+            channel="telegram",
+            sender_id=user_id,
+            sender_username=username,
+            sender_name=first_name,
+            text=synthetic_text,
+            language_code=language_code,
+            send_fn=send_fn,
+            typing_fn=typing_fn,
+            bot_token=bot_token,
+            chat_id=chat_id,
+        )
+    except Exception as e:
+        logger.exception(f"Error processing Telegram reaction: {e}")
 
 
 async def process_instagram_message(tenant_id: str, access_token: str, sender_id: str, text: str):
@@ -9874,6 +10330,7 @@ async def get_tenant_config(current_user: Dict = Depends(get_current_user)):
         "payment_plans_enabled": config.get("payment_plans_enabled", False),
         # AI Capabilities
         "image_responses_enabled": config.get("image_responses_enabled", False),
+        "sales_model": config.get("sales_model", "gpt-4o"),
         # Hired prebuilt employees
         "hired_prebuilt": config.get("hired_prebuilt") or []
     }
@@ -9902,11 +10359,16 @@ async def update_tenant_config(request: TenantConfigUpdate, current_user: Dict =
         # Hired prebuilt employees
         'hired_prebuilt',
         # AI Capabilities
-        'image_responses_enabled'
+        'image_responses_enabled',
+        'sales_model'
     }
 
     # Filter to only include valid database columns and non-None values
     update_data = {k: v for k, v in request.model_dump().items() if v is not None and k in VALID_DB_COLUMNS}
+
+    # Validate sales_model against allowed models
+    if 'sales_model' in update_data and update_data['sales_model'] not in VALID_SALES_MODELS:
+        raise HTTPException(status_code=400, detail=f"Invalid sales_model. Must be one of: {', '.join(sorted(VALID_SALES_MODELS))}")
 
     # Sanitize user input to prevent XSS attacks
     update_data = sanitize_dict(update_data, SANITIZE_FIELDS)
@@ -11516,6 +11978,7 @@ async def register_shared_bot_webhook():
                 secret_token=LEADRELAY_BOT_WEBHOOK_SECRET,
                 allowed_updates=[
                     "message",
+                    "message_reaction",
                     "business_connection",
                     "business_message",
                     "edited_business_message",
@@ -12636,7 +13099,7 @@ async def admin_reregister_webhooks(current_user: Dict = Depends(get_current_use
             "webhook_secret": encrypt_value(existing_secret)
         }).eq('id', bot['id']).execute()
 
-        result = await set_telegram_webhook(bot_token, webhook_url, secret_token=existing_secret)
+        result = await set_telegram_webhook(bot_token, webhook_url, secret_token=existing_secret, allowed_updates=["message", "message_reaction"])
         results.append({"bot_id": bot['id'], "ok": result.get("ok", False), "webhook_url": webhook_url})
 
     return {"success": True, "results": results}

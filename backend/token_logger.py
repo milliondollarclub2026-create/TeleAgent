@@ -59,6 +59,29 @@ PRICING = {
         "input": 0.00013,   # $0.13 per 1M tokens
         "output": 0,
     },
+    # Anthropic Claude models
+    "claude-sonnet-4-20250514": {
+        "input": 0.003,     # $3.00 per 1M input tokens
+        "output": 0.015,    # $15.00 per 1M output tokens
+    },
+    "claude-haiku-4-5-20251001": {
+        "input": 0.0008,    # $0.80 per 1M input tokens
+        "output": 0.004,    # $4.00 per 1M output tokens
+    },
+    # Google Gemini models
+    "gemini-2.0-flash": {
+        "input": 0.0001,    # $0.10 per 1M input tokens
+        "output": 0.0004,   # $0.40 per 1M output tokens
+    },
+    "gemini-2.5-pro": {
+        "input": 0.00125,   # $1.25 per 1M input tokens
+        "output": 0.010,    # $10.00 per 1M output tokens
+    },
+    # Whisper (duration-based, use cost_override)
+    "whisper-1": {
+        "input": 0,
+        "output": 0,
+    },
 }
 
 # Request type descriptions for better logging
@@ -71,6 +94,7 @@ REQUEST_TYPES = {
     "sales_agent_faq": "FAQ Response (Mini)",
     "crm_extractor": "CRM Field Extraction",
     "sales_agent_escalated": "Escalated Sales Agent",
+    "voice_transcription": "Voice Transcription",
 }
 
 
@@ -79,6 +103,12 @@ def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
     pricing = PRICING.get(model, {"input": 0, "output": 0})
     cost = (input_tokens * pricing["input"] / 1000) + (output_tokens * pricing["output"] / 1000)
     return round(cost, 6)
+
+
+def calculate_whisper_cost(duration_seconds: float) -> float:
+    """Calculate Whisper transcription cost. $0.006 per minute."""
+    minutes = duration_seconds / 60.0
+    return round(minutes * 0.006, 6)
 
 
 async def log_token_usage(
@@ -92,6 +122,7 @@ async def log_token_usage(
     conversation_id: Optional[str] = None,
     route_decision: Optional[str] = None,
     classifier_category: Optional[str] = None,
+    cost_override: Optional[float] = None,
 ) -> None:
     """
     Log token usage to the database via Supabase REST client.
@@ -105,7 +136,7 @@ async def log_token_usage(
         return
 
     try:
-        cost_usd = calculate_cost(model, input_tokens, output_tokens)
+        cost_usd = cost_override if cost_override is not None else calculate_cost(model, input_tokens, output_tokens)
 
         row = {
             "id": str(uuid4()),
@@ -160,6 +191,7 @@ def log_token_usage_fire_and_forget(
     conversation_id: Optional[str] = None,
     route_decision: Optional[str] = None,
     classifier_category: Optional[str] = None,
+    cost_override: Optional[float] = None,
 ) -> None:
     """
     Fire-and-forget wrapper for log_token_usage.
@@ -183,6 +215,7 @@ def log_token_usage_fire_and_forget(
                 conversation_id=conversation_id,
                 route_decision=route_decision,
                 classifier_category=classifier_category,
+                cost_override=cost_override,
             )
         )
     except RuntimeError:

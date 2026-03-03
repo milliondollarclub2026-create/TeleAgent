@@ -17,8 +17,16 @@ import {
   ChevronRight,
   Shield,
   Sparkles,
-  Image
+  Image,
+  Cpu,
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +40,15 @@ import {
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+const MODEL_OPTIONS = [
+  { value: 'gpt-4o', label: 'GPT-4o', provider: 'OpenAI', description: 'Best overall quality' },
+  { value: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'OpenAI', description: 'Fast and affordable' },
+  { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', provider: 'Anthropic', description: 'Strong reasoning' },
+  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', provider: 'Anthropic', description: 'Fast and affordable' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', provider: 'Google', description: 'Ultra-fast responses' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'Google', description: 'High quality' },
+];
 
 export default function SettingsPage() {
   const { user, token, logout } = useAuth();
@@ -47,6 +64,8 @@ export default function SettingsPage() {
   const [imageResponsesEnabled, setImageResponsesEnabled] = useState(false);
   const [savingImageToggle, setSavingImageToggle] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  const [salesModel, setSalesModel] = useState('gpt-4o');
+  const [savingModel, setSavingModel] = useState(false);
 
   // Fetch config on mount
   useEffect(() => {
@@ -56,6 +75,9 @@ export default function SettingsPage() {
           headers: { Authorization: `Bearer ${token}` }
         });
         setImageResponsesEnabled(response.data.image_responses_enabled || false);
+        const returnedModel = response.data.sales_model || 'gpt-4o';
+        const validModels = MODEL_OPTIONS.map(m => m.value);
+        setSalesModel(validModels.includes(returnedModel) ? returnedModel : 'gpt-4o');
       } catch (error) {
         console.error('Failed to fetch config:', error);
       } finally {
@@ -84,6 +106,26 @@ export default function SettingsPage() {
       toast.error('Failed to update setting');
     } finally {
       setSavingImageToggle(false);
+    }
+  };
+
+  const handleSalesModelChange = async (newModel) => {
+    setSavingModel(true);
+    const previousModel = salesModel;
+    setSalesModel(newModel); // Optimistic update
+
+    try {
+      await axios.put(`${API_URL}/api/config`, {
+        sales_model: newModel
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success(`Sales model updated to ${MODEL_OPTIONS.find(m => m.value === newModel)?.label || newModel}`);
+    } catch (error) {
+      setSalesModel(previousModel); // Rollback on error
+      toast.error('Failed to update sales model');
+    } finally {
+      setSavingModel(false);
     }
   };
 
@@ -153,7 +195,43 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
-        <CardContent className="p-6">
+        <CardContent className="p-6 space-y-6">
+          {/* Sales Model Selector */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Cpu className="w-4 h-4 text-slate-500" strokeWidth={1.75} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-900">Sales Agent Model</p>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  Choose the AI model powering your sales conversations
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {savingModel && (
+                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+              )}
+              <Select value={salesModel} onValueChange={handleSalesModelChange} disabled={savingModel || loadingConfig}>
+                <SelectTrigger className="w-[200px] h-9 text-[13px] border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MODEL_OPTIONS.map((model) => (
+                    <SelectItem key={model.value} value={model.value} className="text-[13px]">
+                      <span>{model.label}</span>
+                      <span className="text-slate-400 ml-1.5">({model.provider})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100" />
+
+          {/* Image Responses Toggle */}
           <div className="flex items-center justify-between">
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
