@@ -191,8 +191,8 @@ const KnowledgeBasePage = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('File too large. Maximum size is 10MB');
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error('File too large. Maximum size is 25MB');
       return;
     }
 
@@ -726,7 +726,7 @@ const KnowledgeBasePage = () => {
                     <div className="py-12 px-6 text-center">
                       <Upload className="w-10 h-10 mx-auto text-slate-400" strokeWidth={1.5} />
                       <p className="font-medium text-slate-900 mt-4">Drop file here or click to browse</p>
-                      <p className="text-sm text-slate-500 mt-1">Maximum file size: 10MB</p>
+                      <p className="text-sm text-slate-500 mt-1">Maximum file size: 25MB</p>
                       <input
                         ref={fileInputRef}
                         type="file"

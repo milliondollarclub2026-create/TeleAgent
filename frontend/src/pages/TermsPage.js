@@ -322,7 +322,7 @@ export default function TermsPage() {
             <ul className="list-disc list-inside text-slate-600 leading-relaxed space-y-2 mb-4">
               <li>Maximum 100 concurrent conversations per agent</li>
               <li>Maximum 10 API requests per second per account</li>
-              <li>Maximum file upload size of 10MB per document</li>
+              <li>Maximum file upload size of 25MB per document</li>
               <li>Maximum 100 documents per knowledge base</li>
             </ul>
             <p className="text-slate-600 leading-relaxed mb-4">

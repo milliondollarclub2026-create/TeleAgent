@@ -9443,8 +9443,9 @@ async def get_config_defaults(current_user: Dict = Depends(get_current_user)):
 
 # ============ Documents Endpoints (Enhanced with RAG) ============
 
-# Maximum file size (10MB)
-MAX_FILE_SIZE = 10 * 1024 * 1024
+# Maximum file size (25MB) - also the total KB quota per account
+MAX_FILE_SIZE = 25 * 1024 * 1024
+MAX_KB_QUOTA_BYTES = 25 * 1024 * 1024
 
 # ============ File Upload Magic Byte Validation ============
 MAGIC_BYTES = {
@@ -9694,7 +9695,8 @@ async def create_document(request: DocumentCreate, current_user: Dict = Depends(
 
 
 async def check_tenant_kb_quota(tenant_id: str, new_file_size: int) -> Dict:
-    """Check KB quota using Supabase RPC function."""
+    """Check KB quota using Supabase RPC function. Quota enforced by MAX_KB_QUOTA_BYTES."""
+    max_mb = MAX_KB_QUOTA_BYTES // (1024 * 1024)
     try:
         result = supabase.rpc('check_kb_quota', {
             'p_tenant_id': tenant_id,
@@ -9703,17 +9705,17 @@ async def check_tenant_kb_quota(tenant_id: str, new_file_size: int) -> Dict:
         if result.data and len(result.data) > 0:
             row = result.data[0]
             current_bytes = row['current_total_bytes']
-            max_b = row['max_bytes']
+            remaining = MAX_KB_QUOTA_BYTES - current_bytes
             return {
                 'used_mb': round(current_bytes / (1024 * 1024), 2),
-                'max_mb': max_b // (1024 * 1024),
-                'remaining_mb': round((max_b - current_bytes) / (1024 * 1024), 2),
-                'would_exceed': row['would_exceed']
+                'max_mb': max_mb,
+                'remaining_mb': round(max(remaining, 0) / (1024 * 1024), 2),
+                'would_exceed': (current_bytes + new_file_size) > MAX_KB_QUOTA_BYTES
             }
-        return {'used_mb': 0, 'max_mb': 50, 'remaining_mb': 50, 'would_exceed': False}
+        return {'used_mb': 0, 'max_mb': max_mb, 'remaining_mb': max_mb, 'would_exceed': False}
     except Exception as e:
         logger.warning(f"KB quota check failed: {e}")
-        return {'used_mb': 0, 'max_mb': 50, 'remaining_mb': 50, 'would_exceed': False}
+        return {'used_mb': 0, 'max_mb': max_mb, 'remaining_mb': max_mb, 'would_exceed': False}
 
 
 @api_router.get("/documents/quota")
