@@ -256,7 +256,9 @@ def _litellm_model_name(model: str) -> str:
     if model.startswith('claude-'):
         return f"anthropic/{model}"
     if model.startswith('gemini-'):
-        return f"gemini/{model}"
+        # Use vertex_ai/ prefix — supports Vertex AI API keys (service-account-bound)
+        # as well as standard GOOGLE_API_KEY. Falls back gracefully.
+        return f"vertex_ai/{model}"
     return model  # OpenAI models pass through as-is
 
 # Startup warnings for missing provider API keys
