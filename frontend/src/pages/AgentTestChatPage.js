@@ -11,10 +11,30 @@ import {
   Loader2,
   User,
   Image,
-  ImageOff
+  ImageOff,
+  ChevronDown,
+  Cpu,
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import AiOrb from '../components/Orb/AiOrb';
 import { toast } from 'sonner';
+
+const MODEL_OPTIONS = [
+  { value: 'gpt-4o', label: 'GPT-4o', provider: 'OpenAI' },
+  { value: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'OpenAI' },
+  { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', provider: 'Anthropic' },
+  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', provider: 'Anthropic' },
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', provider: 'Google' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'Google' },
+];
+
+const getModelLabel = (modelId) => MODEL_OPTIONS.find(m => m.value === modelId)?.label || modelId;
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -148,6 +168,8 @@ const AgentTestChatPage = () => {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [debugInfo, setDebugInfo] = useState(null);
+  const [activeModel, setActiveModel] = useState('gpt-4o');
+  const [switchingModel, setSwitchingModel] = useState(false);
   const messagesRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -207,6 +229,10 @@ const AgentTestChatPage = () => {
       const response = await axios.get(`${API}/config`);
       if (response.data) {
         setConfig(response.data);
+        // Load the tenant's configured model
+        const savedModel = response.data.sales_model || 'gpt-4o';
+        const validModels = MODEL_OPTIONS.map(m => m.value);
+        setActiveModel(validModels.includes(savedModel) ? savedModel : 'gpt-4o');
         // Only set default greeting if no saved messages exist
         const savedMessages = localStorage.getItem(getChatStorageKey(agentId));
         if (!savedMessages) {
@@ -223,6 +249,21 @@ const AgentTestChatPage = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleModelSwitch = async (newModel) => {
+    setSwitchingModel(true);
+    const previousModel = activeModel;
+    setActiveModel(newModel);
+    try {
+      await axios.put(`${API}/config`, { sales_model: newModel });
+      toast.success(`Switched to ${getModelLabel(newModel)}`);
+    } catch (error) {
+      setActiveModel(previousModel);
+      toast.error('Failed to switch model');
+    } finally {
+      setSwitchingModel(false);
     }
   };
 
@@ -243,9 +284,11 @@ const AgentTestChatPage = () => {
         }))
       });
 
+      const respondedModel = response.data.model || activeModel;
       setMessages(prev => [...prev, {
         role: 'assistant',
-        text: response.data.reply
+        text: response.data.reply,
+        model: respondedModel,
       }]);
 
       setDebugInfo({
@@ -254,7 +297,8 @@ const AgentTestChatPage = () => {
         score: response.data.score,
         fields_collected: response.data.fields_collected,
         rag_used: response.data.rag_context_used,
-        rag_count: response.data.rag_context_count
+        rag_count: response.data.rag_context_count,
+        model: respondedModel,
       });
     } catch (error) {
       toast.error('Failed to get response');
@@ -331,10 +375,22 @@ const AgentTestChatPage = () => {
                 <p className="text-xs text-slate-500">AI Sales Assistant</p>
               </div>
             </div>
-            <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              Online
-            </span>
+            <div className="flex items-center gap-2">
+              <Select value={activeModel} onValueChange={handleModelSwitch} disabled={switchingModel || sending}>
+                <SelectTrigger className="h-8 w-[170px] text-[12px] border-slate-200 bg-slate-50 font-medium gap-1.5">
+                  <Cpu className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" strokeWidth={1.75} />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MODEL_OPTIONS.map((model) => (
+                    <SelectItem key={model.value} value={model.value} className="text-[12px]">
+                      <span>{model.label}</span>
+                      <span className="text-slate-400 ml-1.5">{model.provider}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Messages */}
@@ -360,15 +416,20 @@ const AgentTestChatPage = () => {
                   )}
 
                   {/* Message Bubble */}
-                  <div className={`px-4 py-2.5 text-[13px] leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-slate-900 text-white rounded-2xl rounded-br-sm'
-                      : 'bg-white border border-slate-200 text-slate-700 rounded-2xl rounded-bl-sm shadow-sm'
-                  }`}>
-                    {msg.role === 'assistant' ? (
-                      <MessageContent text={msg.text} />
-                    ) : (
-                      msg.text
+                  <div className="flex flex-col gap-1">
+                    <div className={`px-4 py-2.5 text-[13px] leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-slate-900 text-white rounded-2xl rounded-br-sm'
+                        : 'bg-white border border-slate-200 text-slate-700 rounded-2xl rounded-bl-sm shadow-sm'
+                    }`}>
+                      {msg.role === 'assistant' ? (
+                        <MessageContent text={msg.text} />
+                      ) : (
+                        msg.text
+                      )}
+                    </div>
+                    {msg.role === 'assistant' && msg.model && (
+                      <span className="text-[10px] text-slate-400 ml-1">{getModelLabel(msg.model)}</span>
                     )}
                   </div>
                 </div>
@@ -464,6 +525,14 @@ const AgentTestChatPage = () => {
                     <span className="text-sm font-semibold text-slate-900 font-mono w-12 text-right">{debugInfo.score || 0}</span>
                   </div>
                 </div>
+
+                {/* Active Model */}
+                {debugInfo.model && (
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium mb-1.5">Model Used</p>
+                    <p className="text-sm font-semibold text-slate-900">{getModelLabel(debugInfo.model)}</p>
+                  </div>
+                )}
 
                 {/* RAG */}
                 <div>

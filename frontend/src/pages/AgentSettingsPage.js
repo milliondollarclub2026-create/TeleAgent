@@ -111,29 +111,18 @@ const AgentSettingsPage = () => {
 
   const MAX_ACTIVE_FIELDS = 5;
 
-  // Available AI models grouped by provider (visual only - not saved to backend)
-  // Prices: cents per 1,000 tokens
+  // Available AI models grouped by provider — must match backend VALID_SALES_MODELS
+  // Prices: cents per 1,000 tokens (matching token_logger.py PRICING)
   const AI_MODELS = [
-    { id: 'gpt-5', name: 'GPT-5', provider: 'OpenAI', inputCost: '0.125', outputCost: '1.0', badge: 'Latest', capabilities: ['text', 'vision'] },
-    { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'OpenAI', inputCost: '0.025', outputCost: '0.2', badge: null, capabilities: ['text', 'vision'] },
-    { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI', inputCost: '0.2', outputCost: '0.8', badge: null, capabilities: ['text', 'vision'] },
-    { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', provider: 'OpenAI', inputCost: '0.04', outputCost: '0.16', badge: null, capabilities: ['text', 'vision'] },
-    { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano', provider: 'OpenAI', inputCost: '0.01', outputCost: '0.04', badge: 'Cheapest', capabilities: ['text'] },
-    { id: 'claude-opus-4', name: 'Claude Opus 4', provider: 'Anthropic', inputCost: '1.5', outputCost: '7.5', badge: 'Powerful', capabilities: ['text', 'vision'] },
-    { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', inputCost: '0.3', outputCost: '1.5', badge: null, capabilities: ['text', 'vision'] },
-    { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', provider: 'Anthropic', inputCost: '0.08', outputCost: '0.4', badge: 'Fast', capabilities: ['text', 'vision'] },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', inputCost: '0.125', outputCost: '0.5', badge: null, capabilities: ['text', 'vision'] },
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', inputCost: '0.015', outputCost: '0.06', badge: 'Fast', capabilities: ['text', 'vision'] },
-    { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', provider: 'Google', inputCost: '0.0075', outputCost: '0.03', badge: 'Cheapest', capabilities: ['text'] },
-    { id: 'deepseek-v3', name: 'DeepSeek V3', provider: 'DeepSeek', inputCost: '0.027', outputCost: '0.11', badge: null, capabilities: ['text'] },
-    { id: 'deepseek-r1', name: 'DeepSeek R1', provider: 'DeepSeek', inputCost: '0.055', outputCost: '0.22', badge: 'Reasoning', capabilities: ['text'] },
+    { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', inputCost: '0.25', outputCost: '1.0', badge: 'Recommended', capabilities: ['text', 'vision'] },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', inputCost: '0.015', outputCost: '0.06', badge: 'Affordable', capabilities: ['text', 'vision'] },
+    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'Anthropic', inputCost: '0.3', outputCost: '1.5', badge: null, capabilities: ['text', 'vision'] },
+    { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'Anthropic', inputCost: '0.08', outputCost: '0.4', badge: 'Fast', capabilities: ['text', 'vision'] },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'Google', inputCost: '0.01', outputCost: '0.04', badge: 'Ultra-fast', capabilities: ['text'] },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', inputCost: '0.125', outputCost: '1.0', badge: null, capabilities: ['text', 'vision'] },
   ];
 
   const MODEL_PROVIDERS = [...new Set(AI_MODELS.map(m => m.provider))];
-
-  // Model selection state (visual only - NOT saved to backend)
-  const [selectedModel, setSelectedModel] = useState('gpt-5');
-  const selectedModelData = AI_MODELS.find(m => m.id === selectedModel);
 
   const [config, setConfig] = useState({
     business_name: '',
@@ -166,7 +155,13 @@ const AgentSettingsPage = () => {
     vertical: 'default',
     // Sales Constraints (Anti-Hallucination)
     payment_plans_enabled: false,
+    // LLM Model
+    sales_model: 'gpt-4o',
   });
+
+  // Model selection — derived from config.sales_model
+  const selectedModel = config.sales_model || 'gpt-4o';
+  const selectedModelData = AI_MODELS.find(m => m.id === selectedModel);
 
   // Count active collection fields
   const activeFieldCount = DATA_COLLECTION_FIELDS.filter(f => config[f.key]).length;
@@ -735,7 +730,7 @@ const AgentSettingsPage = () => {
                 {/* Model Dropdown */}
                 <div className="space-y-1.5">
                   <Label className="text-slate-700 text-[12px] font-medium">Active Model</Label>
-                  <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v)}>
+                  <Select value={selectedModel} onValueChange={(v) => handleChange('sales_model', v)}>
                     <SelectTrigger className="h-10 text-[13px] border-slate-200 font-medium">
                       <SelectValue />
                     </SelectTrigger>
@@ -804,7 +799,7 @@ const AgentSettingsPage = () => {
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 mt-4">
                   <Sparkles className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" strokeWidth={1.75} />
                   <p className="text-[12px] text-slate-500 leading-relaxed">
-                    Currently using LeadRelay's default GPT-4o. Custom model selection coming soon.
+                    Model changes apply immediately to all new messages. Hit Save to persist your choice. Usage costs will be tracked per-model in your usage logs.
                   </p>
                 </div>
               </CardContent>

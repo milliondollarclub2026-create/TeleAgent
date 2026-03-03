@@ -11639,11 +11639,15 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
         if media_context:
             logger.info(f"Test chat: Media context loaded with {media_context.count('- ')} images")
 
-        # Call LLM with CRM and media context
+        # Resolve tenant's preferred sales model
+        tenant_sales_model = config.get('sales_model', DEFAULT_SALES_MODEL)
+
+        # Call LLM with CRM and media context using configured model
         llm_result = await call_sales_agent(
             messages_for_llm, config, lead_context, business_context,
             tenant_id, request.message, None, crm_query_context,
-            None, None, None, None, media_context
+            None, None, None, None, media_context,
+            conversation_id=None, sales_model=tenant_sales_model
         )
 
         return {
@@ -11654,7 +11658,8 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
             "fields_collected": llm_result.get("fields_collected", {}),
             "rag_context_used": len(business_context) > 0,
             "rag_context_count": len(business_context),
-            "crm_context_used": bool(crm_query_context)
+            "crm_context_used": bool(crm_query_context),
+            "model": tenant_sales_model
         }
         
     except Exception as e:
