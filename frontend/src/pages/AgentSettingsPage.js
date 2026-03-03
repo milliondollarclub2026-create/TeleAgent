@@ -42,9 +42,8 @@ import {
   Plus,
   Sparkles,
   Cpu,
-  CheckCircle,
-  XCircle,
-  Key,
+  Type,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   Dialog,
@@ -112,21 +111,29 @@ const AgentSettingsPage = () => {
 
   const MAX_ACTIVE_FIELDS = 5;
 
-  // Available AI models with real pricing (visual only - not saved to backend)
-  // Prices: cents per 1,000 tokens (source: openai.com/api/pricing, platform.claude.com/docs)
+  // Available AI models grouped by provider (visual only - not saved to backend)
+  // Prices: cents per 1,000 tokens
   const AI_MODELS = [
-    { id: 'gpt-5', name: 'GPT-5', provider: 'OpenAI', inputCost: '0.125', outputCost: '1.0', badge: 'Latest' },
-    { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'OpenAI', inputCost: '0.025', outputCost: '0.2', badge: 'Budget' },
-    { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI', inputCost: '0.2', outputCost: '0.8', badge: null },
-    { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', inputCost: '0.3', outputCost: '1.5', badge: null },
-    { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', provider: 'Anthropic', inputCost: '0.1', outputCost: '0.5', badge: 'Fast' },
+    { id: 'gpt-5', name: 'GPT-5', provider: 'OpenAI', inputCost: '0.125', outputCost: '1.0', badge: 'Latest', capabilities: ['text', 'vision'] },
+    { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'OpenAI', inputCost: '0.025', outputCost: '0.2', badge: null, capabilities: ['text', 'vision'] },
+    { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'OpenAI', inputCost: '0.2', outputCost: '0.8', badge: null, capabilities: ['text', 'vision'] },
+    { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', provider: 'OpenAI', inputCost: '0.04', outputCost: '0.16', badge: null, capabilities: ['text', 'vision'] },
+    { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano', provider: 'OpenAI', inputCost: '0.01', outputCost: '0.04', badge: 'Cheapest', capabilities: ['text'] },
+    { id: 'claude-opus-4', name: 'Claude Opus 4', provider: 'Anthropic', inputCost: '1.5', outputCost: '7.5', badge: 'Powerful', capabilities: ['text', 'vision'] },
+    { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'Anthropic', inputCost: '0.3', outputCost: '1.5', badge: null, capabilities: ['text', 'vision'] },
+    { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', provider: 'Anthropic', inputCost: '0.08', outputCost: '0.4', badge: 'Fast', capabilities: ['text', 'vision'] },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', inputCost: '0.125', outputCost: '0.5', badge: null, capabilities: ['text', 'vision'] },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', inputCost: '0.015', outputCost: '0.06', badge: 'Fast', capabilities: ['text', 'vision'] },
+    { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', provider: 'Google', inputCost: '0.0075', outputCost: '0.03', badge: 'Cheapest', capabilities: ['text'] },
+    { id: 'deepseek-v3', name: 'DeepSeek V3', provider: 'DeepSeek', inputCost: '0.027', outputCost: '0.11', badge: null, capabilities: ['text'] },
+    { id: 'deepseek-r1', name: 'DeepSeek R1', provider: 'DeepSeek', inputCost: '0.055', outputCost: '0.22', badge: 'Reasoning', capabilities: ['text'] },
   ];
+
+  const MODEL_PROVIDERS = [...new Set(AI_MODELS.map(m => m.provider))];
 
   // Model selection state (visual only - NOT saved to backend)
   const [selectedModel, setSelectedModel] = useState('gpt-5');
-  const [customApiKey, setCustomApiKey] = useState('');
-  const [verifyingKey, setVerifyingKey] = useState(false);
-  const [keyStatus, setKeyStatus] = useState(null); // null | 'valid' | 'invalid'
+  const selectedModelData = AI_MODELS.find(m => m.id === selectedModel);
 
   const [config, setConfig] = useState({
     business_name: '',
@@ -267,15 +274,6 @@ const AgentSettingsPage = () => {
     );
   };
 
-  const handleVerifyKey = async () => {
-    setVerifyingKey(true);
-    setKeyStatus(null);
-    // Simulate verification delay (no real API call yet)
-    setTimeout(() => {
-      setVerifyingKey(false);
-      setKeyStatus(customApiKey.length > 20 ? 'valid' : 'invalid');
-    }, 1500);
-  };
 
   if (loading) {
     return (
@@ -734,96 +732,76 @@ const AgentSettingsPage = () => {
                   description="Choose the AI model that powers your agent"
                 />
 
-                {/* Selectable Model Cards */}
-                <div className="space-y-2">
-                  {AI_MODELS.map((model) => (
-                    <button
-                      key={model.id}
-                      type="button"
-                      onClick={() => setSelectedModel(model.id)}
-                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                        selectedModel === model.id
-                          ? 'border-slate-900 bg-slate-50'
-                          : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2.5 h-2.5 rounded-full border-2 transition-colors ${
-                            selectedModel === model.id
-                              ? 'border-slate-900 bg-slate-900'
-                              : 'border-slate-300 bg-white'
-                          }`} />
-                          <div className="flex items-center gap-2">
-                            <span className="text-[13px] font-semibold text-slate-900">{model.name}</span>
-                            <span className="text-[11px] text-slate-400 font-medium">{model.provider}</span>
-                            {model.badge && (
-                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{model.badge}</span>
-                            )}
+                {/* Model Dropdown */}
+                <div className="space-y-1.5">
+                  <Label className="text-slate-700 text-[12px] font-medium">Active Model</Label>
+                  <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v)}>
+                    <SelectTrigger className="h-10 text-[13px] border-slate-200 font-medium">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[320px]">
+                      {MODEL_PROVIDERS.map((provider) => (
+                        <div key={provider}>
+                          <div className="px-2 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                            {provider}
                           </div>
+                          {AI_MODELS.filter(m => m.provider === provider).map((model) => (
+                            <SelectItem key={model.id} value={model.id} className="cursor-pointer">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[13px]">{model.name}</span>
+                                {model.badge && (
+                                  <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{model.badge}</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
                         </div>
-                        <div className="text-[11px] text-slate-500 tabular-nums">
-                          <span className="font-medium text-slate-700">{model.inputCost}&#162;</span> in
-                          <span className="text-slate-300 mx-1.5">|</span>
-                          <span className="font-medium text-slate-700">{model.outputCost}&#162;</span> out
-                          <span className="text-slate-400 ml-1">/ 1K tokens</span>
-                        </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Selected Model Info Panel */}
+                {selectedModelData && (
+                  <div className="mt-4 p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-[14px] font-semibold text-slate-900">{selectedModelData.name}</h4>
+                        <p className="text-[12px] text-slate-500 mt-0.5">{selectedModelData.provider}</p>
                       </div>
-                    </button>
-                  ))}
-                </div>
+                      {selectedModelData.badge && (
+                        <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-white border border-slate-200 text-slate-600">{selectedModelData.badge}</span>
+                      )}
+                    </div>
 
-                {/* Divider */}
-                <div className="border-t border-slate-100 my-5" />
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 p-3 rounded-lg bg-white border border-slate-100">
+                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-1">Input</p>
+                        <p className="text-[15px] font-semibold text-slate-900 tabular-nums">{selectedModelData.inputCost}&#162; <span className="text-[11px] font-normal text-slate-400">/ 1K tokens</span></p>
+                      </div>
+                      <div className="flex-1 p-3 rounded-lg bg-white border border-slate-100">
+                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-1">Output</p>
+                        <p className="text-[15px] font-semibold text-slate-900 tabular-nums">{selectedModelData.outputCost}&#162; <span className="text-[11px] font-normal text-slate-400">/ 1K tokens</span></p>
+                      </div>
+                    </div>
 
-                {/* API Key Section */}
-                <div className="space-y-3">
-                  <Label className="text-slate-700 text-[12px] font-medium">
-                    <Key className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" strokeWidth={1.75} />
-                    API Key (optional)
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="password"
-                      value={customApiKey}
-                      onChange={(e) => {
-                        setCustomApiKey(e.target.value);
-                        setKeyStatus(null);
-                      }}
-                      placeholder="sk-..."
-                      className="h-9 text-[13px] border-slate-200 flex-1"
-                    />
-                    <Button
-                      variant="outline"
-                      className="h-9 px-4 text-[13px] border-slate-200"
-                      onClick={handleVerifyKey}
-                      disabled={verifyingKey || !customApiKey}
-                    >
-                      {verifyingKey ? (
-                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin" strokeWidth={2} />
-                      ) : null}
-                      Verify
-                    </Button>
+                    <div>
+                      <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-1.5">Capabilities</p>
+                      <div className="flex items-center gap-1.5">
+                        {selectedModelData.capabilities.map((cap) => (
+                          <span key={cap} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-slate-200 text-[11px] font-medium text-slate-600">
+                            {cap === 'text' && <Type className="w-3.5 h-3.5" strokeWidth={1.75} />}
+                            {cap === 'vision' && <ImageIcon className="w-3.5 h-3.5" strokeWidth={1.75} />}
+                            {cap === 'text' ? 'Text' : 'Vision'}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  {keyStatus === 'valid' && (
-                    <div className="flex items-center gap-1.5 text-green-600">
-                      <CheckCircle className="w-4 h-4" strokeWidth={1.75} />
-                      <span className="text-[12px] font-medium">API key is valid</span>
-                    </div>
-                  )}
-                  {keyStatus === 'invalid' && (
-                    <div className="flex items-center gap-1.5 text-red-600">
-                      <XCircle className="w-4 h-4" strokeWidth={1.75} />
-                      <span className="text-[12px] font-medium">Invalid API key</span>
-                    </div>
-                  )}
-                  <p className="text-[11px] text-slate-400">
-                    Bring your own key for custom model access. Platform fee: 0.1&#162; per API call.
-                  </p>
-                </div>
+                )}
 
                 {/* Info Notice */}
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 mt-5">
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100 mt-4">
                   <Sparkles className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" strokeWidth={1.75} />
                   <p className="text-[12px] text-slate-500 leading-relaxed">
                     Currently using LeadRelay's default GPT-4o. Custom model selection coming soon.

@@ -198,7 +198,7 @@ const ConnectionsPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
         {/* Telegram Card */}
-        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="telegram-connection">
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden transition-all duration-200 cursor-pointer hover:border-slate-300 hover:shadow-md" data-testid="telegram-connection" onClick={() => navigate(getConnectionPath('telegram'))}>
           <div className="p-5">
             {/* Header */}
             <div className="flex items-start justify-between mb-5">
@@ -292,7 +292,7 @@ const ConnectionsPage = () => {
         </Card>
 
         {/* Instagram DM Card */}
-        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="instagram-connection">
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden transition-all duration-200 cursor-pointer hover:border-slate-300 hover:shadow-md" data-testid="instagram-connection" onClick={() => toast('Instagram DM integration is coming soon')}>
           <div className="p-5">
             {/* Header */}
             <div className="flex items-start justify-between mb-5">
@@ -330,7 +330,7 @@ const ConnectionsPage = () => {
                   variant="outline"
                   size="sm"
                   className="h-8 text-xs border-slate-200"
-                  onClick={() => navigate(getConnectionPath('instagram'))}
+                  onClick={(e) => { e.stopPropagation(); toast('Instagram DM integration is coming soon'); }}
                 >
                   Manage
                 </Button>
@@ -342,7 +342,7 @@ const ConnectionsPage = () => {
                 </p>
                 <Button
                   className="bg-slate-900 hover:bg-slate-800 text-white h-9 px-4 text-[13px] font-medium shadow-sm"
-                  onClick={() => navigate(getConnectionPath('instagram'))}
+                  onClick={(e) => { e.stopPropagation(); toast('Instagram DM integration is coming soon'); }}
                   data-testid="setup-instagram-btn"
                 >
                   Connect
@@ -363,7 +363,7 @@ const ConnectionsPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
         {/* Bitrix24 CRM Card */}
-        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="bitrix-connection">
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden transition-all duration-200 cursor-pointer hover:border-slate-300 hover:shadow-md" data-testid="bitrix-connection" onClick={() => navigate(getConnectionPath('bitrix'))}>
           <div className="p-5">
             {/* Header */}
             <div className="flex items-start justify-between mb-5">
@@ -422,7 +422,7 @@ const ConnectionsPage = () => {
         </Card>
 
         {/* Google Sheets Card */}
-        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="gsheets-connection">
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden transition-all duration-200 cursor-pointer hover:border-slate-300 hover:shadow-md" data-testid="gsheets-connection" onClick={() => navigate(getConnectionPath('google-sheets'))}>
           <div className="p-5">
             {/* Header */}
             <div className="flex items-start justify-between mb-5">
@@ -483,7 +483,7 @@ const ConnectionsPage = () => {
         </Card>
 
         {/* HubSpot CRM Card */}
-        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="hubspot-connection">
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden transition-all duration-200 cursor-pointer hover:border-slate-300 hover:shadow-md" data-testid="hubspot-connection" onClick={() => navigate(getConnectionPath('hubspot'))}>
           <div className="p-5">
             <div className="flex items-start justify-between mb-5">
               <div className="flex items-center gap-3">
@@ -539,7 +539,7 @@ const ConnectionsPage = () => {
         </Card>
 
         {/* Zoho CRM Card */}
-        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="zoho-connection">
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden transition-all duration-200 cursor-pointer hover:border-slate-300 hover:shadow-md" data-testid="zoho-connection" onClick={() => navigate(getConnectionPath('zoho'))}>
           <div className="p-5">
             <div className="flex items-start justify-between mb-5">
               <div className="flex items-center gap-3">
@@ -595,7 +595,7 @@ const ConnectionsPage = () => {
         </Card>
 
         {/* Freshsales Card */}
-        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden" data-testid="freshsales-connection">
+        <Card className="bg-white border-slate-200 shadow-sm overflow-hidden transition-all duration-200 cursor-pointer hover:border-slate-300 hover:shadow-md" data-testid="freshsales-connection" onClick={() => navigate(getConnectionPath('freshsales'))}>
           <div className="p-5">
             <div className="flex items-start justify-between mb-5">
               <div className="flex items-center gap-3">

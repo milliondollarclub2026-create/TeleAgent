@@ -508,7 +508,7 @@ const AgentOnboarding = () => {
                               >
                                 <div className="flex items-center gap-1.5 mb-1">
                                   <Crown className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
-                                  <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">Best</span>
+                                  <span className="text-[9px] font-medium tracking-wide uppercase text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">Best</span>
                                 </div>
                                 <p className="text-[12px] font-semibold text-slate-900">Premium</p>
                                 <p className="text-[11px] text-slate-500">Replies as you</p>

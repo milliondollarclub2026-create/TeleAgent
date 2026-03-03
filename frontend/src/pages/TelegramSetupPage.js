@@ -338,9 +338,9 @@ const TelegramSetupPage = () => {
                 onClick={() => setMode('business')}
                 className="text-left p-5 rounded-xl bg-white border-2 border-slate-200 hover:border-slate-400 shadow-sm hover:shadow transition-all group"
               >
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center justify-between mb-3">
                   <Crown className="w-5 h-5 text-amber-500" strokeWidth={1.75} />
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  <span className="text-[10px] font-medium tracking-wide uppercase text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
                     Recommended
                   </span>
                 </div>
