@@ -2471,10 +2471,15 @@ async def get_crm_context_for_query(tenant_id: str, user_message: str, customer_
     message_lower = user_message.lower()
 
     # Price/cost keywords (UZ, RU, EN)
-    price_keywords = ["price", "cost", "how much", "narx", "qancha", "цена", "стоимость", "сколько стоит"]
+    price_keywords = ["price", "cost", "how much", "pricing", "rate", "fee", "charge", "tariff",
+                       "narx", "qancha", "narxi", "qiymat",
+                       "цена", "стоимость", "сколько стоит", "тариф", "расценка"]
 
     # Product/catalog keywords
-    product_keywords = ["product", "catalog", "товар", "каталог", "mahsulot", "katalog", "item", "what do you sell", "nima sotasiz"]
+    product_keywords = ["product", "products", "catalog", "catalogue", "item", "items", "offer", "offers",
+                         "sell", "selling", "available", "service", "services", "what do you sell", "what do you offer",
+                         "товар", "товары", "каталог", "услуга", "услуги", "что продаете", "что предлагаете",
+                         "mahsulot", "mahsulotlar", "katalog", "xizmat", "xizmatlar", "nima sotasiz", "nima taklif qilasiz"]
 
     # Order history keywords
     order_keywords = ["my order", "previous order", "last order", "order history", "заказ", "мой заказ",
@@ -6467,7 +6472,7 @@ Example 3 - Customer ready to buy:
 {{"reply_text": "Ajoyib! Buyurtmangizni rasmiylashtiraman. Telefon raqamingizni aytasizmi?", "sales_stage": "purchase", "stage_change_reason": "Customer said they want to order", "hotness": "hot", "score": 92, "intent": "ready_to_purchase", "objection_detected": null, "closing_technique_used": "assumptive_close", "fields_collected": {{"name": "Sardor", "phone": null, "product": "Premium Package", "budget": "5 million", "timeline": "today"}}, "next_action": "Collect phone number to confirm order"}}"""
 
 
-async def get_business_context_semantic(tenant_id: str, query: str, top_k: int = 5) -> List[str]:
+async def get_business_context_semantic(tenant_id: str, query: str, top_k: int = 8) -> List[str]:
     """
     Semantic RAG - finds relevant context using embeddings.
     Combines enabled global documents + tenant-specific documents.
@@ -6501,9 +6506,9 @@ async def get_business_context_semantic(tenant_id: str, query: str, top_k: int =
             local_count = len(all_chunks) - global_count
             logger.info(f"Performing semantic search over {len(all_chunks)} chunks ({global_count} global, {local_count} local) for tenant {tenant_id}")
 
-            results = await semantic_search(query, all_chunks, top_k=top_k, min_similarity=0.25, tenant_id=tenant_id)
+            results = await semantic_search(query, all_chunks, top_k=top_k, min_similarity=0.15, tenant_id=tenant_id)
             context = [
-                f"[{r.get('source', 'Document')}] (relevance: {r['similarity']:.0%}): {r['text'][:600]}"
+                f"[{r.get('source', 'Document')}] (relevance: {r['similarity']:.0%}): {r['text'][:1500]}"
                 for r in results
             ]
             if context:
@@ -7023,7 +7028,7 @@ def build_product_context(crm_products: List[Dict], kb_products: List[str], conf
             name = product.get('name', product.get('NAME', 'Unknown'))
             price = product.get('price', product.get('PRICE', 'Contact for price'))
             currency = product.get('currency', product.get('CURRENCY_ID', 'UZS'))
-            description = product.get('description', product.get('DESCRIPTION', ''))[:100]
+            description = product.get('description', product.get('DESCRIPTION', ''))[:300]
             context_parts.append(f"- **{name}**: {price} {currency}")
             if description:
                 context_parts.append(f"  {description}")
@@ -7059,9 +7064,10 @@ def get_hard_constraints_section(config: Dict) -> str:
     constraints = []
     constraints.append("## HARD CONSTRAINTS - NEVER VIOLATE\n")
     constraints.append("You MUST NEVER:")
-    constraints.append("1. Invent products - Only mention products from CRM or knowledge base")
+    constraints.append("1. INVENT products or prices not found in CRM data or knowledge base context")
+    constraints.append("   → You MAY and SHOULD cite real prices, products, and details from CRM or knowledge base when relevant")
     constraints.append("2. Make up business services not in your context")
-    constraints.append("3. Apologize for correct prices - CRM prices are FINAL and justified")
+    constraints.append("3. Apologize for correct prices - CRM/KB prices are FINAL and justified")
     constraints.append("4. Give wrong business identity - You represent ONLY this specific business")
     constraints.append("5. Promise ANY discounts or special pricing - You have NO discount authority")
     constraints.append("   → If customer asks for discount: 'I understand budget is important. Our prices reflect the quality we provide. I'd be happy to help find the best option for your needs.'")
@@ -7455,7 +7461,7 @@ async def call_faq_responder(
         prompt_parts.append(
             "\nRULES:\n"
             "- Only mention products/services from the context below\n"
-            "- Never invent prices, discounts, or products\n"
+            "- You MAY cite prices, products, and details that appear in the context below. Never INVENT prices, discounts, or products not listed in the context.\n"
             "- If unsure, say you'll check and set needs_human_handoff: true"
         )
 
@@ -8233,7 +8239,7 @@ async def process_channel_message(
         kb_products = []
         for ctx in business_context:
             if 'product' in ctx.lower() or 'mahsulot' in ctx.lower():
-                kb_products.append(ctx[:100])
+                kb_products.append(ctx[:500])
 
         product_context = build_product_context(crm_product_dicts, kb_products, config) if (crm_product_dicts or kb_products) else None
 
