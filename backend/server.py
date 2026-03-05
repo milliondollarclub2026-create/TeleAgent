@@ -13169,6 +13169,7 @@ async def add_security_headers(request: Request, call_next):
 # ============ CSRF Origin Checking ============
 CSRF_EXEMPT_PATHS = (
     "/api/telegram/webhook",
+    "/api/telegram/business-webhook",
     "/api/instagram/webhook",
     "/api/instagram/oauth/callback",
     "/api/bitrix/callback",
