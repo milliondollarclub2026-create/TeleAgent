@@ -65,6 +65,7 @@ const TelegramSetupPage = () => {
   const [generatingCode, setGeneratingCode] = useState(false);
   const [codeExpiresAt, setCodeExpiresAt] = useState(null);
   const [pollingBusiness, setPollingBusiness] = useState(false);
+  const [justConnected, setJustConnected] = useState(false);
   const pollIntervalRef = useRef(null);
 
   const isConnected = botStatus.connected || businessStatus.connected;
@@ -160,7 +161,9 @@ const TelegramSetupPage = () => {
           setPollingBusiness(false);
           setBusinessStatus(response.data);
           setLinkCode('');
-          toast.success('Telegram Business connected!');
+          setJustConnected(true);
+          // Transition to normal connected state after the success moment
+          setTimeout(() => setJustConnected(false), 4000);
         }
       } catch {
         // Silently continue polling
@@ -218,7 +221,42 @@ const TelegramSetupPage = () => {
         {isConnected ? (
           /* ============ CONNECTED STATE ============ */
           <div className="space-y-5">
-            <Card className="bg-white border-slate-200 shadow-sm">
+            {/* Success moment — shown briefly after connection completes */}
+            {justConnected && (
+              <Card className="bg-white border-emerald-200 shadow-sm overflow-hidden animate-[fadeIn_0.4s_ease-out]">
+                <div className="p-8 text-center">
+                  {/* Animated checkmark */}
+                  <div className="relative w-16 h-16 mx-auto mb-5">
+                    <div className="absolute inset-0 rounded-full bg-emerald-600 animate-[scaleIn_0.3s_ease-out]" />
+                    <svg className="relative w-16 h-16" viewBox="0 0 64 64">
+                      <path
+                        d="M20 33 L28 41 L44 25"
+                        fill="none"
+                        stroke="white"
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="animate-[drawCheck_0.4s_ease-out_0.3s_both]"
+                        style={{ strokeDasharray: 40, strokeDashoffset: 40 }}
+                      />
+                    </svg>
+                    {/* Subtle pulse ring */}
+                    <div className="absolute inset-0 rounded-full border-2 border-emerald-400 animate-[pulseRing_1.5s_ease-out_0.5s_both]" />
+                  </div>
+                  <h2 className="text-lg font-semibold text-slate-900 mb-1 animate-[fadeSlideUp_0.4s_ease-out_0.5s_both]">
+                    Connected
+                  </h2>
+                  <p className="text-sm text-slate-500 animate-[fadeSlideUp_0.4s_ease-out_0.65s_both]">
+                    {connectionType === 'business'
+                      ? `${businessStatus.telegram_first_name || 'Your account'} is now linked to LeadRelay`
+                      : `@${botStatus.bot_username} is ready to receive messages`
+                    }
+                  </p>
+                </div>
+              </Card>
+            )}
+
+            <Card className={`bg-white border-slate-200 shadow-sm transition-all duration-500 ${justConnected ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0'}`}>
               <div className="p-6">
                 <div className="flex items-center gap-3.5 mb-5">
                   <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">

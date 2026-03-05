@@ -7837,6 +7837,21 @@ async def handle_business_connection(connection_data: dict):
                         "updated_at": now_iso()
                     }).eq("telegram_user_id", telegram_user_id).eq("is_linked", True).execute()
                 logger.info(f"Updated linked business connection: {connection_id} for user {telegram_user_id}")
+
+                # Send confirmation message on Telegram
+                user_chat_id = connection_data.get("user_chat_id") or telegram_user_id
+                first_name = user.get("first_name", "")
+                greeting = f" {first_name}" if first_name else ""
+                try:
+                    await send_telegram_message(
+                        LEADRELAY_BOT_TOKEN,
+                        user_chat_id,
+                        f"You're connected{greeting}! Your AI sales agent is now "
+                        f"active and will reply to customer messages on your behalf.\n\n"
+                        f"You can manage this connection anytime from your LeadRelay dashboard."
+                    )
+                except Exception as e:
+                    logger.warning(f"Could not send business connection confirmation: {e}")
             else:
                 # UNLINKED connection -- store as pending (tenant_id unknown)
                 supabase.table("telegram_business_connections").upsert({
@@ -7979,6 +7994,7 @@ async def handle_shared_bot_dm(message: dict):
 
                 if existing_unlinked.data:
                     # Update the existing unlinked connection with tenant_id
+                    conn_was_enabled = existing_unlinked.data[0].get("is_enabled", False)
                     supabase.table("telegram_business_connections") \
                         .update({
                             "tenant_id": tenant_id,
@@ -7988,6 +8004,20 @@ async def handle_shared_bot_dm(message: dict):
                             "updated_at": now_iso()
                         }).eq("telegram_user_id", user_id).eq("is_linked", False).execute()
                     logger.info(f"Linked existing business connection for user {user_id} to tenant {redact_id(tenant_id)}")
+
+                    if conn_was_enabled:
+                        # Bot was already added in Telegram Business — connection is fully complete
+                        first_name = message["from"].get("first_name", "")
+                        greeting = f" {first_name}" if first_name else ""
+                        await send_telegram_message(LEADRELAY_BOT_TOKEN, chat_id,
+                            f"You're connected{greeting}! Your AI sales agent is now "
+                            f"active and will reply to customer messages on your behalf.\n\n"
+                            f"You can manage this connection anytime from your LeadRelay dashboard.")
+                    else:
+                        await send_telegram_message(LEADRELAY_BOT_TOKEN, chat_id,
+                            "Your account has been linked to LeadRelay!\n\n"
+                            "Now go to Telegram Settings > Telegram Business > Chatbots "
+                            "and add @TheLeadRelayBot to complete the setup.")
                 else:
                     # Create a pre-linked record (connection_id will come when they connect in Telegram)
                     try:
@@ -8006,10 +8036,10 @@ async def handle_shared_bot_dm(message: dict):
                     except Exception as e:
                         logger.warning(f"Could not create pre-linked record: {e}")
 
-                await send_telegram_message(LEADRELAY_BOT_TOKEN, chat_id,
-                    "Your account has been linked to LeadRelay!\n\n"
-                    "Now go to Telegram Settings > Telegram Business > Chatbots "
-                    "and add @TheLeadRelayBot to complete the setup.")
+                    await send_telegram_message(LEADRELAY_BOT_TOKEN, chat_id,
+                        "Your account has been linked to LeadRelay!\n\n"
+                        "Now go to Telegram Settings > Telegram Business > Chatbots "
+                        "and add @TheLeadRelayBot to complete the setup.")
                 return
             else:
                 await send_telegram_message(LEADRELAY_BOT_TOKEN, chat_id,
