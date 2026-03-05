@@ -51,7 +51,11 @@ from document_processor import (
     semantic_search,
     generate_embedding,
     process_text,
-    generate_embeddings_batch
+    generate_embeddings_batch,
+    process_pdf,
+    process_docx,
+    process_excel,
+    process_image,
 )
 
 # Import Bitrix24 CRM client
@@ -10461,6 +10465,13 @@ MAGIC_BYTES = {
     'jpeg': [b'\xff\xd8\xff'],
     'gif': [b'GIF87a', b'GIF89a'],
     'webp': [b'RIFF'],
+    # Audio formats (for test chat voice upload)
+    'webm': [b'\x1a\x45\xdf\xa3'],
+    'mp3': [b'\xff\xfb', b'\xff\xf3', b'\xff\xf2', b'ID3'],
+    'wav': [b'RIFF'],
+    'ogg': [b'OggS'],
+    'mp4': [b'\x00\x00\x00'],  # ftyp box (variable offset)
+    'm4a': [b'\x00\x00\x00'],
 }
 
 # Allowed document extensions for upload
@@ -11692,6 +11703,179 @@ async def test_chat(request: TestChatRequest, current_user: Dict = Depends(get_c
     except Exception as e:
         logger.exception("Test chat error")
         raise HTTPException(status_code=500, detail=f"[DEBUG] Test chat error: {type(e).__name__}: {e}")
+
+
+# ============ Test Chat Media Endpoint ============
+
+ALLOWED_AUDIO_EXTENSIONS = {'webm', 'mp3', 'wav', 'ogg', 'mp4', 'm4a', 'oga'}
+ALLOWED_DOC_EXTENSIONS = {'pdf', 'docx', 'xlsx', 'xls', 'csv', 'txt'}
+ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+MAX_DOC_TEXT_CHARS = 16000  # ~4000 tokens
+
+async def extract_text_from_file(file_content: bytes, filename: str) -> str:
+    """Extract text from a document file for ephemeral context (not saved to KB)."""
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    try:
+        if ext == 'pdf':
+            chunks = process_pdf(file_content, filename)
+        elif ext == 'docx':
+            chunks = process_docx(file_content, filename)
+        elif ext in ('xlsx', 'xls', 'csv'):
+            chunks = process_excel(file_content, filename)
+        elif ext in ('png', 'jpg', 'jpeg', 'gif', 'webp'):
+            chunks = await process_image(file_content, filename)
+        elif ext == 'txt':
+            text = file_content.decode('utf-8', errors='replace')
+            chunks = process_text(text, filename)
+        else:
+            return ""
+        combined = "\n".join(c.get("text", "") for c in chunks if c.get("text"))
+        return combined[:MAX_DOC_TEXT_CHARS]
+    except Exception as e:
+        logger.error(f"extract_text_from_file failed for {filename}: {e}")
+        return ""
+
+
+@api_router.post("/chat/test-media")
+async def test_chat_media(
+    file: UploadFile = File(...),
+    message: str = Form(""),
+    conversation_history: str = Form("[]"),
+    file_type: str = Form(...),  # "audio" or "document"
+    current_user: Dict = Depends(get_current_user),
+):
+    """
+    Test chat with audio (voice) or document attachment.
+    Audio: transcribes via Whisper, then processes as text.
+    Document: extracts text, prepends as context to message.
+    """
+    try:
+        tenant_id = current_user["tenant_id"]
+        check_llm_rate_limit(tenant_id)
+
+        # Parse conversation history
+        try:
+            history = json.loads(conversation_history)
+        except (ValueError, TypeError):
+            history = []
+
+        # Read file content
+        file_content = await file.read()
+        if len(file_content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="File too large (max 25MB)")
+
+        filename = file.filename or "upload"
+        ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+
+        transcript = None
+        whisper_used = False
+        document_extracted = False
+        document_name = None
+        final_message = message.strip()
+
+        if file_type == "audio":
+            # Validate audio extension
+            if ext not in ALLOWED_AUDIO_EXTENSIONS:
+                raise HTTPException(status_code=400, detail=f"Unsupported audio format: .{ext}")
+
+            # Transcribe via Whisper
+            text, api_success = await transcribe_voice_message(file_content)
+            if not api_success or not text:
+                raise HTTPException(status_code=422, detail="Could not transcribe audio. Please try again or type your message.")
+
+            is_valid, reason = validate_transcript(text, 30)  # estimate ~30s
+            if not is_valid:
+                raise HTTPException(status_code=422, detail=f"Audio transcription was unclear ({reason}). Please try again.")
+
+            transcript = text
+            whisper_used = True
+            final_message = text
+
+            # Log Whisper cost
+            try:
+                whisper_cost = calculate_whisper_cost(len(file_content) / (16000 * 2))  # rough duration estimate
+                log_token_usage_fire_and_forget(
+                    tenant_id=tenant_id,
+                    model="whisper-1",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=whisper_cost,
+                    endpoint="test_chat_voice",
+                    metadata={"filename": filename},
+                )
+            except Exception:
+                pass  # Non-critical
+
+        elif file_type == "document":
+            all_allowed = ALLOWED_DOC_EXTENSIONS | ALLOWED_IMAGE_EXTENSIONS
+            if ext not in all_allowed:
+                raise HTTPException(status_code=400, detail=f"Unsupported file type: .{ext}")
+
+            extracted = await extract_text_from_file(file_content, filename)
+            if extracted:
+                document_extracted = True
+                document_name = filename
+                context_prefix = f"[Attached document: {filename}]\n{extracted}\n\n"
+                final_message = context_prefix + (final_message or "Please review the attached document and respond.")
+            elif not final_message:
+                raise HTTPException(status_code=422, detail="Could not extract text from the file.")
+        else:
+            raise HTTPException(status_code=400, detail="file_type must be 'audio' or 'document'")
+
+        if not final_message:
+            raise HTTPException(status_code=400, detail="No message content to process")
+
+        # Get config
+        config_result = supabase.table('tenant_configs').select('*').eq('tenant_id', tenant_id).execute()
+        config = config_result.data[0] if config_result.data else {}
+
+        lead_context = {
+            "sales_stage": "awareness",
+            "fields_collected": {},
+            "score": 50
+        }
+
+        messages_for_llm = []
+        for msg in history:
+            role = "assistant" if msg.get("role") == "agent" else "user"
+            messages_for_llm.append({"role": role, "text": msg.get("text", "")})
+        messages_for_llm.append({"role": "user", "text": final_message})
+
+        # RAG + CRM + media context
+        business_context = await get_business_context_semantic(tenant_id, final_message[:500])
+        crm_query_context = await get_crm_context_for_query(tenant_id, final_message[:500], None)
+        media_context = await get_media_context_for_ai(tenant_id)
+
+        tenant_sales_model = config.get('sales_model', DEFAULT_SALES_MODEL)
+
+        llm_result = await call_sales_agent(
+            messages_for_llm, config, lead_context, business_context,
+            tenant_id, final_message, None, crm_query_context,
+            None, None, None, None, media_context,
+            conversation_id=None, sales_model=tenant_sales_model
+        )
+
+        return {
+            "reply": llm_result.get("reply_text", "I'm here to help! What would you like to know?"),
+            "sales_stage": llm_result.get("sales_stage", "awareness"),
+            "hotness": llm_result.get("hotness", "warm"),
+            "score": llm_result.get("score", 50),
+            "fields_collected": llm_result.get("fields_collected", {}),
+            "rag_context_used": len(business_context) > 0,
+            "rag_context_count": len(business_context),
+            "crm_context_used": bool(crm_query_context),
+            "model": tenant_sales_model,
+            "whisper_used": whisper_used,
+            "transcript": transcript,
+            "document_extracted": document_extracted,
+            "document_name": document_name,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Test chat media error")
+        raise HTTPException(status_code=500, detail=f"Test chat media error: {type(e).__name__}: {e}")
 
 
 # ============ Instagram Integration ============

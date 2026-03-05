@@ -14,6 +14,11 @@ import {
   ImageOff,
   ChevronDown,
   Cpu,
+  Mic,
+  Paperclip,
+  X,
+  FileText,
+  Square,
 } from 'lucide-react';
 import {
   Select,
@@ -22,8 +27,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../components/ui/tooltip';
 import AiOrb from '../components/Orb/AiOrb';
 import { toast } from 'sonner';
+import { useAudioRecorder } from '../hooks/useAudioRecorder';
 
 const MODEL_OPTIONS = [
   { value: 'gpt-4o', label: 'GPT-4o', provider: 'OpenAI' },
@@ -172,8 +184,22 @@ const AgentTestChatPage = () => {
   const [debugInfo, setDebugInfo] = useState(null);
   const [activeModel, setActiveModel] = useState('gpt-4o');
   const [switchingModel, setSwitchingModel] = useState(false);
+  const [attachedFile, setAttachedFile] = useState(null);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const fileInputRef = useRef(null);
   const messagesRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const {
+    isRecording,
+    elapsedSeconds,
+    audioBlob,
+    error: recorderError,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    discardAudio,
+  } = useAudioRecorder();
 
   // Smooth scroll to bottom
   const scrollToBottom = useCallback(() => {
@@ -183,6 +209,11 @@ const AgentTestChatPage = () => {
   useEffect(() => {
     fetchConfig();
   }, [agentId]);
+
+  // Show recorder errors as toasts
+  useEffect(() => {
+    if (recorderError) toast.error(recorderError);
+  }, [recorderError]);
 
   // Smooth auto-scroll when messages change
   useEffect(() => {
@@ -269,22 +300,140 @@ const AgentTestChatPage = () => {
     }
   };
 
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error('File too large (max 25MB)');
+      return;
+    }
+    setAttachedFile(file);
+    // Reset input so same file can be re-selected
+    e.target.value = '';
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const formatDuration = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const isAudioFile = (filename) => {
+    const ext = filename?.split('.').pop()?.toLowerCase();
+    return ['webm', 'mp3', 'wav', 'ogg', 'mp4', 'm4a', 'oga'].includes(ext);
+  };
+
+  const isImageFile = (filename) => {
+    const ext = filename?.split('.').pop()?.toLowerCase();
+    return ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+  };
+
   const sendMessage = async () => {
-    if (!input.trim() || sending) return;
+    const hasText = input.trim().length > 0;
+    const hasAudio = !!audioBlob;
+    const hasFile = !!attachedFile;
+    if ((!hasText && !hasAudio && !hasFile) || sending) return;
 
     const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+
+    // Capture duration before any state resets
+    const capturedDuration = elapsedSeconds;
+
+    // Build user message metadata for display
+    const userMsg = { role: 'user', text: userMessage };
+    if (hasAudio) {
+      userMsg.isVoice = true;
+      userMsg.voiceDuration = capturedDuration;
+      userMsg.text = userMessage || 'Voice message';
+    } else if (hasFile) {
+      userMsg.fileName = attachedFile.name;
+      userMsg.fileSize = attachedFile.size;
+      userMsg.isImage = isImageFile(attachedFile.name);
+      userMsg.isAudioFile = isAudioFile(attachedFile.name);
+    }
+
+    setMessages(prev => [...prev, userMsg]);
     setSending(true);
 
     try {
-      const response = await axios.post(`${API}/chat/test`, {
-        message: userMessage,
-        conversation_history: messages.map(m => ({
-          role: m.role === 'assistant' ? 'agent' : 'user',
-          text: m.text
-        }))
-      });
+      let response;
+
+      if (hasAudio) {
+        // Voice recording → send as audio
+        setIsTranscribing(true);
+        const formData = new FormData();
+        formData.append('file', audioBlob, 'recording.webm');
+        formData.append('message', userMessage);
+        formData.append('file_type', 'audio');
+        formData.append('conversation_history', JSON.stringify(
+          messages.map(m => ({ role: m.role === 'assistant' ? 'agent' : 'user', text: m.text }))
+        ));
+        response = await axios.post(`${API}/chat/test-media`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        discardAudio();
+        setIsTranscribing(false);
+
+        // Update user message with transcript
+        if (response.data.transcript) {
+          setMessages(prev => {
+            const updated = [...prev];
+            const lastUserIdx = updated.findLastIndex(m => m.role === 'user');
+            if (lastUserIdx >= 0) {
+              updated[lastUserIdx] = { ...updated[lastUserIdx], text: response.data.transcript, transcript: response.data.transcript };
+            }
+            return updated;
+          });
+        }
+      } else if (hasFile) {
+        // File attachment → detect type
+        const fileIsAudio = isAudioFile(attachedFile.name);
+        const fType = fileIsAudio ? 'audio' : 'document';
+        if (fileIsAudio) setIsTranscribing(true);
+        else setIsExtracting(true);
+
+        const formData = new FormData();
+        formData.append('file', attachedFile);
+        formData.append('message', userMessage);
+        formData.append('file_type', fType);
+        formData.append('conversation_history', JSON.stringify(
+          messages.map(m => ({ role: m.role === 'assistant' ? 'agent' : 'user', text: m.text }))
+        ));
+        response = await axios.post(`${API}/chat/test-media`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        setAttachedFile(null);
+        setIsTranscribing(false);
+        setIsExtracting(false);
+
+        // Update transcript for audio files
+        if (fileIsAudio && response.data.transcript) {
+          setMessages(prev => {
+            const updated = [...prev];
+            const lastUserIdx = updated.findLastIndex(m => m.role === 'user');
+            if (lastUserIdx >= 0) {
+              updated[lastUserIdx] = { ...updated[lastUserIdx], text: response.data.transcript, transcript: response.data.transcript };
+            }
+            return updated;
+          });
+        }
+      } else {
+        // Text only
+        response = await axios.post(`${API}/chat/test`, {
+          message: userMessage,
+          conversation_history: messages.map(m => ({
+            role: m.role === 'assistant' ? 'agent' : 'user',
+            text: m.text
+          }))
+        });
+      }
 
       const respondedModel = response.data.model || activeModel;
       setMessages(prev => [...prev, {
@@ -301,13 +450,20 @@ const AgentTestChatPage = () => {
         rag_used: response.data.rag_context_used,
         rag_count: response.data.rag_context_count,
         model: respondedModel,
+        whisper_used: response.data.whisper_used,
+        transcript: response.data.transcript,
+        document_extracted: response.data.document_extracted,
+        document_name: response.data.document_name,
       });
     } catch (error) {
-      toast.error('Failed to get response');
+      const detail = error.response?.data?.detail;
+      toast.error(detail || 'Failed to get response');
       setMessages(prev => [...prev, {
         role: 'assistant',
-        text: 'Sorry, there was an error. Please try again.'
+        text: detail || 'Sorry, there was an error. Please try again.'
       }]);
+      setIsTranscribing(false);
+      setIsExtracting(false);
     } finally {
       setSending(false);
     }
@@ -319,13 +475,16 @@ const AgentTestChatPage = () => {
     setMessages([{ role: 'assistant', text: greeting }]);
     setDebugInfo(null);
     setInput('');
+    setAttachedFile(null);
+    if (isRecording) cancelRecording();
+    discardAudio();
     // Clear localStorage
     localStorage.removeItem(getChatStorageKey(agentId));
     localStorage.removeItem(getDebugStorageKey(agentId));
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isRecording) {
       e.preventDefault();
       sendMessage();
     }
@@ -427,7 +586,33 @@ const AgentTestChatPage = () => {
                       {msg.role === 'assistant' ? (
                         <MessageContent text={msg.text} />
                       ) : (
-                        msg.text
+                        <div>
+                          {/* Voice message indicator */}
+                          {msg.isVoice && (
+                            <div className="flex items-center gap-1.5 mb-1 opacity-70">
+                              <Mic className="w-3.5 h-3.5" strokeWidth={2} />
+                              <span className="text-[11px]">Voice message</span>
+                              {msg.voiceDuration > 0 && (
+                                <span className="text-[11px]">{formatDuration(msg.voiceDuration)}</span>
+                              )}
+                            </div>
+                          )}
+                          {/* File attachment indicator */}
+                          {msg.fileName && !msg.isAudioFile && (
+                            <div className="flex items-center gap-1.5 mb-1 opacity-70">
+                              <FileText className="w-3.5 h-3.5" strokeWidth={2} />
+                              <span className="text-[11px] truncate max-w-[180px]">{msg.fileName}</span>
+                            </div>
+                          )}
+                          {/* Audio file indicator */}
+                          {msg.isAudioFile && (
+                            <div className="flex items-center gap-1.5 mb-1 opacity-70">
+                              <Mic className="w-3.5 h-3.5" strokeWidth={2} />
+                              <span className="text-[11px] truncate max-w-[180px]">{msg.fileName}</span>
+                            </div>
+                          )}
+                          <span className="whitespace-pre-wrap">{msg.text}</span>
+                        </div>
                       )}
                     </div>
                     {msg.role === 'assistant' && msg.model && (
@@ -438,7 +623,7 @@ const AgentTestChatPage = () => {
               </div>
             ))}
 
-            {/* Typing Indicator */}
+            {/* Typing / Processing Indicator */}
             {sending && (
               <div className="flex justify-start">
                 <div className="flex items-end gap-2 max-w-[80%]">
@@ -449,11 +634,23 @@ const AgentTestChatPage = () => {
                     className="flex-shrink-0"
                   />
                   <div className="bg-white border border-slate-200 px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
+                    {isTranscribing ? (
+                      <div className="flex items-center gap-2">
+                        <Mic className="w-3.5 h-3.5 text-emerald-500 animate-pulse" strokeWidth={2} />
+                        <span className="text-xs text-slate-500">Transcribing audio...</span>
+                      </div>
+                    ) : isExtracting ? (
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 text-slate-400 animate-pulse" strokeWidth={2} />
+                        <span className="text-xs text-slate-500">Reading document...</span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -464,25 +661,135 @@ const AgentTestChatPage = () => {
 
           {/* Input Area */}
           <div className="px-5 py-4 border-t border-slate-100 bg-white flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <Input
-                placeholder="Type a message..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="flex-1 h-11 border-slate-200 bg-slate-50 focus:bg-white text-[13px] rounded-xl"
-                disabled={sending}
-                data-testid="chat-input"
-              />
-              <Button
-                className="bg-slate-900 hover:bg-slate-800 h-11 w-11 p-0 rounded-full shadow-sm"
-                onClick={sendMessage}
-                disabled={sending || !input.trim()}
-                data-testid="send-btn"
-              >
-                <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
-              </Button>
-            </div>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,.png,.jpg,.jpeg,.gif,.webp,.mp3,.wav,.ogg,.webm,.mp4,.m4a"
+              onChange={handleFileSelect}
+            />
+
+            {/* Attached file preview chip */}
+            {attachedFile && !isRecording && (
+              <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+                {isImageFile(attachedFile.name) ? (
+                  <Image className="w-4 h-4 text-slate-500 flex-shrink-0" strokeWidth={1.75} />
+                ) : isAudioFile(attachedFile.name) ? (
+                  <Mic className="w-4 h-4 text-slate-500 flex-shrink-0" strokeWidth={1.75} />
+                ) : (
+                  <FileText className="w-4 h-4 text-slate-500 flex-shrink-0" strokeWidth={1.75} />
+                )}
+                <span className="text-[12px] text-slate-700 truncate flex-1">{attachedFile.name}</span>
+                <span className="text-[11px] text-slate-400 flex-shrink-0">{formatFileSize(attachedFile.size)}</span>
+                <button
+                  onClick={() => setAttachedFile(null)}
+                  className="p-0.5 rounded-full hover:bg-slate-200 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5 text-slate-400" strokeWidth={2} />
+                </button>
+              </div>
+            )}
+
+            {/* Audio recording preview chip */}
+            {audioBlob && !isRecording && (
+              <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <Mic className="w-4 h-4 text-emerald-600 flex-shrink-0" strokeWidth={1.75} />
+                <span className="text-[12px] text-emerald-700 flex-1">Voice recording ({formatDuration(elapsedSeconds)})</span>
+                <button
+                  onClick={discardAudio}
+                  className="p-0.5 rounded-full hover:bg-emerald-100 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5 text-emerald-500" strokeWidth={2} />
+                </button>
+              </div>
+            )}
+
+            {isRecording ? (
+              /* Recording mode */
+              <div className="flex items-center justify-between h-11">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-sm font-medium text-slate-700 font-mono">{formatDuration(elapsedSeconds)}</span>
+                  <span className="text-xs text-slate-400">Recording...</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={cancelRecording}
+                    className="h-9 text-slate-500 border-slate-200 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={stopRecording}
+                    className="bg-red-600 hover:bg-red-700 h-9 w-9 p-0 rounded-full"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-current" strokeWidth={0} />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* Normal mode */
+              <div className="flex items-center gap-2">
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={sending || !!audioBlob}
+                        className="flex-shrink-0 p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Paperclip className="w-5 h-5" strokeWidth={1.75} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top"><p className="text-xs">Attach file</p></TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <Input
+                  placeholder={audioBlob ? "Add a note (optional)..." : attachedFile ? "Ask about this file..." : "Type a message..."}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="flex-1 h-11 border-slate-200 bg-slate-50 focus:bg-white text-[13px] rounded-xl"
+                  disabled={sending}
+                  data-testid="chat-input"
+                />
+
+                {/* Show mic button when no text/file, otherwise show send */}
+                {!input.trim() && !attachedFile && !audioBlob ? (
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={startRecording}
+                          disabled={sending}
+                          className="flex-shrink-0 p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Mic className="w-5 h-5" strokeWidth={1.75} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top"><p className="text-xs">Record voice</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <Button
+                    className="bg-slate-900 hover:bg-slate-800 h-11 w-11 p-0 rounded-full shadow-sm flex-shrink-0"
+                    onClick={sendMessage}
+                    disabled={sending || (!input.trim() && !attachedFile && !audioBlob)}
+                    data-testid="send-btn"
+                  >
+                    {(isTranscribing || isExtracting) ? (
+                      <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} />
+                    ) : (
+                      <ArrowUp className="w-4 h-4" strokeWidth={2.5} />
+                    )}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </Card>
 
@@ -543,6 +850,27 @@ const AgentTestChatPage = () => {
                     {debugInfo.rag_used ? `${debugInfo.rag_count} chunks used` : 'Not used'}
                   </p>
                 </div>
+
+                {/* Whisper transcription */}
+                {debugInfo.whisper_used && (
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium mb-1.5">Voice Transcription</p>
+                    <p className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg">
+                      {debugInfo.transcript || 'Transcribed via Whisper'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Document extraction */}
+                {debugInfo.document_extracted && (
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium mb-1.5">Document Context</p>
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-slate-500" strokeWidth={1.75} />
+                      <p className="text-xs font-medium text-slate-700 truncate">{debugInfo.document_name}</p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Fields Collected */}
                 {debugInfo.fields_collected && Object.keys(debugInfo.fields_collected).filter(k => debugInfo.fields_collected[k]).length > 0 && (
