@@ -7926,6 +7926,99 @@ async def handle_business_message(message: dict):
             logger.debug(f"Bot cannot reply on connection {connection_id} (can_reply=false)")
             return
 
+        tenant_id = conn["tenant_id"]
+        chat_id = chat["id"]
+        bot_token = LEADRELAY_BOT_TOKEN
+
+        # ── Voice message handling ──
+        voice = message.get("voice")
+        if voice and not text:
+            file_id = voice.get("file_id")
+            duration = voice.get("duration", 0)
+            if not file_id:
+                logger.warning("Voice message without file_id in business message")
+                return
+
+            # Rate limit check
+            voice_user_id = str(sender.get("id", "unknown"))
+            if not message_rate_limiter.is_allowed(voice_user_id):
+                logger.warning(f"Rate limit exceeded for business voice from user {voice_user_id}")
+                return
+
+            # Duration cap: 5 minutes
+            MAX_VOICE_DURATION = 300
+            if duration > MAX_VOICE_DURATION:
+                await send_telegram_message(
+                    bot_token, chat_id,
+                    "Voice messages longer than 5 minutes are not supported. "
+                    "Please send a shorter message or type your question.",
+                    business_connection_id=connection_id
+                )
+                return
+
+            # File size cap: 10MB
+            MAX_VOICE_FILE_SIZE = 10 * 1024 * 1024
+            file_size = voice.get("file_size", 0)
+            if file_size > MAX_VOICE_FILE_SIZE:
+                logger.warning(f"Business voice file too large ({file_size} bytes)")
+                await send_telegram_message(
+                    bot_token, chat_id,
+                    "Your voice message is too large. Please send a shorter recording.",
+                    business_connection_id=connection_id
+                )
+                return
+
+            # Typing indicator
+            await send_typing_action(bot_token, chat_id, business_connection_id=connection_id)
+
+            # Download audio
+            audio_bytes = await download_telegram_file(bot_token, file_id)
+            if not audio_bytes:
+                await send_telegram_message(
+                    bot_token, chat_id,
+                    "I couldn't download your voice message. Please try again or type your question.",
+                    business_connection_id=connection_id
+                )
+                return
+
+            # Transcribe via Whisper
+            language_code = sender.get("language_code")
+            transcript, api_success = await transcribe_voice_message(audio_bytes, language=language_code)
+
+            # Log Whisper usage
+            whisper_cost = calculate_whisper_cost(duration)
+            log_token_usage_fire_and_forget(
+                tenant_id=tenant_id,
+                model="whisper-1",
+                request_type="voice_transcription",
+                input_tokens=duration,
+                output_tokens=0,
+                cost_override=whisper_cost,
+            )
+
+            if not api_success:
+                await send_telegram_message(
+                    bot_token, chat_id,
+                    "Sorry, voice processing is temporarily unavailable. Please type your question instead.",
+                    business_connection_id=connection_id
+                )
+                return
+
+            # Validate transcript quality
+            is_valid, reason = validate_transcript(transcript, duration)
+            if not is_valid:
+                logger.info(f"Business voice transcript invalid ({reason}): '{transcript[:50]}'")
+                await send_telegram_message(
+                    bot_token, chat_id,
+                    "I couldn't clearly understand your voice message. "
+                    "Could you please type your question or try recording again?",
+                    business_connection_id=connection_id
+                )
+                return
+
+            logger.info(f"Business voice transcribed ({duration}s, {len(transcript)} chars): '{transcript[:80]}'")
+            text = transcript
+
         if not text:
             logger.debug("No text in business message, ignoring")
             return
@@ -7934,10 +8027,6 @@ async def handle_business_message(message: dict):
         MAX_MESSAGE_LENGTH = 4000
         if len(text) > MAX_MESSAGE_LENGTH:
             text = text[:MAX_MESSAGE_LENGTH] + "..."
-
-        tenant_id = conn["tenant_id"]
-        chat_id = chat["id"]
-        bot_token = LEADRELAY_BOT_TOKEN
 
         # Build send/typing closures with business_connection_id
         async def send_fn(reply_text):
